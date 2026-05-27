@@ -174,6 +174,7 @@ export interface AdminRebateOrderRecord {
   adminAdjusted: boolean
   canModify: boolean
   canClose: boolean
+  canReopen: boolean
   canEndInitialization: boolean
   canExtendInitialization: boolean
 }

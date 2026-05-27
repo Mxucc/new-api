@@ -262,6 +262,19 @@ export async function closeAdminRebateOrderRecords(
 }
 
 /**
+ * 批量开启已关闭的返利订单记录
+ */
+export async function reopenAdminRebateOrderRecords(
+  data: RebateOrderRecordIdsData
+): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/rebate-order-records/reopen`,
+    data
+  )
+  return res.data
+}
+
+/**
  * 提前结束返利订单初始化
  */
 export async function endAdminRebateOrderInitialization(

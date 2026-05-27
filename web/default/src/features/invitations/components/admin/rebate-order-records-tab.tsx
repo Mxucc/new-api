@@ -26,7 +26,14 @@ import {
   type PaginationState,
   type RowSelectionState,
 } from '@tanstack/react-table'
-import { Ban, Edit, Loader2, TimerOff, TimerReset } from 'lucide-react'
+import {
+  Ban,
+  Edit,
+  Loader2,
+  LockOpen,
+  TimerOff,
+  TimerReset,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -69,6 +76,7 @@ import {
   endAdminRebateOrderInitialization,
   extendAdminRebateOrderInitialization,
   getAdminRebateOrderRecords,
+  reopenAdminRebateOrderRecords,
   updateAdminRebateOrderRecords,
 } from '../../api'
 import { formatRebateAmount } from '../../lib/format'
@@ -81,6 +89,7 @@ type OrderTypeFilter = 'all' | 'topup' | 'subscription'
 type DialogState =
   | { type: 'edit'; records: AdminRebateOrderRecord[] }
   | { type: 'close'; records: AdminRebateOrderRecord[] }
+  | { type: 'reopen'; records: AdminRebateOrderRecord[] }
   | { type: 'end'; records: AdminRebateOrderRecord[] }
   | { type: 'extend'; records: AdminRebateOrderRecord[] }
   | null
@@ -156,7 +165,7 @@ function getRebateOrderTableColumnClass(columnId: string) {
     case 'select':
       return 'w-10 min-w-10'
     case 'actions':
-      return 'bg-popover sticky right-0 z-20 w-40 min-w-40 border-l shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.2)]'
+      return 'bg-popover sticky right-0 z-20 w-48 min-w-48 border-l shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.2)]'
     default:
       return undefined
   }
@@ -224,6 +233,17 @@ export function RebateOrderRecordsTab() {
     },
   })
 
+  const reopenMutation = useMutation({
+    mutationFn: reopenAdminRebateOrderRecords,
+    onSuccess: () => {
+      toast.success(t('Rebate records reopened successfully'))
+      resetAfterMutation()
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t('Failed to reopen rebate records'))
+    },
+  })
+
   const endInitializationMutation = useMutation({
     mutationFn: endAdminRebateOrderInitialization,
     onSuccess: () => {
@@ -249,6 +269,7 @@ export function RebateOrderRecordsTab() {
   const isMutating =
     updateMutation.isPending ||
     closeMutation.isPending ||
+    reopenMutation.isPending ||
     endInitializationMutation.isPending ||
     extendInitializationMutation.isPending
 
@@ -315,6 +336,11 @@ export function RebateOrderRecordsTab() {
   const submitClose = () => {
     if (!dialog || dialog.type !== 'close') return
     closeMutation.mutate({ recordIds: recordIds(dialog.records) })
+  }
+
+  const submitReopen = () => {
+    if (!dialog || dialog.type !== 'reopen') return
+    reopenMutation.mutate({ recordIds: recordIds(dialog.records) })
   }
 
   const submitEndInitialization = () => {
@@ -504,6 +530,16 @@ export function RebateOrderRecordsTab() {
                 type='button'
                 variant='ghost'
                 size='icon'
+                title={t('Reopen Rebate')}
+                disabled={!record.canReopen}
+                onClick={() => openDialog('reopen', [record])}
+              >
+                <LockOpen className='size-4' />
+              </Button>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
                 title={t('Close Rebate')}
                 disabled={!record.canClose}
                 onClick={() => openDialog('close', [record])}
@@ -540,6 +576,8 @@ export function RebateOrderRecordsTab() {
     hasSelected && selectedRecords.every((record) => record.canModify)
   const selectedCanClose =
     hasSelected && selectedRecords.every((record) => record.canClose)
+  const selectedCanReopen =
+    hasSelected && selectedRecords.every((record) => record.canReopen)
   const selectedCanEnd =
     hasSelected &&
     selectedRecords.every((record) => record.canEndInitialization)
@@ -611,6 +649,17 @@ export function RebateOrderRecordsTab() {
                 >
                   <TimerReset className='size-4' />
                   {t('Extend Initialization')}
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='justify-start whitespace-nowrap xl:justify-center'
+                  disabled={!selectedCanReopen}
+                  onClick={() => openDialog('reopen', selectedRecords)}
+                >
+                  <LockOpen className='size-4' />
+                  {t('Reopen Selected')}
                 </Button>
                 <Button
                   type='button'
@@ -831,6 +880,31 @@ export function RebateOrderRecordsTab() {
                 >
                   {isMutating && <Loader2 className='size-4 animate-spin' />}
                   {t('Close')}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {dialog?.type === 'reopen' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{t('Reopen Rebate')}</DialogTitle>
+                <DialogDescription>
+                  {t(
+                    'Reopen {{count}} rebate records so inviters can see them again',
+                    {
+                      count: dialog.records.length,
+                    }
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant='outline' onClick={() => setDialog(null)}>
+                  {t('Cancel')}
+                </Button>
+                <Button onClick={submitReopen} disabled={isMutating}>
+                  {isMutating && <Loader2 className='size-4 animate-spin' />}
+                  {t('Reopen')}
                 </Button>
               </DialogFooter>
             </>
