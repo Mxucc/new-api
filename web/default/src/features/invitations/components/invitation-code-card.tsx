@@ -17,9 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { QRCodeSVG } from 'qrcode.react'
 import { Copy, QrCode } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,8 +29,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -38,6 +36,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { formatRebateAmount } from '../lib/format'
 import type { InvitationStats } from '../types'
 
 interface InvitationCodeCardProps {
@@ -45,7 +46,10 @@ interface InvitationCodeCardProps {
   loading: boolean
 }
 
-export function InvitationCodeCard({ stats, loading }: InvitationCodeCardProps) {
+export function InvitationCodeCard({
+  stats,
+  loading,
+}: InvitationCodeCardProps) {
   const { t } = useTranslation()
   const [qrDialogOpen, setQrDialogOpen] = useState(false)
 
@@ -75,11 +79,13 @@ export function InvitationCodeCard({ stats, loading }: InvitationCodeCardProps) 
       <Card>
         <CardHeader>
           <CardTitle>{t('My Invitation Code')}</CardTitle>
-          <CardDescription>{t('Share your invitation code to earn rebates')}</CardDescription>
+          <CardDescription>
+            {t('Share your invitation code to earn rebates')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <div className="text-muted-foreground">{t('Loading...')}</div>
+          <div className='flex items-center justify-center py-8'>
+            <div className='text-muted-foreground'>{t('Loading...')}</div>
           </div>
         </CardContent>
       </Card>
@@ -91,11 +97,15 @@ export function InvitationCodeCard({ stats, loading }: InvitationCodeCardProps) 
       <Card>
         <CardHeader>
           <CardTitle>{t('My Invitation Code')}</CardTitle>
-          <CardDescription>{t('Share your invitation code to earn rebates')}</CardDescription>
+          <CardDescription>
+            {t('Share your invitation code to earn rebates')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <div className="text-muted-foreground">{t('Failed to load invitation code')}</div>
+          <div className='flex items-center justify-center py-8'>
+            <div className='text-muted-foreground'>
+              {t('Failed to load invitation code')}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -107,79 +117,91 @@ export function InvitationCodeCard({ stats, loading }: InvitationCodeCardProps) 
       <Card>
         <CardHeader>
           <CardTitle>{t('My Invitation Code')}</CardTitle>
-          <CardDescription>{t('Share your invitation code to earn rebates')}</CardDescription>
+          <CardDescription>
+            {t('Share your invitation code to earn rebates')}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className='space-y-6'>
           {/* 邀请码展示 */}
-          <div className="space-y-2">
+          <div className='space-y-2'>
             <Label>{t('Invitation Code')}</Label>
-            <div className="flex gap-2">
-              <div className="flex-1 rounded-lg border bg-muted/50 px-4 py-3">
-                <div className="text-2xl font-bold tracking-wider">
+            <div className='flex gap-2'>
+              <div className='bg-muted/50 flex-1 rounded-lg border px-4 py-3'>
+                <div className='text-2xl font-bold tracking-wider'>
                   {stats.invitationCode}
                 </div>
               </div>
               <Button
-                variant="outline"
-                size="icon"
+                variant='outline'
+                size='icon'
                 onClick={handleCopyCode}
-                className="shrink-0"
+                className='shrink-0'
               >
-                <Copy className="size-4" />
+                <Copy className='size-4' />
               </Button>
               <Button
-                variant="outline"
-                size="icon"
+                variant='outline'
+                size='icon'
                 onClick={() => setQrDialogOpen(true)}
-                className="shrink-0"
+                className='shrink-0'
               >
-                <QrCode className="size-4" />
+                <QrCode className='size-4' />
               </Button>
             </div>
           </div>
 
           {/* 邀请链接 */}
-          <div className="space-y-2">
+          <div className='space-y-2'>
             <Label>{t('Invitation Link')}</Label>
-            <div className="flex gap-2">
+            <div className='flex gap-2'>
               <Input
                 value={invitationLink}
                 readOnly
-                className="flex-1 font-mono text-sm"
+                className='flex-1 font-mono text-sm'
               />
               <Button
-                variant="outline"
-                size="icon"
+                variant='outline'
+                size='icon'
                 onClick={handleCopyLink}
-                className="shrink-0"
+                className='shrink-0'
               >
-                <Copy className="size-4" />
+                <Copy className='size-4' />
               </Button>
             </div>
           </div>
 
           {/* 统计卡片 */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border bg-card p-4">
-              <div className="text-sm text-muted-foreground">{t('Invited Users')}</div>
-              <div className="mt-1 text-2xl font-bold">{stats.invitedCount}</div>
-            </div>
-            <div className="rounded-lg border bg-card p-4">
-              <div className="text-sm text-muted-foreground">{t('Total Rebate')}</div>
-              <div className="mt-1 text-2xl font-bold">
-                ${(stats.totalRebate / 100).toFixed(2)}
+          <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+            <div className='bg-card rounded-lg border p-4'>
+              <div className='text-muted-foreground text-sm'>
+                {t('Invited Users')}
+              </div>
+              <div className='mt-1 text-2xl font-bold'>
+                {stats.invitedCount}
               </div>
             </div>
-            <div className="rounded-lg border bg-card p-4">
-              <div className="text-sm text-muted-foreground">{t('Completed Rebate')}</div>
-              <div className="mt-1 text-2xl font-bold">
-                ${(stats.completedRebate / 100).toFixed(2)}
+            <div className='bg-card rounded-lg border p-4'>
+              <div className='text-muted-foreground text-sm'>
+                {t('Total Rebate')}
+              </div>
+              <div className='mt-1 text-2xl font-bold'>
+                {formatRebateAmount(stats.totalRebate)}
               </div>
             </div>
-            <div className="rounded-lg border bg-card p-4">
-              <div className="text-sm text-muted-foreground">{t('Pending Withdrawal')}</div>
-              <div className="mt-1 text-2xl font-bold">
-                ${(stats.pendingWithdrawal / 100).toFixed(2)}
+            <div className='bg-card rounded-lg border p-4'>
+              <div className='text-muted-foreground text-sm'>
+                {t('Completed Rebate')}
+              </div>
+              <div className='mt-1 text-2xl font-bold'>
+                {formatRebateAmount(stats.completedRebate)}
+              </div>
+            </div>
+            <div className='bg-card rounded-lg border p-4'>
+              <div className='text-muted-foreground text-sm'>
+                {t('Pending Rebate')}
+              </div>
+              <div className='mt-1 text-2xl font-bold'>
+                {formatRebateAmount(stats.pendingRebate)}
               </div>
             </div>
           </div>
@@ -188,16 +210,16 @@ export function InvitationCodeCard({ stats, loading }: InvitationCodeCardProps) 
 
       {/* 二维码对话框 */}
       <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className='sm:max-w-md'>
           <DialogHeader>
             <DialogTitle>{t('Invitation QR Code')}</DialogTitle>
             <DialogDescription>
               {t('Scan this QR code to register with your invitation code')}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center py-6">
-            <div className="rounded-lg border bg-white p-4">
-              <QRCodeSVG value={invitationLink} size={200} level="H" />
+          <div className='flex justify-center py-6'>
+            <div className='rounded-lg border bg-white p-4'>
+              <QRCodeSVG value={invitationLink} size={200} level='H' />
             </div>
           </div>
         </DialogContent>

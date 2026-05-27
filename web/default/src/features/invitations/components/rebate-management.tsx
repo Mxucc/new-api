@@ -17,13 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { toast } from 'sonner'
-import { format } from 'date-fns'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   createColumnHelper,
   flexRender,
@@ -31,6 +28,11 @@ import {
   useReactTable,
   type PaginationState,
 } from '@tanstack/react-table'
+import { format } from 'date-fns'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -38,7 +40,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -49,32 +50,28 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import {
-  getAvailableRebates,
-  requestWithdrawal,
-  getMyRequests,
-} from '../api'
-import type { WithdrawalRequest, WithdrawalStatus } from '../types'
+import { getAvailableRebates, requestRebate, getMyRebateRequests } from '../api'
+import { formatRebateAmount } from '../lib/format'
+import type { RebateRequest, RebateRequestStatus } from '../types'
 
-const columnHelper = createColumnHelper<WithdrawalRequest>()
+const columnHelper = createColumnHelper<RebateRequest>()
 
-// 提现表单验证 schema
-const withdrawalSchema = z.object({
-  amount: z.number().min(1, 'Amount must be greater than 0'),
+// 返利到余额表单验证 schema
+const rebateRequestSchema = z.object({
+  amount: z.number().min(1, 'Rebate amount must be greater than 0'),
 })
 
-type WithdrawalFormValues = z.infer<typeof withdrawalSchema>
+type RebateRequestFormValues = z.infer<typeof rebateRequestSchema>
 
 // 状态徽章颜色映射
-const STATUS_COLORS: Record<WithdrawalStatus, string> = {
+const STATUS_COLORS: Record<RebateRequestStatus, string> = {
   pending: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
   approved: 'bg-green-500/10 text-green-700 dark:text-green-400',
   rejected: 'bg-red-500/10 text-red-700 dark:text-red-400',
   completed: 'bg-gray-500/10 text-gray-700 dark:text-gray-400',
 }
 
-export function WithdrawalManagement() {
+export function RebateManagement() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [pagination, setPagination] = useState<PaginationState>({
@@ -82,7 +79,7 @@ export function WithdrawalManagement() {
     pageSize: 10,
   })
 
-  // 获取可提现金额
+  // 获取可申请到余额的返利金额
   const { data: availableData } = useQuery({
     queryKey: ['availableRebates'],
     queryFn: async () => {
@@ -91,11 +88,11 @@ export function WithdrawalManagement() {
     },
   })
 
-  // 获取提现申请列表
+  // 获取返利到余额申请列表
   const { data: requestsData, isLoading } = useQuery({
-    queryKey: ['withdrawalRequests', pagination.pageIndex + 1, pagination.pageSize],
+    queryKey: ['rebateRequests', pagination.pageIndex + 1, pagination.pageSize],
     queryFn: async () => {
-      const response = await getMyRequests({
+      const response = await getMyRebateRequests({
         page: pagination.pageIndex + 1,
         pageSize: pagination.pageSize,
       })
@@ -103,65 +100,65 @@ export function WithdrawalManagement() {
     },
   })
 
-  // 提现申请表单
+  // 返利到余额申请表单
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm<WithdrawalFormValues>({
-    resolver: zodResolver(withdrawalSchema),
+  } = useForm<RebateRequestFormValues>({
+    resolver: zodResolver(rebateRequestSchema),
     defaultValues: {
       amount: 0,
     },
   })
 
-  // 提现申请 mutation
-  const withdrawalMutation = useMutation({
-    mutationFn: async (values: WithdrawalFormValues) => {
+  // 返利到余额申请 mutation
+  const rebateRequestMutation = useMutation({
+    mutationFn: async (values: RebateRequestFormValues) => {
       if (!availableData?.recordIds || availableData.recordIds.length === 0) {
-        throw new Error('No available rebates to withdraw')
+        throw new Error(t('No available rebates to apply to balance'))
       }
-      return requestWithdrawal({
+      return requestRebate({
         amount: Math.round(values.amount * 100), // 转换为分
         rebateRecordIds: availableData.recordIds,
       })
     },
     onSuccess: () => {
-      toast.success(t('Withdrawal request submitted successfully'))
+      toast.success(t('Rebate balance request submitted successfully'))
       reset()
       queryClient.invalidateQueries({ queryKey: ['availableRebates'] })
-      queryClient.invalidateQueries({ queryKey: ['withdrawalRequests'] })
+      queryClient.invalidateQueries({ queryKey: ['rebateRequests'] })
     },
     onError: (error: Error) => {
-      toast.error(error.message || t('Failed to submit withdrawal request'))
+      toast.error(error.message || t('Failed to submit rebate balance request'))
     },
   })
 
-  // 提交提现申请
-  const onSubmit = (values: WithdrawalFormValues) => {
-    withdrawalMutation.mutate(values)
+  // 提交返利到余额申请
+  const onSubmit = (values: RebateRequestFormValues) => {
+    rebateRequestMutation.mutate(values)
   }
 
   // 定义表格列
   const columns = useMemo(
     () => [
       columnHelper.accessor('amount', {
-        header: () => t('Amount'),
-        cell: (info) => `$${(info.getValue() / 100).toFixed(2)}`,
+        header: () => t('Rebate Amount'),
+        cell: (info) => formatRebateAmount(info.getValue()),
       }),
       columnHelper.accessor('status', {
         header: () => t('Status'),
         cell: (info) => {
           const status = info.getValue()
-          const statusLabels: Record<WithdrawalStatus, string> = {
+          const statusLabels: Record<RebateRequestStatus, string> = {
             pending: t('Pending'),
             approved: t('Approved'),
             rejected: t('Rejected'),
             completed: t('Completed'),
           }
           return (
-            <Badge variant="outline" className={STATUS_COLORS[status]}>
+            <Badge variant='outline' className={STATUS_COLORS[status]}>
               {statusLabels[status]}
             </Badge>
           )
@@ -197,7 +194,9 @@ export function WithdrawalManagement() {
   const table = useReactTable({
     data: requestsData?.items ?? [],
     columns,
-    pageCount: requestsData ? Math.ceil(requestsData.total / pagination.pageSize) : 0,
+    pageCount: requestsData
+      ? Math.ceil(requestsData.total / pagination.pageSize)
+      : 0,
     state: {
       pagination,
     },
@@ -209,67 +208,71 @@ export function WithdrawalManagement() {
   const availableAmount = availableData?.amount ?? 0
 
   return (
-    <div className="space-y-6">
-      {/* 提现申请表单 */}
+    <div className='space-y-6'>
+      {/* 返利到余额申请表单 */}
       <Card>
         <CardHeader>
-          <CardTitle>{t('Request Withdrawal')}</CardTitle>
+          <CardTitle>{t('Apply Rebate to Balance')}</CardTitle>
           <CardDescription>
-            {t('Submit a withdrawal request for your completed rebates')}
+            {t('Apply completed rebates to your account balance')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label>{t('Available Amount')}</Label>
-              <div className="text-2xl font-bold">
-                ${(availableAmount / 100).toFixed(2)}
+          <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
+            <div className='space-y-2'>
+              <Label>{t('Available Rebate Amount')}</Label>
+              <div className='text-2xl font-bold'>
+                {formatRebateAmount(availableAmount)}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="amount">{t('Withdrawal Amount')}</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='amount'>{t('Rebate Amount')}</Label>
               <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
+                id='amount'
+                type='number'
+                step='0.01'
+                placeholder='0.00'
                 {...register('amount', { valueAsNumber: true })}
               />
               {errors.amount && (
-                <p className="text-sm text-red-500">{errors.amount.message}</p>
+                <p className='text-sm text-red-500'>{errors.amount.message}</p>
               )}
             </div>
 
             <Button
-              type="submit"
+              type='submit'
               disabled={
-                withdrawalMutation.isPending ||
+                rebateRequestMutation.isPending ||
                 availableAmount === 0 ||
                 !availableData?.recordIds ||
                 availableData.recordIds.length === 0
               }
             >
-              {withdrawalMutation.isPending ? t('Submitting...') : t('Submit Request')}
+              {rebateRequestMutation.isPending
+                ? t('Submitting...')
+                : t('Apply to Balance')}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      {/* 提现申请列表 */}
+      {/* 返利到余额申请列表 */}
       <Card>
         <CardHeader>
-          <CardTitle>{t('Withdrawal Requests')}</CardTitle>
-          <CardDescription>{t('View your withdrawal request history')}</CardDescription>
+          <CardTitle>{t('Rebate Balance Requests')}</CardTitle>
+          <CardDescription>
+            {t('View your rebate-to-balance request history')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-muted-foreground">{t('Loading...')}</div>
+            <div className='flex items-center justify-center py-8'>
+              <div className='text-muted-foreground'>{t('Loading...')}</div>
             </div>
           ) : (
             <>
-              <div className="rounded-md border">
+              <div className='rounded-md border'>
                 <Table>
                   <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
@@ -293,15 +296,21 @@ export function WithdrawalManagement() {
                         <TableRow key={row.id}>
                           {row.getVisibleCells().map((cell) => (
                             <TableCell key={cell.id}>
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext()
+                              )}
                             </TableCell>
                           ))}
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={columns.length} className="h-24 text-center">
-                          {t('No requests found')}
+                        <TableCell
+                          colSpan={columns.length}
+                          className='h-24 text-center'
+                        >
+                          {t('No rebate requests found')}
                         </TableCell>
                       </TableRow>
                     )}
@@ -311,8 +320,8 @@ export function WithdrawalManagement() {
 
               {/* 分页控制 */}
               {requestsData && requestsData.total > 0 && (
-                <div className="flex items-center justify-between px-2 py-4">
-                  <div className="text-sm text-muted-foreground">
+                <div className='flex items-center justify-between px-2 py-4'>
+                  <div className='text-muted-foreground text-sm'>
                     {t('Showing {{from}} to {{to}} of {{total}} records', {
                       from: pagination.pageIndex * pagination.pageSize + 1,
                       to: Math.min(
@@ -322,24 +331,24 @@ export function WithdrawalManagement() {
                       total: requestsData.total,
                     })}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className='flex items-center gap-2'>
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant='outline'
+                      size='sm'
                       onClick={() => table.previousPage()}
                       disabled={!table.getCanPreviousPage()}
                     >
                       {t('Previous')}
                     </Button>
-                    <div className="text-sm">
+                    <div className='text-sm'>
                       {t('Page {{current}} of {{total}}', {
                         current: pagination.pageIndex + 1,
                         total: table.getPageCount(),
                       })}
                     </div>
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant='outline'
+                      size='sm'
                       onClick={() => table.nextPage()}
                       disabled={!table.getCanNextPage()}
                     >

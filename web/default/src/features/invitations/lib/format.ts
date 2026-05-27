@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export { InvitationCodeCard } from './invitation-code-card'
-export { RebateRecordsTable } from './rebate-records-table'
-export { RebateTrendChart } from './rebate-trend-chart'
-export { RebateManagement } from './rebate-management'
+import { formatCurrencyUSD } from '@/lib/format'
+
+export function formatRebateAmount(amountCents: number): string {
+  return formatCurrencyUSD(amountCents / 100)
+}

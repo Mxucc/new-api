@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import {
   createColumnHelper,
   flexRender,
@@ -25,8 +25,10 @@ import {
   useReactTable,
   type PaginationState,
 } from '@tanstack/react-table'
-import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
+import { useTranslation } from 'react-i18next'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -35,6 +37,13 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -42,26 +51,26 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
 import { getRebateRecords } from '../api'
-import type { RebateRecord, RebateStatus, OrderType } from '../types'
+import { formatRebateAmount } from '../lib/format'
+import type {
+  RebateDisplayStatus,
+  RebateRecord,
+  RebateStatus,
+  OrderType,
+} from '../types'
 
 const columnHelper = createColumnHelper<RebateRecord>()
 
 // 状态徽章颜色映射
-const STATUS_COLORS: Record<RebateStatus, string> = {
-  pending: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
-  requested: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
-  approved: 'bg-green-500/10 text-green-700 dark:text-green-400',
-  completed: 'bg-gray-500/10 text-gray-700 dark:text-gray-400',
+const STATUS_COLORS: Record<RebateDisplayStatus, string> = {
+  estimated: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  claimable: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+  paid: 'bg-gray-500/10 text-gray-700 dark:text-gray-400',
+}
+
+function fallbackDisplayStatus(status: RebateStatus): RebateDisplayStatus {
+  return status === 'pending' ? 'claimable' : 'paid'
 }
 
 export function RebateRecordsTable() {
@@ -74,7 +83,12 @@ export function RebateRecordsTable() {
 
   // 获取返利记录
   const { data, isLoading } = useQuery({
-    queryKey: ['rebateRecords', pagination.pageIndex + 1, pagination.pageSize, statusFilter],
+    queryKey: [
+      'rebateRecords',
+      pagination.pageIndex + 1,
+      pagination.pageSize,
+      statusFilter,
+    ],
     queryFn: async () => {
       const params = {
         page: pagination.pageIndex + 1,
@@ -103,15 +117,20 @@ export function RebateRecordsTable() {
       }),
       columnHelper.accessor('orderAmount', {
         header: () => t('Order Amount'),
-        cell: (info) => `$${(info.getValue() / 100).toFixed(2)}`,
+        cell: (info) => formatRebateAmount(info.getValue()),
       }),
       columnHelper.accessor('rebateAmount', {
         header: () => t('Rebate Amount'),
-        cell: (info) => `$${(info.getValue() / 100).toFixed(2)}`,
+        cell: (info) => formatRebateAmount(info.getValue()),
       }),
       columnHelper.accessor('rebateRatio', {
         header: () => t('Rebate Ratio'),
-        cell: (info) => `${(info.getValue() * 100).toFixed(1)}%`,
+        cell: (info) => {
+          const ratio = info.getValue()
+          return ratio == null
+            ? t('Not configured')
+            : `${(ratio * 100).toFixed(1)}%`
+        },
       }),
       columnHelper.accessor('createdAt', {
         header: () => t('Created At'),
@@ -120,15 +139,16 @@ export function RebateRecordsTable() {
       columnHelper.accessor('status', {
         header: () => t('Status'),
         cell: (info) => {
-          const status = info.getValue()
-          const statusLabels: Record<RebateStatus, string> = {
-            pending: t('Pending'),
-            requested: t('Requested'),
-            approved: t('Approved'),
-            completed: t('Completed'),
+          const status =
+            info.row.original.displayStatus ??
+            fallbackDisplayStatus(info.getValue())
+          const statusLabels: Record<RebateDisplayStatus, string> = {
+            estimated: t('Estimated Rebate'),
+            claimable: t('Claimable Rebate'),
+            paid: t('Paid Rebate'),
           }
           return (
-            <Badge variant="outline" className={STATUS_COLORS[status]}>
+            <Badge variant='outline' className={STATUS_COLORS[status]}>
               {statusLabels[status]}
             </Badge>
           )
@@ -154,36 +174,38 @@ export function RebateRecordsTable() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className='flex items-center justify-between'>
           <div>
             <CardTitle>{t('Rebate Records')}</CardTitle>
             <CardDescription>{t('View your rebate history')}</CardDescription>
           </div>
           <Select
             value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value as RebateStatus | 'all')}
+            onValueChange={(value) =>
+              setStatusFilter(value as RebateStatus | 'all')
+            }
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className='w-[180px]'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{t('All Status')}</SelectItem>
-              <SelectItem value="pending">{t('Pending')}</SelectItem>
-              <SelectItem value="requested">{t('Requested')}</SelectItem>
-              <SelectItem value="approved">{t('Approved')}</SelectItem>
-              <SelectItem value="completed">{t('Completed')}</SelectItem>
+              <SelectItem value='all'>{t('All Status')}</SelectItem>
+              <SelectItem value='pending'>{t('Pending')}</SelectItem>
+              <SelectItem value='requested'>{t('Requested')}</SelectItem>
+              <SelectItem value='approved'>{t('Approved')}</SelectItem>
+              <SelectItem value='completed'>{t('Completed')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-muted-foreground">{t('Loading...')}</div>
+          <div className='flex items-center justify-center py-8'>
+            <div className='text-muted-foreground'>{t('Loading...')}</div>
           </div>
         ) : (
           <>
-            <div className="rounded-md border">
+            <div className='rounded-md border'>
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map((headerGroup) => (
@@ -207,14 +229,20 @@ export function RebateRecordsTable() {
                       <TableRow key={row.id}>
                         {row.getVisibleCells().map((cell) => (
                           <TableCell key={cell.id}>
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
                           </TableCell>
                         ))}
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={columns.length} className="h-24 text-center">
+                      <TableCell
+                        colSpan={columns.length}
+                        className='h-24 text-center'
+                      >
                         {t('No records found')}
                       </TableCell>
                     </TableRow>
@@ -225,8 +253,8 @@ export function RebateRecordsTable() {
 
             {/* 分页控制 */}
             {data && data.total > 0 && (
-              <div className="flex items-center justify-between px-2 py-4">
-                <div className="text-sm text-muted-foreground">
+              <div className='flex items-center justify-between px-2 py-4'>
+                <div className='text-muted-foreground text-sm'>
                   {t('Showing {{from}} to {{to}} of {{total}} records', {
                     from: pagination.pageIndex * pagination.pageSize + 1,
                     to: Math.min(
@@ -236,24 +264,24 @@ export function RebateRecordsTable() {
                     total: data.total,
                   })}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className='flex items-center gap-2'>
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant='outline'
+                    size='sm'
                     onClick={() => table.previousPage()}
                     disabled={!table.getCanPreviousPage()}
                   >
                     {t('Previous')}
                   </Button>
-                  <div className="text-sm">
+                  <div className='text-sm'>
                     {t('Page {{current}} of {{total}}', {
                       current: pagination.pageIndex + 1,
                       total: table.getPageCount(),
                     })}
                   </div>
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant='outline'
+                    size='sm'
                     onClick={() => table.nextPage()}
                     disabled={!table.getCanNextPage()}
                   >

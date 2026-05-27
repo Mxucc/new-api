@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   LineChart,
   Line,
@@ -29,14 +29,20 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { aggregateRebateData, formatChartDate, formatChartAmount } from '../../lib/chart-utils'
 import { getRebateRecords } from '../../api'
+import {
+  aggregateRebateData,
+  formatChartDate,
+  formatChartAmount,
+} from '../../lib/chart-utils'
 
 interface RebateTrendChartAdminProps {
   days?: number
 }
 
-export function RebateTrendChartAdmin({ days = 30 }: RebateTrendChartAdminProps) {
+export function RebateTrendChartAdmin({
+  days = 30,
+}: RebateTrendChartAdminProps) {
   const { t } = useTranslation()
 
   // 获取所有返利记录（管理员视角）
@@ -65,30 +71,37 @@ export function RebateTrendChartAdmin({ days = 30 }: RebateTrendChartAdminProps)
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+          <div className='text-muted-foreground flex h-[300px] items-center justify-center'>
             {t('Loading...')}
           </div>
         ) : chartData.length === 0 || chartData.every((d) => d.amount === 0) ? (
-          <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+          <div className='text-muted-foreground flex h-[300px] items-center justify-center'>
             {t('No data available')}
           </div>
         ) : (
           <>
-            <ResponsiveContainer width="100%" height={300} className="md:h-[300px] lg:h-[350px]">
+            <ResponsiveContainer
+              width='100%'
+              height={300}
+              className='md:h-[300px] lg:h-[350px]'
+            >
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray='3 3' />
                 <XAxis
-                  dataKey="date"
+                  dataKey='date'
                   tickFormatter={formatChartDate}
                   tick={{ fontSize: 12 }}
                   angle={-45}
-                  textAnchor="end"
+                  textAnchor='end'
                   height={60}
                 />
                 <YAxis
                   tick={{ fontSize: 12 }}
+                  tickFormatter={(value) =>
+                    formatChartAmount(Number(value) || 0)
+                  }
                   label={{
-                    value: t('Amount (¥)'),
+                    value: t('Amount'),
                     angle: -90,
                     position: 'insideLeft',
                   }}
@@ -99,14 +112,15 @@ export function RebateTrendChartAdmin({ days = 30 }: RebateTrendChartAdminProps)
                     return [formatChartAmount(numValue), t('Amount')]
                   }}
                   labelFormatter={(label: unknown) => {
-                    const strLabel = typeof label === 'string' ? label : String(label)
+                    const strLabel =
+                      typeof label === 'string' ? label : String(label)
                     return formatChartDate(strLabel)
                   }}
                 />
                 <Line
-                  type="monotone"
-                  dataKey="amount"
-                  stroke="#8884d8"
+                  type='monotone'
+                  dataKey='amount'
+                  stroke='#8884d8'
                   strokeWidth={2}
                   dot={{ r: 3 }}
                   activeDot={{ r: 5 }}
@@ -114,7 +128,7 @@ export function RebateTrendChartAdmin({ days = 30 }: RebateTrendChartAdminProps)
               </LineChart>
             </ResponsiveContainer>
 
-            <div className="mt-4 text-sm text-muted-foreground">
+            <div className='text-muted-foreground mt-4 text-sm'>
               {t('Total Records')}: {data?.items.length ?? 0}
             </div>
           </>

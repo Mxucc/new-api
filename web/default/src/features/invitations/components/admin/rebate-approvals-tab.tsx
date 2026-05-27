@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -27,21 +28,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import type { WithdrawalStatus } from '../../types'
-import { getWithdrawalRequests } from '../../api'
-import { WithdrawalRequestsTable } from './withdrawal-requests-table'
+import { getRebateRequests } from '../../api'
+import type { RebateRequestStatus } from '../../types'
+import { RebateRequestsTable } from './rebate-requests-table'
 
-export function WithdrawalApprovalsTab() {
+export function RebateApprovalsTab() {
   const { t } = useTranslation()
-  const [statusFilter, setStatusFilter] = useState<WithdrawalStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<RebateRequestStatus | 'all'>(
+    'all'
+  )
 
-  // 获取提现申请列表
+  // 获取返利申请列表
   const { data: requestsData, isLoading } = useQuery({
-    queryKey: ['adminWithdrawalRequests', statusFilter],
+    queryKey: ['adminRebateRequests', statusFilter],
     queryFn: async () => {
       const params = statusFilter === 'all' ? {} : { status: statusFilter }
-      const response = await getWithdrawalRequests(params)
+      const response = await getRebateRequests(params)
       return response.data
     },
   })
@@ -49,32 +51,34 @@ export function WithdrawalApprovalsTab() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>{t('Withdrawal Approvals')}</CardTitle>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="status-filter" className="whitespace-nowrap">
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <CardTitle>{t('Rebate Approvals')}</CardTitle>
+          <div className='flex items-center gap-2'>
+            <Label htmlFor='status-filter' className='whitespace-nowrap'>
               {t('Status')}:
             </Label>
             <Select
               value={statusFilter}
-              onValueChange={(value) => setStatusFilter(value as WithdrawalStatus | 'all')}
+              onValueChange={(value) =>
+                setStatusFilter(value as RebateRequestStatus | 'all')
+              }
             >
-              <SelectTrigger id="status-filter" className="w-[180px]">
+              <SelectTrigger id='status-filter' className='w-[180px]'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t('All')}</SelectItem>
-                <SelectItem value="pending">{t('Pending')}</SelectItem>
-                <SelectItem value="approved">{t('Approved')}</SelectItem>
-                <SelectItem value="rejected">{t('Rejected')}</SelectItem>
-                <SelectItem value="completed">{t('Completed')}</SelectItem>
+                <SelectItem value='all'>{t('All')}</SelectItem>
+                <SelectItem value='pending'>{t('Pending')}</SelectItem>
+                <SelectItem value='approved'>{t('Approved')}</SelectItem>
+                <SelectItem value='rejected'>{t('Rejected')}</SelectItem>
+                <SelectItem value='completed'>{t('Completed')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <WithdrawalRequestsTable
+        <RebateRequestsTable
           requests={requestsData?.items ?? []}
           loading={isLoading}
         />

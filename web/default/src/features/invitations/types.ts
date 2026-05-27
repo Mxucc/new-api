@@ -23,7 +23,7 @@ export interface InvitationStats {
   invitedCount: number
   totalRebate: number
   completedRebate: number
-  pendingWithdrawal: number
+  pendingRebate: number
 }
 
 // 返利记录状态
@@ -33,31 +33,43 @@ export type RebateStatus = 'pending' | 'requested' | 'approved' | 'completed'
 export type OrderType = 'topup' | 'subscription' | 'other'
 
 // 管理员返利记录展示状态
-export type AdminRebateOrderStatus = 'estimated' | 'claimable' | 'paid'
+export type AdminRebateOrderStatus =
+  | 'initializing'
+  | 'estimated'
+  | 'claimable'
+  | 'paid'
+  | 'closed'
 
-// 返利记录
+export type RebateDisplayStatus = 'estimated' | 'claimable' | 'paid'
+
+// 返利记录：用户侧不暴露被邀请客户身份
 export interface RebateRecord {
   id: number
   inviterId: number
-  inviteeId: number
   orderType: OrderType
   orderAmount: number
   rebateAmount: number
-  rebateRatio: number
+  rebateRatio?: number | null
   status: RebateStatus
+  displayStatus?: RebateDisplayStatus
+  effectiveAt?: string
   createdAt: string
   updatedAt: string
 }
 
-// 提现申请状态
-export type WithdrawalStatus = 'pending' | 'approved' | 'rejected' | 'completed'
+// 返利到余额申请状态
+export type RebateRequestStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'completed'
 
-// 提现申请
-export interface WithdrawalRequest {
+// 返利到余额申请
+export interface RebateRequest {
   id: number
   userId: number
   amount: number
-  status: WithdrawalStatus
+  status: RebateRequestStatus
   rebateRecordIds: number[]
   createdAt: string
   updatedAt: string
@@ -65,11 +77,6 @@ export interface WithdrawalRequest {
   completedAt?: string
   rejectedAt?: string
   rejectReason?: string
-}
-
-// 提现申请详情（包含返利记录）
-export interface WithdrawalRequestDetail extends WithdrawalRequest {
-  rebateRecords: RebateRecord[]
 }
 
 // API 响应格式
@@ -93,8 +100,8 @@ export interface PaginatedResponse<T> {
   pageSize: number
 }
 
-// 提现申请表单数据
-export interface WithdrawalFormData {
+// 返利到余额申请表单数据
+export interface RebateRequestFormData {
   amount: number
   rebateRecordIds: number[]
 }
@@ -121,13 +128,13 @@ export interface UserGroup {
 
 // 系统配置
 export interface SystemConfig {
-  min_withdrawal_amount: number
-  withdrawal_frequency_days: number
+  minRebateRequestAmount: number
+  rebateRequestFrequencyDays: number
 }
 
-// 管理员提现申请（不显示具体用户信息）
-export interface WithdrawalRequestAdmin extends WithdrawalRequestDetail {
-  inviter_id: number
+// 管理员返利申请
+export interface RebateRequestAdmin extends RebateRequest {
+  userName: string
 }
 
 // 返利统计
@@ -145,6 +152,9 @@ export interface AdminRebateOrderRecord {
   orderType: 'topup' | 'subscription'
   orderId: number
   inviterId: number
+  inviterName?: string | null
+  inviteeId: number
+  inviteeName?: string | null
   userGroup: string
   orderAmount: number
   rebateAmount: number
@@ -155,6 +165,34 @@ export interface AdminRebateOrderRecord {
   localRebateStatus?: string | null
   orderTime: string
   effectiveAt: string
+  scanStartedAt: string
+  initializationEndsAt: string
+  finalizedAt?: string | null
+  closedAt?: string | null
+  adminAdjusted: boolean
+  canModify: boolean
+  canClose: boolean
+  canEndInitialization: boolean
+  canExtendInitialization: boolean
+}
+
+export interface RebateOrderRecordBatchResponse {
+  updated: number
+}
+
+export interface UpdateRebateOrderRecordsData {
+  recordIds: number[]
+  rebateAmount?: number
+  rebateRatio?: number
+}
+
+export interface RebateOrderRecordIdsData {
+  recordIds: number[]
+}
+
+export interface ExtendRebateInitializationData {
+  recordIds: number[]
+  initializationEndsAt: number
 }
 
 // 返利规则表单数据
@@ -164,12 +202,12 @@ export interface RebateRuleFormData {
   rebate_rate: string
 }
 
-// 提现审批操作数据
-export interface WithdrawalApprovalData {
+// 返利审批操作数据
+export interface RebateApprovalData {
   note?: string
 }
 
-export interface WithdrawalRejectionData {
+export interface RebateRejectionData {
   reason: string
   note?: string
 }

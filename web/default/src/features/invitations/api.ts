@@ -21,12 +21,16 @@ import type {
   ApiResponse,
   InvitationStats,
   RebateRecord,
-  WithdrawalRequest,
-  WithdrawalFormData,
+  RebateRequest,
+  RebateRequestFormData,
   PaginationParams,
   PaginatedResponse,
   RebateStatus,
   AdminRebateOrderRecord,
+  RebateOrderRecordBatchResponse,
+  UpdateRebateOrderRecordsData,
+  RebateOrderRecordIdsData,
+  ExtendRebateInitializationData,
 } from './types'
 
 const BASE_PATH = '/invitations/api/invitations'
@@ -54,7 +58,7 @@ export async function getRebateRecords(
 }
 
 /**
- * 获取可提现金额（已完成但未申请提现的返利总额）
+ * 获取可申请到余额的返利金额（尚未提交申请的返利总额）
  */
 export async function getAvailableRebates(): Promise<
   ApiResponse<{ amount: number; recordIds: number[] }>
@@ -64,22 +68,22 @@ export async function getAvailableRebates(): Promise<
 }
 
 /**
- * 申请提现
+ * 申请返利到余额
  */
-export async function requestWithdrawal(
-  data: WithdrawalFormData
-): Promise<ApiResponse<WithdrawalRequest>> {
-  const res = await api.post(`${BASE_PATH}/request-withdrawal`, data)
+export async function requestRebate(
+  data: RebateRequestFormData
+): Promise<ApiResponse<RebateRequest>> {
+  const res = await api.post(`${BASE_PATH}/rebate-requests`, data)
   return res.data
 }
 
 /**
- * 获取我的提现申请列表
+ * 获取我的返利到余额申请列表
  */
-export async function getMyRequests(
+export async function getMyRebateRequests(
   params?: PaginationParams
-): Promise<ApiResponse<PaginatedResponse<WithdrawalRequest>>> {
-  const res = await api.get(`${BASE_PATH}/my-requests`, { params })
+): Promise<ApiResponse<PaginatedResponse<RebateRequest>>> {
+  const res = await api.get(`${BASE_PATH}/rebate-requests`, { params })
   return res.data
 }
 
@@ -159,55 +163,55 @@ export async function updateSystemConfig(
 }
 
 /**
- * 获取提现申请列表（管理员）
+ * 获取返利申请列表（管理员）
  */
-export async function getWithdrawalRequests(
-  params?: PaginationParams & { status?: import('./types').WithdrawalStatus }
+export async function getRebateRequests(
+  params?: PaginationParams & { status?: import('./types').RebateRequestStatus }
 ): Promise<
-  ApiResponse<PaginatedResponse<import('./types').WithdrawalRequestAdmin>>
+  ApiResponse<PaginatedResponse<import('./types').RebateRequestAdmin>>
 > {
-  const res = await api.get(`${ADMIN_BASE_PATH}/withdrawal-requests`, {
+  const res = await api.get(`${ADMIN_BASE_PATH}/rebate-requests`, {
     params,
   })
   return res.data
 }
 
 /**
- * 通过提现申请
+ * 通过返利申请
  */
-export async function approveWithdrawal(
+export async function approveRebateRequest(
   id: number,
-  data?: import('./types').WithdrawalApprovalData
-): Promise<ApiResponse<import('./types').WithdrawalRequestAdmin>> {
+  data?: import('./types').RebateApprovalData
+): Promise<ApiResponse<import('./types').RebateRequestAdmin>> {
   const res = await api.post(
-    `${ADMIN_BASE_PATH}/withdrawal-requests/${id}/approve`,
+    `${ADMIN_BASE_PATH}/rebate-requests/${id}/approve`,
     data
   )
   return res.data
 }
 
 /**
- * 拒绝提现申请
+ * 拒绝返利申请
  */
-export async function rejectWithdrawal(
+export async function rejectRebateRequest(
   id: number,
-  data: import('./types').WithdrawalRejectionData
-): Promise<ApiResponse<import('./types').WithdrawalRequestAdmin>> {
+  data: import('./types').RebateRejectionData
+): Promise<ApiResponse<import('./types').RebateRequestAdmin>> {
   const res = await api.post(
-    `${ADMIN_BASE_PATH}/withdrawal-requests/${id}/reject`,
+    `${ADMIN_BASE_PATH}/rebate-requests/${id}/reject`,
     data
   )
   return res.data
 }
 
 /**
- * 标记提现完成
+ * 标记返利处理完成
  */
-export async function completeWithdrawal(
+export async function completeRebateRequest(
   id: number
-): Promise<ApiResponse<import('./types').WithdrawalRequestAdmin>> {
+): Promise<ApiResponse<import('./types').RebateRequestAdmin>> {
   const res = await api.post(
-    `${ADMIN_BASE_PATH}/withdrawal-requests/${id}/complete`
+    `${ADMIN_BASE_PATH}/rebate-requests/${id}/complete`
   )
   return res.data
 }
@@ -231,6 +235,55 @@ export async function getAdminRebateOrderRecords(
   const res = await api.get(`${ADMIN_BASE_PATH}/rebate-order-records`, {
     params,
   })
+  return res.data
+}
+
+/**
+ * 批量修改返利订单记录的返利金额或比例
+ */
+export async function updateAdminRebateOrderRecords(
+  data: UpdateRebateOrderRecordsData
+): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
+  const res = await api.patch(`${ADMIN_BASE_PATH}/rebate-order-records`, data)
+  return res.data
+}
+
+/**
+ * 批量关闭返利订单记录
+ */
+export async function closeAdminRebateOrderRecords(
+  data: RebateOrderRecordIdsData
+): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/rebate-order-records/close`,
+    data
+  )
+  return res.data
+}
+
+/**
+ * 提前结束返利订单初始化
+ */
+export async function endAdminRebateOrderInitialization(
+  data: RebateOrderRecordIdsData
+): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/rebate-order-records/end-initialization`,
+    data
+  )
+  return res.data
+}
+
+/**
+ * 延长返利订单初始化时间
+ */
+export async function extendAdminRebateOrderInitialization(
+  data: ExtendRebateInitializationData
+): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/rebate-order-records/extend-initialization`,
+    data
+  )
   return res.data
 }
 

@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useTranslation } from 'react-i18next'
+import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -30,11 +31,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import type { WithdrawalRequestAdmin } from '../../types'
-import { approveWithdrawal, rejectWithdrawal, completeWithdrawal } from '../../api'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  approveRebateRequest,
+  rejectRebateRequest,
+  completeRebateRequest,
+} from '../../api'
+import { formatRebateAmount } from '../../lib/format'
+import type { RebateRequestAdmin } from '../../types'
 
 const approveSchema = z.object({
   note: z.string().optional(),
@@ -48,19 +53,19 @@ const rejectSchema = z.object({
 type ApproveFormData = z.infer<typeof approveSchema>
 type RejectFormData = z.infer<typeof rejectSchema>
 
-interface WithdrawalActionDialogProps {
+interface RebateActionDialogProps {
   open: boolean
   onClose: () => void
-  request: WithdrawalRequestAdmin | null
+  request: RebateRequestAdmin | null
   actionType: 'approve' | 'reject' | 'complete'
 }
 
-export function WithdrawalActionDialog({
+export function RebateActionDialog({
   open,
   onClose,
   request,
   actionType,
-}: WithdrawalActionDialogProps) {
+}: RebateActionDialogProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
@@ -77,43 +82,43 @@ export function WithdrawalActionDialog({
   // 通过申请
   const approveMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data?: ApproveFormData }) =>
-      approveWithdrawal(id, data),
+      approveRebateRequest(id, data),
     onSuccess: () => {
-      toast.success(t('Withdrawal request approved'))
-      queryClient.invalidateQueries({ queryKey: ['adminWithdrawalRequests'] })
+      toast.success(t('Rebate request approved'))
+      queryClient.invalidateQueries({ queryKey: ['adminRebateRequests'] })
       onClose()
       approveForm.reset()
     },
     onError: (error: Error) => {
-      toast.error(error.message || t('Failed to approve withdrawal request'))
+      toast.error(error.message || t('Failed to approve rebate request'))
     },
   })
 
   // 拒绝申请
   const rejectMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: RejectFormData }) =>
-      rejectWithdrawal(id, data),
+      rejectRebateRequest(id, data),
     onSuccess: () => {
-      toast.success(t('Withdrawal request rejected'))
-      queryClient.invalidateQueries({ queryKey: ['adminWithdrawalRequests'] })
+      toast.success(t('Rebate request rejected'))
+      queryClient.invalidateQueries({ queryKey: ['adminRebateRequests'] })
       onClose()
       rejectForm.reset()
     },
     onError: (error: Error) => {
-      toast.error(error.message || t('Failed to reject withdrawal request'))
+      toast.error(error.message || t('Failed to reject rebate request'))
     },
   })
 
   // 标记完成
   const completeMutation = useMutation({
-    mutationFn: (id: number) => completeWithdrawal(id),
+    mutationFn: (id: number) => completeRebateRequest(id),
     onSuccess: () => {
-      toast.success(t('Withdrawal marked as completed'))
-      queryClient.invalidateQueries({ queryKey: ['adminWithdrawalRequests'] })
+      toast.success(t('Rebate marked as completed'))
+      queryClient.invalidateQueries({ queryKey: ['adminRebateRequests'] })
       onClose()
     },
     onError: (error: Error) => {
-      toast.error(error.message || t('Failed to complete withdrawal'))
+      toast.error(error.message || t('Failed to complete rebate request'))
     },
   })
 
@@ -129,51 +134,64 @@ export function WithdrawalActionDialog({
 
   const handleComplete = () => {
     if (!request) return
-    if (window.confirm(t('Are you sure you want to mark this withdrawal as completed?'))) {
+    if (
+      window.confirm(
+        t('Are you sure you want to mark this rebate as completed?')
+      )
+    ) {
       completeMutation.mutate(request.id)
     }
   }
 
-  const formatAmount = (amount: number) => {
-    return `¥${(amount / 100).toFixed(2)}`
+  const formatUser = (request: RebateRequestAdmin) => {
+    return request.userName
+      ? `${request.userName} (#${request.userId})`
+      : `#${request.userId}`
   }
 
   const isPending =
-    approveMutation.isPending || rejectMutation.isPending || completeMutation.isPending
+    approveMutation.isPending ||
+    rejectMutation.isPending ||
+    completeMutation.isPending
 
   if (!request) return null
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className='sm:max-w-[500px]'>
         <DialogHeader>
           <DialogTitle>
-            {actionType === 'approve' && t('Approve Withdrawal')}
-            {actionType === 'reject' && t('Reject Withdrawal')}
-            {actionType === 'complete' && t('Complete Withdrawal')}
+            {actionType === 'approve' && t('Approve Rebate')}
+            {actionType === 'reject' && t('Reject Rebate')}
+            {actionType === 'complete' && t('Complete Rebate')}
           </DialogTitle>
           <DialogDescription>
-            {t('User ID')}: {request.inviter_id} | {t('Amount')}:{' '}
-            {formatAmount(request.amount)}
+            {t('Rebate User')}: {formatUser(request)} | {t('Rebate Amount')}:{' '}
+            {formatRebateAmount(request.amount)}
           </DialogDescription>
         </DialogHeader>
 
         {actionType === 'approve' && (
-          <form onSubmit={approveForm.handleSubmit(handleApprove)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="approve-note">{t('Note')} ({t('Optional')})</Label>
+          <form
+            onSubmit={approveForm.handleSubmit(handleApprove)}
+            className='space-y-4'
+          >
+            <div className='space-y-2'>
+              <Label htmlFor='approve-note'>
+                {t('Note')} ({t('Optional')})
+              </Label>
               <Textarea
-                id="approve-note"
+                id='approve-note'
                 placeholder={t('Add any notes for this approval')}
                 {...approveForm.register('note')}
               />
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type='button' variant='outline' onClick={onClose}>
                 {t('Cancel')}
               </Button>
-              <Button type="submit" disabled={isPending}>
+              <Button type='submit' disabled={isPending}>
                 {isPending ? t('Processing...') : t('Approve')}
               </Button>
             </DialogFooter>
@@ -181,37 +199,42 @@ export function WithdrawalActionDialog({
         )}
 
         {actionType === 'reject' && (
-          <form onSubmit={rejectForm.handleSubmit(handleReject)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="reject-reason">
-                {t('Reject Reason')} <span className="text-destructive">*</span>
+          <form
+            onSubmit={rejectForm.handleSubmit(handleReject)}
+            className='space-y-4'
+          >
+            <div className='space-y-2'>
+              <Label htmlFor='reject-reason'>
+                {t('Reject Reason')} <span className='text-destructive'>*</span>
               </Label>
               <Textarea
-                id="reject-reason"
+                id='reject-reason'
                 placeholder={t('Please provide a reason for rejection')}
                 {...rejectForm.register('reason')}
               />
               {rejectForm.formState.errors.reason && (
-                <p className="text-sm text-destructive">
+                <p className='text-destructive text-sm'>
                   {rejectForm.formState.errors.reason.message}
                 </p>
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="reject-note">{t('Note')} ({t('Optional')})</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='reject-note'>
+                {t('Note')} ({t('Optional')})
+              </Label>
               <Textarea
-                id="reject-note"
+                id='reject-note'
                 placeholder={t('Add any additional notes')}
                 {...rejectForm.register('note')}
               />
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type='button' variant='outline' onClick={onClose}>
                 {t('Cancel')}
               </Button>
-              <Button type="submit" variant="destructive" disabled={isPending}>
+              <Button type='submit' variant='destructive' disabled={isPending}>
                 {isPending ? t('Processing...') : t('Reject')}
               </Button>
             </DialogFooter>
@@ -219,22 +242,26 @@ export function WithdrawalActionDialog({
         )}
 
         {actionType === 'complete' && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {t('This will mark the withdrawal as completed. This action cannot be undone.')}
+          <div className='space-y-4'>
+            <p className='text-muted-foreground text-sm'>
+              {t(
+                'This will mark the rebate as completed. This action cannot be undone.'
+              )}
             </p>
 
             {request.rejectReason && (
-              <div className="rounded-md bg-muted p-3">
-                <div className="text-sm font-medium">{t('Previous Reject Reason')}:</div>
-                <div className="mt-1 text-sm text-muted-foreground">
+              <div className='bg-muted rounded-md p-3'>
+                <div className='text-sm font-medium'>
+                  {t('Previous Reject Reason')}:
+                </div>
+                <div className='text-muted-foreground mt-1 text-sm'>
                   {request.rejectReason}
                 </div>
               </div>
             )}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type='button' variant='outline' onClick={onClose}>
                 {t('Cancel')}
               </Button>
               <Button onClick={handleComplete} disabled={isPending}>

@@ -25,11 +25,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { getMyCode, getRebateRecords } from './api'
 import { InvitationCodeCard } from './components/invitation-code-card'
+import { RebateManagement } from './components/rebate-management'
 import { RebateRecordsTable } from './components/rebate-records-table'
 import { RebateTrendChart } from './components/rebate-trend-chart'
-import { WithdrawalManagement } from './components/withdrawal-management'
 
-type TabValue = 'invite' | 'records' | 'withdrawal'
+type TabValue = 'invite' | 'records' | 'rebate'
 
 const DEFAULT_TAB: TabValue = 'invite'
 
@@ -90,9 +90,9 @@ export function Invitations() {
                 <History className='size-4' />
                 {t('Rebate Records')}
               </TabsTrigger>
-              <TabsTrigger value='withdrawal' className='gap-2'>
+              <TabsTrigger value='rebate' className='gap-2'>
                 <Wallet className='size-4' />
-                {t('Withdrawal Management')}
+                {t('Rebate Management')}
               </TabsTrigger>
             </TabsList>
 
@@ -113,8 +113,8 @@ export function Invitations() {
               </div>
             </TabsContent>
 
-            <TabsContent value='withdrawal'>
-              <WithdrawalManagement />
+            <TabsContent value='rebate'>
+              <RebateManagement />
             </TabsContent>
           </Tabs>
         </div>

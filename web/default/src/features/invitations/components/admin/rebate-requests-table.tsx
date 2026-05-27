@@ -17,8 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { CheckCircle, XCircle, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -27,37 +29,37 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import type { WithdrawalRequestAdmin } from '../../types'
-import { WithdrawalActionDialog } from './withdrawal-action-dialog'
+import { formatRebateAmount } from '../../lib/format'
+import type { RebateRequestAdmin } from '../../types'
+import { RebateActionDialog } from './rebate-action-dialog'
 
-interface WithdrawalRequestsTableProps {
-  requests: WithdrawalRequestAdmin[]
+interface RebateRequestsTableProps {
+  requests: RebateRequestAdmin[]
   loading: boolean
 }
 
 type ActionType = 'approve' | 'reject' | 'complete'
 
-export function WithdrawalRequestsTable({
+export function RebateRequestsTable({
   requests,
   loading,
-}: WithdrawalRequestsTableProps) {
+}: RebateRequestsTableProps) {
   const { t } = useTranslation()
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [selectedRequest, setSelectedRequest] = useState<WithdrawalRequestAdmin | null>(
-    null
-  )
+  const [selectedRequest, setSelectedRequest] =
+    useState<RebateRequestAdmin | null>(null)
   const [actionType, setActionType] = useState<ActionType>('approve')
 
-  const handleAction = (request: WithdrawalRequestAdmin, type: ActionType) => {
+  const handleAction = (request: RebateRequestAdmin, type: ActionType) => {
     setSelectedRequest(request)
     setActionType(type)
     setDialogOpen(true)
   }
 
-  const formatAmount = (amount: number) => {
-    return `¥${(amount / 100).toFixed(2)}`
+  const formatUser = (request: RebateRequestAdmin) => {
+    return request.userName
+      ? `${request.userName} (#${request.userId})`
+      : `#${request.userId}`
   }
 
   const formatDate = (dateString?: string) => {
@@ -66,7 +68,10 @@ export function WithdrawalRequestsTable({
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+    const variants: Record<
+      string,
+      'default' | 'secondary' | 'destructive' | 'outline'
+    > = {
       pending: 'default',
       approved: 'secondary',
       rejected: 'destructive',
@@ -81,86 +86,91 @@ export function WithdrawalRequestsTable({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-muted-foreground">{t('Loading...')}</div>
+      <div className='flex items-center justify-center py-8'>
+        <div className='text-muted-foreground'>{t('Loading...')}</div>
       </div>
     )
   }
 
   if (requests.length === 0) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-muted-foreground">{t('No withdrawal requests found')}</div>
+      <div className='flex items-center justify-center py-8'>
+        <div className='text-muted-foreground'>
+          {t('No rebate requests found')}
+        </div>
       </div>
     )
   }
 
   return (
     <>
-      <div className="overflow-x-auto">
+      <div className='overflow-x-auto'>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t('User ID')}</TableHead>
-              <TableHead>{t('Amount')}</TableHead>
+              <TableHead>{t('Rebate User')}</TableHead>
+              <TableHead>{t('Rebate Amount')}</TableHead>
               <TableHead>{t('Status')}</TableHead>
               <TableHead>{t('Created At')}</TableHead>
               <TableHead>{t('Approved At')}</TableHead>
               <TableHead>{t('Completed At')}</TableHead>
-              <TableHead className="text-right">{t('Actions')}</TableHead>
+              <TableHead className='text-right'>{t('Actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {requests.map((request) => (
               <TableRow key={request.id}>
-                <TableCell className="font-mono">{request.inviter_id}</TableCell>
-                <TableCell className="font-medium">
-                  {formatAmount(request.amount)}
+                <TableCell className='font-mono'>
+                  {formatUser(request)}
+                </TableCell>
+                <TableCell className='font-medium'>
+                  {formatRebateAmount(request.amount)}
                 </TableCell>
                 <TableCell>{getStatusBadge(request.status)}</TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className='text-muted-foreground'>
                   {formatDate(request.createdAt)}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className='text-muted-foreground'>
                   {formatDate(request.approvedAt)}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className='text-muted-foreground'>
                   {formatDate(request.completedAt)}
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
+                <TableCell className='text-right'>
+                  <div className='flex justify-end gap-2'>
                     {request.status === 'pending' && (
                       <>
                         <Button
-                          variant="ghost"
-                          size="sm"
+                          variant='ghost'
+                          size='sm'
                           onClick={() => handleAction(request, 'approve')}
                           title={t('Approve')}
                         >
-                          <CheckCircle className="size-4 text-green-600" />
+                          <CheckCircle className='size-4 text-green-600' />
                         </Button>
                         <Button
-                          variant="ghost"
-                          size="sm"
+                          variant='ghost'
+                          size='sm'
                           onClick={() => handleAction(request, 'reject')}
                           title={t('Reject')}
                         >
-                          <XCircle className="size-4 text-red-600" />
+                          <XCircle className='size-4 text-red-600' />
                         </Button>
                       </>
                     )}
                     {request.status === 'approved' && (
                       <Button
-                        variant="ghost"
-                        size="sm"
+                        variant='ghost'
+                        size='sm'
                         onClick={() => handleAction(request, 'complete')}
                         title={t('Complete')}
                       >
-                        <Check className="size-4 text-blue-600" />
+                        <Check className='size-4 text-blue-600' />
                       </Button>
                     )}
-                    {(request.status === 'completed' || request.status === 'rejected') && (
-                      <span className="text-sm text-muted-foreground">-</span>
+                    {(request.status === 'completed' ||
+                      request.status === 'rejected') && (
+                      <span className='text-muted-foreground text-sm'>-</span>
                     )}
                   </div>
                 </TableCell>
@@ -170,7 +180,7 @@ export function WithdrawalRequestsTable({
         </Table>
       </div>
 
-      <WithdrawalActionDialog
+      <RebateActionDialog
         open={dialogOpen}
         onClose={() => {
           setDialogOpen(false)

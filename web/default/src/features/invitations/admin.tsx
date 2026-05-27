@@ -22,10 +22,10 @@ import { Settings, ReceiptText, CheckCircle, BarChart3 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
+import { RebateApprovalsTab } from './components/admin/rebate-approvals-tab'
 import { RebateOrderRecordsTab } from './components/admin/rebate-order-records-tab'
 import { RebateRulesTab } from './components/admin/rebate-rules-tab'
 import { StatisticsTab } from './components/admin/statistics-tab'
-import { WithdrawalApprovalsTab } from './components/admin/withdrawal-approvals-tab'
 
 type TabValue = 'rules' | 'records' | 'approvals' | 'statistics'
 
@@ -57,7 +57,7 @@ export function InvitationsAdmin() {
         {t('Rebate Management')}
       </SectionPageLayout.Title>
       <SectionPageLayout.Description>
-        {t('Manage rebate rules, withdrawal approvals, and statistics')}
+        {t('Manage rebate rules, rebate approvals, and statistics')}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
         <div className='mx-auto w-full max-w-7xl'>
@@ -73,7 +73,7 @@ export function InvitationsAdmin() {
               </TabsTrigger>
               <TabsTrigger value='approvals' className='gap-2'>
                 <CheckCircle className='size-4' />
-                {t('Withdrawal Approvals')}
+                {t('Rebate Approvals')}
               </TabsTrigger>
               <TabsTrigger value='statistics' className='gap-2'>
                 <BarChart3 className='size-4' />
@@ -90,7 +90,7 @@ export function InvitationsAdmin() {
             </TabsContent>
 
             <TabsContent value='approvals'>
-              <WithdrawalApprovalsTab />
+              <RebateApprovalsTab />
             </TabsContent>
 
             <TabsContent value='statistics'>

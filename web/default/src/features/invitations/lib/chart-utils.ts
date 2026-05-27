@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import dayjs from 'dayjs'
+import { formatCurrencyUSD } from '@/lib/format'
 import type { RebateRecord } from '../types'
 
 export interface ChartDataPoint {
   date: string // YYYY-MM-DD
-  amount: number // 元
+  amount: number // system USD amount
   count: number // 记录数
 }
 
@@ -57,7 +58,9 @@ export function aggregateRebateData(
   })
 
   // 3. 转换为数组并排序
-  return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date))
+  return Array.from(dateMap.values()).sort((a, b) =>
+    a.date.localeCompare(b.date)
+  )
 }
 
 /**
@@ -71,5 +74,5 @@ export function formatChartDate(date: string): string {
  * 格式化金额显示（保留 2 位小数）
  */
 export function formatChartAmount(amount: number): string {
-  return amount.toFixed(2)
+  return formatCurrencyUSD(amount)
 }

@@ -28,7 +28,11 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { aggregateRebateData, formatChartDate, formatChartAmount } from '../lib/chart-utils'
+import {
+  aggregateRebateData,
+  formatChartDate,
+  formatChartAmount,
+} from '../lib/chart-utils'
 import type { RebateRecord } from '../types'
 
 interface RebateTrendChartProps {
@@ -36,11 +40,17 @@ interface RebateTrendChartProps {
   days?: number
 }
 
-export function RebateTrendChart({ records, days = 30 }: RebateTrendChartProps) {
+export function RebateTrendChart({
+  records,
+  days = 30,
+}: RebateTrendChartProps) {
   const { t } = useTranslation()
 
   // 使用 useMemo 缓存聚合数据
-  const chartData = useMemo(() => aggregateRebateData(records, days), [records, days])
+  const chartData = useMemo(
+    () => aggregateRebateData(records, days),
+    [records, days]
+  )
 
   return (
     <Card>
@@ -51,26 +61,33 @@ export function RebateTrendChart({ records, days = 30 }: RebateTrendChartProps) 
       </CardHeader>
       <CardContent>
         {chartData.length === 0 || chartData.every((d) => d.amount === 0) ? (
-          <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+          <div className='text-muted-foreground flex h-[300px] items-center justify-center'>
             {t('No data available')}
           </div>
         ) : (
           <>
-            <ResponsiveContainer width="100%" height={300} className="md:h-[300px] lg:h-[350px]">
+            <ResponsiveContainer
+              width='100%'
+              height={300}
+              className='md:h-[300px] lg:h-[350px]'
+            >
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray='3 3' />
                 <XAxis
-                  dataKey="date"
+                  dataKey='date'
                   tickFormatter={formatChartDate}
                   tick={{ fontSize: 12 }}
                   angle={-45}
-                  textAnchor="end"
+                  textAnchor='end'
                   height={60}
                 />
                 <YAxis
                   tick={{ fontSize: 12 }}
+                  tickFormatter={(value) =>
+                    formatChartAmount(Number(value) || 0)
+                  }
                   label={{
-                    value: t('Amount (¥)'),
+                    value: t('Amount'),
                     angle: -90,
                     position: 'insideLeft',
                   }}
@@ -81,14 +98,15 @@ export function RebateTrendChart({ records, days = 30 }: RebateTrendChartProps) 
                     return [formatChartAmount(numValue), t('Amount')]
                   }}
                   labelFormatter={(label: unknown) => {
-                    const strLabel = typeof label === 'string' ? label : String(label)
+                    const strLabel =
+                      typeof label === 'string' ? label : String(label)
                     return formatChartDate(strLabel)
                   }}
                 />
                 <Line
-                  type="monotone"
-                  dataKey="amount"
-                  stroke="#8884d8"
+                  type='monotone'
+                  dataKey='amount'
+                  stroke='#8884d8'
                   strokeWidth={2}
                   dot={{ r: 3 }}
                   activeDot={{ r: 5 }}
@@ -96,7 +114,7 @@ export function RebateTrendChart({ records, days = 30 }: RebateTrendChartProps) 
               </LineChart>
             </ResponsiveContainer>
 
-            <div className="mt-4 text-sm text-muted-foreground">
+            <div className='text-muted-foreground mt-4 text-sm'>
               {t('Total Records')}: {records.length}
             </div>
           </>

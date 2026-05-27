@@ -21,7 +21,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Invitations } from '@/features/invitations'
 
 const invitationsSearchSchema = z.object({
-  tab: z.enum(['invite', 'records', 'withdrawal']).optional().catch(undefined),
+  tab: z.enum(['invite', 'records', 'rebate']).optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/_authenticated/invitations/')({

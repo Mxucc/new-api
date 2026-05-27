@@ -17,14 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useTranslation } from 'react-i18next'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -35,9 +36,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import type { RebateRecord } from '../../types'
 import { getUserRebateDetails } from '../../api'
+import { formatRebateAmount } from '../../lib/format'
+import type { RebateRecord } from '../../types'
 
 const formSchema = z.object({
   userId: z
@@ -79,16 +80,15 @@ export function UserRebateDetails() {
     queryMutation.mutate(userId)
   }
 
-  const formatAmount = (amount: number) => {
-    return `¥${(amount / 100).toFixed(2)}`
-  }
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString()
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+    const variants: Record<
+      string,
+      'default' | 'secondary' | 'destructive' | 'outline'
+    > = {
       pending: 'default',
       requested: 'secondary',
       approved: 'outline',
@@ -115,33 +115,35 @@ export function UserRebateDetails() {
       <CardHeader>
         <CardTitle>{t('User Rebate Details')}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <form onSubmit={handleSubmit(onSubmit)} className="flex gap-2">
-          <div className="flex-1 space-y-2">
-            <Label htmlFor="userId" className="sr-only">
+      <CardContent className='space-y-4'>
+        <form onSubmit={handleSubmit(onSubmit)} className='flex gap-2'>
+          <div className='flex-1 space-y-2'>
+            <Label htmlFor='userId' className='sr-only'>
               {t('User ID')}
             </Label>
             <Input
-              id="userId"
-              type="text"
+              id='userId'
+              type='text'
               placeholder={t('Enter user ID')}
               {...register('userId')}
             />
             {errors.userId && (
-              <p className="text-sm text-destructive">{errors.userId.message}</p>
+              <p className='text-destructive text-sm'>
+                {errors.userId.message}
+              </p>
             )}
           </div>
-          <Button type="submit" disabled={queryMutation.isPending}>
-            <Search className="mr-2 size-4" />
+          <Button type='submit' disabled={queryMutation.isPending}>
+            <Search className='mr-2 size-4' />
             {queryMutation.isPending ? t('Querying...') : t('Query')}
           </Button>
         </form>
 
         {queryMutation.isSuccess && (
-          <div className="overflow-x-auto">
+          <div className='overflow-x-auto'>
             {records.length === 0 ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="text-muted-foreground">
+              <div className='flex items-center justify-center py-8'>
+                <div className='text-muted-foreground'>
                   {t('No rebate records found for this user')}
                 </div>
               </div>
@@ -161,15 +163,19 @@ export function UserRebateDetails() {
                   {records.map((record) => (
                     <TableRow key={record.id}>
                       <TableCell>{formatOrderType(record.orderType)}</TableCell>
-                      <TableCell>{formatAmount(record.orderAmount)}</TableCell>
-                      <TableCell className="font-medium">
-                        {formatAmount(record.rebateAmount)}
+                      <TableCell>
+                        {formatRebateAmount(record.orderAmount)}
+                      </TableCell>
+                      <TableCell className='font-medium'>
+                        {formatRebateAmount(record.rebateAmount)}
                       </TableCell>
                       <TableCell>
-                        {(record.rebateRatio * 100).toFixed(2)}%
+                        {record.rebateRatio == null
+                          ? t('Not configured')
+                          : `${(record.rebateRatio * 100).toFixed(2)}%`}
                       </TableCell>
                       <TableCell>{getStatusBadge(record.status)}</TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className='text-muted-foreground'>
                         {formatDate(record.createdAt)}
                       </TableCell>
                     </TableRow>
@@ -181,8 +187,10 @@ export function UserRebateDetails() {
         )}
 
         {queryMutation.isError && (
-          <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">
-            {t('Failed to query user rebate details. Please check the user ID and try again.')}
+          <div className='bg-destructive/10 text-destructive rounded-md p-4 text-sm'>
+            {t(
+              'Failed to query user rebate details. Please check the user ID and try again.'
+            )}
           </div>
         )}
       </CardContent>
