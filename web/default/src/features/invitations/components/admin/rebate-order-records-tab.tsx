@@ -151,6 +151,17 @@ function orderTypeLabel(
   return orderType === 'topup' ? t('Topup') : t('Subscription')
 }
 
+function getRebateOrderTableColumnClass(columnId: string) {
+  switch (columnId) {
+    case 'select':
+      return 'w-10 min-w-10'
+    case 'actions':
+      return 'bg-popover sticky right-0 z-20 w-40 min-w-40 border-l shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.2)]'
+    default:
+      return undefined
+  }
+}
+
 export function RebateOrderRecordsTab() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -546,88 +557,106 @@ export function RebateOrderRecordsTab() {
   return (
     <Card>
       <CardHeader>
-        <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
-          <div>
-            <CardTitle>{t('Rebate Records')}</CardTitle>
-            <CardDescription>
-              {t('View inviter and invited customer rebate order records')}
-            </CardDescription>
-          </div>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={!selectedCanModify}
-              onClick={() => openDialog('edit', selectedRecords)}
-            >
-              <Edit className='size-4' />
-              {t('Edit Selected')}
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={!selectedCanEnd}
-              onClick={() => openDialog('end', selectedRecords)}
-            >
-              <TimerOff className='size-4' />
-              {t('End Initialization')}
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={!selectedCanExtend}
-              onClick={() => openDialog('extend', selectedRecords)}
-            >
-              <TimerReset className='size-4' />
-              {t('Extend Initialization')}
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={!selectedCanClose}
-              onClick={() => openDialog('close', selectedRecords)}
-            >
-              <Ban className='size-4' />
-              {t('Close Selected')}
-            </Button>
-            <Select value={orderType} onValueChange={handleOrderTypeChange}>
-              <SelectTrigger className='w-[180px]'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='all'>{t('All Order Types')}</SelectItem>
-                <SelectItem value='topup'>{t('Topup')}</SelectItem>
-                <SelectItem value='subscription'>
-                  {t('Subscription')}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        <CardTitle>{t('Rebate Records')}</CardTitle>
+        <CardDescription>
+          {t('View inviter and invited customer rebate order records')}
+        </CardDescription>
       </CardHeader>
       <CardContent>
+        <div
+          role='toolbar'
+          aria-label={t('Actions')}
+          className='bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-[var(--app-header-height,3rem)] z-30 -mx-6 mb-4 border-y px-6 py-3 shadow-sm backdrop-blur'
+        >
+          <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+            <div className='flex min-w-0 flex-col gap-1'>
+              <div className='text-sm font-medium'>{t('Actions')}</div>
+              <div className='text-muted-foreground min-h-5 text-sm'>
+                {hasSelected
+                  ? t('Selected {{count}}', { count: selectedRecords.length })
+                  : t('No records selected')}
+              </div>
+            </div>
+            <div className='flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-end'>
+              <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='justify-start whitespace-nowrap xl:justify-center'
+                  disabled={!selectedCanModify}
+                  onClick={() => openDialog('edit', selectedRecords)}
+                >
+                  <Edit className='size-4' />
+                  {t('Edit Selected')}
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='justify-start whitespace-nowrap xl:justify-center'
+                  disabled={!selectedCanEnd}
+                  onClick={() => openDialog('end', selectedRecords)}
+                >
+                  <TimerOff className='size-4' />
+                  {t('End Initialization')}
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='justify-start whitespace-nowrap xl:justify-center'
+                  disabled={!selectedCanExtend}
+                  onClick={() => openDialog('extend', selectedRecords)}
+                >
+                  <TimerReset className='size-4' />
+                  {t('Extend Initialization')}
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='justify-start whitespace-nowrap xl:justify-center'
+                  disabled={!selectedCanClose}
+                  onClick={() => openDialog('close', selectedRecords)}
+                >
+                  <Ban className='size-4' />
+                  {t('Close Selected')}
+                </Button>
+              </div>
+              <Select value={orderType} onValueChange={handleOrderTypeChange}>
+                <SelectTrigger className='w-full xl:w-[180px]'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='all'>{t('All Order Types')}</SelectItem>
+                  <SelectItem value='topup'>{t('Topup')}</SelectItem>
+                  <SelectItem value='subscription'>
+                    {t('Subscription')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
         {isLoading ? (
           <div className='flex items-center justify-center py-8'>
             <div className='text-muted-foreground'>{t('Loading...')}</div>
           </div>
         ) : (
           <>
-            <div className='text-muted-foreground mb-3 min-h-5 text-sm'>
-              {hasSelected
-                ? t('Selected {{count}}', { count: selectedRecords.length })
-                : t('No records selected')}
-            </div>
             <div className='overflow-x-auto rounded-md border'>
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map((headerGroup) => (
                     <TableRow key={headerGroup.id}>
                       {headerGroup.headers.map((header) => (
-                        <TableHead key={header.id}>
+                        <TableHead
+                          key={header.id}
+                          className={getRebateOrderTableColumnClass(
+                            header.column.id
+                          )}
+                        >
                           {header.isPlaceholder
                             ? null
                             : flexRender(
@@ -649,7 +678,12 @@ export function RebateOrderRecordsTab() {
                         }
                       >
                         {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
+                          <TableCell
+                            key={cell.id}
+                            className={getRebateOrderTableColumnClass(
+                              cell.column.id
+                            )}
+                          >
                             {flexRender(
                               cell.column.columnDef.cell,
                               cell.getContext()
