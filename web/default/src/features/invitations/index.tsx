@@ -28,6 +28,7 @@ import { InvitationCodeCard } from './components/invitation-code-card'
 import { RebateManagement } from './components/rebate-management'
 import { RebateRecordsTable } from './components/rebate-records-table'
 import { RebateTrendChart } from './components/rebate-trend-chart'
+import { useInvitationFeatureStatus } from './hooks/use-invitation-feature-status'
 
 type TabValue = 'invite' | 'records' | 'rebate'
 
@@ -37,6 +38,7 @@ export function Invitations() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const search = useSearch({ from: '/_authenticated/invitations/' })
+  const invitationFeature = useInvitationFeatureStatus()
 
   // 从 URL query 获取当前 tab，默认为 'invite'
   const currentTab = (search.tab as TabValue) || DEFAULT_TAB
@@ -48,6 +50,7 @@ export function Invitations() {
       const response = await getMyCode()
       return response.data
     },
+    enabled: invitationFeature.userVisible,
   })
 
   // 获取返利记录（用于图表）
@@ -57,6 +60,7 @@ export function Invitations() {
       const response = await getRebateRecords({ pageSize: 1000 })
       return response.data
     },
+    enabled: invitationFeature.userVisible,
   })
 
   // Tab 切换处理
@@ -69,6 +73,10 @@ export function Invitations() {
     },
     [navigate]
   )
+
+  if (!invitationFeature.userVisible) {
+    return null
+  }
 
   return (
     <SectionPageLayout>

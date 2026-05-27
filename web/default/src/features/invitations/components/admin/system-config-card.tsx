@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { getSystemConfig, updateSystemConfig } from '../../api'
 import { formatRebateAmount } from '../../lib/format'
 import type { SystemConfig } from '../../types'
@@ -41,6 +42,7 @@ const formSchema = z.object({
     .number()
     .int()
     .min(1, 'Rebate request frequency must be at least 1 day'),
+  userInvitationRebateEnabled: z.boolean(),
 })
 
 type FormData = z.infer<typeof formSchema>
@@ -64,15 +66,19 @@ export function SystemConfigCard() {
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
+    watch,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     values: configData
       ? {
           minRebateRequestAmount: configData.minRebateRequestAmount,
           rebateRequestFrequencyDays: configData.rebateRequestFrequencyDays,
+          userInvitationRebateEnabled: configData.userInvitationRebateEnabled,
         }
       : undefined,
   })
+  const userInvitationRebateEnabled = watch('userInvitationRebateEnabled')
 
   // 更新配置
   const updateMutation = useMutation({
@@ -80,6 +86,7 @@ export function SystemConfigCard() {
     onSuccess: () => {
       toast.success(t('System configuration updated successfully'))
       queryClient.invalidateQueries({ queryKey: ['systemConfig'] })
+      queryClient.invalidateQueries({ queryKey: ['invitationFeatureStatus'] })
       setIsEditing(false)
     },
     onError: (error: Error) => {
@@ -173,6 +180,34 @@ export function SystemConfigCard() {
                   {t('Minimum days between rebate requests')}
                 </p>
               </div>
+
+              <div className='space-y-2 sm:col-span-2'>
+                <Label htmlFor='userInvitationRebateEnabled'>
+                  {t('User Invitation Rebate')}
+                </Label>
+                <div className='border-input flex min-h-10 items-center justify-between rounded-md border px-3 py-2'>
+                  <div className='space-y-1'>
+                    <div className='text-sm font-medium'>
+                      {userInvitationRebateEnabled
+                        ? t('Enabled')
+                        : t('Disabled')}
+                    </div>
+                    <p className='text-muted-foreground text-sm'>
+                      {t('Show invitation rebate to users')}
+                    </p>
+                  </div>
+                  <Switch
+                    id='userInvitationRebateEnabled'
+                    checked={userInvitationRebateEnabled === true}
+                    onCheckedChange={(checked) =>
+                      setValue('userInvitationRebateEnabled', checked, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                  />
+                </div>
+              </div>
             </div>
 
             <div className='flex justify-end gap-2'>
@@ -192,7 +227,7 @@ export function SystemConfigCard() {
             </div>
           </form>
         ) : (
-          <div className='grid gap-4 sm:grid-cols-2'>
+          <div className='grid gap-4 sm:grid-cols-3'>
             <div>
               <div className='text-muted-foreground text-sm'>
                 {t('Minimum Rebate Request Amount')}
@@ -212,6 +247,23 @@ export function SystemConfigCard() {
                   ? `${configData.rebateRequestFrequencyDays} ${t('days')}`
                   : '-'}
               </div>
+            </div>
+            <div>
+              <div className='text-muted-foreground text-sm'>
+                {t('User Invitation Rebate')}
+              </div>
+              <div className='mt-1 text-lg font-medium'>
+                {configData
+                  ? configData.userInvitationRebateEnabled
+                    ? t('Enabled')
+                    : t('Disabled')
+                  : '-'}
+              </div>
+              <p className='text-muted-foreground mt-1 text-sm'>
+                {configData?.userInvitationRebateEnabled
+                  ? t('User invitation rebate is visible to normal users')
+                  : t('User invitation rebate is hidden from normal users')}
+              </p>
             </div>
           </div>
         )}

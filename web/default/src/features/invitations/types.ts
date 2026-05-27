@@ -26,6 +26,12 @@ export interface InvitationStats {
   pendingRebate: number
 }
 
+// 邀请返利外挂后端可用状态
+export interface InvitationFeatureStatus {
+  available: boolean
+  userInvitationRebateEnabled: boolean
+}
+
 // 返利记录状态
 export type RebateStatus = 'pending' | 'requested' | 'approved' | 'completed'
 
@@ -132,6 +138,7 @@ export interface UserGroup {
 export interface SystemConfig {
   minRebateRequestAmount: number
   rebateRequestFrequencyDays: number
+  userInvitationRebateEnabled: boolean
 }
 
 // 管理员返利申请

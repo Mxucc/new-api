@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   ApiResponse,
+  InvitationFeatureStatus,
   InvitationStats,
   RebateRecord,
   RebateRequest,
@@ -38,6 +39,19 @@ const BASE_PATH = '/invitations/api/invitations'
 // ============================================================================
 // 用户 API
 // ============================================================================
+
+/**
+ * 获取邀请返利外挂后端状态。失败时调用方应默认隐藏界面。
+ */
+export async function getInvitationFeatureStatus(): Promise<
+  ApiResponse<InvitationFeatureStatus>
+> {
+  const res = await api.get(`${BASE_PATH}/status`, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
+  return res.data
+}
 
 /**
  * 获取我的邀请码和统计信息

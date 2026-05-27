@@ -26,6 +26,7 @@ import { RebateApprovalsTab } from './components/admin/rebate-approvals-tab'
 import { RebateOrderRecordsTab } from './components/admin/rebate-order-records-tab'
 import { RebateRulesTab } from './components/admin/rebate-rules-tab'
 import { StatisticsTab } from './components/admin/statistics-tab'
+import { useInvitationFeatureStatus } from './hooks/use-invitation-feature-status'
 
 type TabValue = 'rules' | 'records' | 'approvals' | 'statistics'
 
@@ -35,6 +36,7 @@ export function InvitationsAdmin() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as { tab?: TabValue }
+  const invitationFeature = useInvitationFeatureStatus()
 
   // 从 URL query 获取当前 tab
   const currentTab = search.tab || DEFAULT_TAB
@@ -50,6 +52,10 @@ export function InvitationsAdmin() {
     },
     [navigate]
   )
+
+  if (!invitationFeature.available) {
+    return null
+  }
 
   return (
     <SectionPageLayout>
