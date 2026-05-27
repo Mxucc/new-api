@@ -329,7 +329,17 @@ export const useApiRequest = (
       let isStreamComplete = false; // 添加标志位跟踪流是否正常完成
 
       source.addEventListener('message', (e) => {
-        if (e.data === '[DONE]') {
+        const eventData = typeof e.data === 'string' ? e.data.trim() : '';
+        const isHeartbeat =
+          !eventData ||
+          eventData.startsWith(':') ||
+          eventData.toLowerCase() === 'ping';
+
+        if (isHeartbeat) {
+          return;
+        }
+
+        if (eventData === '[DONE]') {
           isStreamComplete = true; // 标记流正常完成
           source.close();
           sseSourceRef.current = null;
@@ -344,8 +354,8 @@ export const useApiRequest = (
         }
 
         try {
-          const payload = JSON.parse(e.data);
-          responseData += e.data + '\n';
+          const payload = JSON.parse(eventData);
+          responseData += eventData + '\n';
 
           if (!hasReceivedFirstResponse) {
             setActiveDebugTab(DEBUG_TABS.RESPONSE);
@@ -355,7 +365,7 @@ export const useApiRequest = (
           // 新增：将 SSE 消息添加到数组
           setDebugData((prev) => ({
             ...prev,
-            sseMessages: [...(prev.sseMessages || []), e.data],
+            sseMessages: [...(prev.sseMessages || []), eventData],
           }));
 
           const delta = payload.choices?.[0]?.delta;
@@ -377,7 +387,7 @@ export const useApiRequest = (
           setDebugData((prev) => ({
             ...prev,
             response: responseData + `\n\nError: ${errorInfo}`,
-            sseMessages: [...(prev.sseMessages || []), e.data], // 即使解析失败也保存原始数据
+            sseMessages: [...(prev.sseMessages || []), eventData], // 即使解析失败也保存原始数据
             isStreaming: false,
           }));
           setActiveDebugTab(DEBUG_TABS.RESPONSE);
@@ -421,7 +431,11 @@ export const useApiRequest = (
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
             const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage && lastMessage.status !== MESSAGE_STATUS.COMPLETE && lastMessage.status !== MESSAGE_STATUS.ERROR) {
+            if (
+              lastMessage &&
+              lastMessage.status !== MESSAGE_STATUS.COMPLETE &&
+              lastMessage.status !== MESSAGE_STATUS.ERROR
+            ) {
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
                 content: (lastMessage.content || '') + errorMessage,
