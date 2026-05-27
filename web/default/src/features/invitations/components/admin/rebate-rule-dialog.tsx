@@ -17,12 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
+import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -31,7 +32,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -41,13 +41,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { RebateRuleFormData } from '../../types'
 import {
   createRebateRule,
   updateRebateRule,
   getRebateRules,
   getUserGroups,
 } from '../../api'
+import { ALL_USER_GROUP, type RebateRuleFormData } from '../../types'
 
 const formSchema = z.object({
   user_group: z.string().min(1, 'User group is required'),
@@ -90,7 +90,7 @@ export function RebateRuleDialog({
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      user_group: '',
+      user_group: ALL_USER_GROUP,
       rule_type: 'subscription',
       rebate_rate: '',
     },
@@ -183,7 +183,7 @@ export function RebateRuleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className='sm:max-w-[500px]'>
         <DialogHeader>
           <DialogTitle>
             {editingRuleId ? t('Edit Rule') : t('Create Rule')}
@@ -193,19 +193,22 @@ export function RebateRuleDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="user_group">{t('User Group')}</Label>
+        <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
+          <div className='space-y-2'>
+            <Label htmlFor='user_group'>{t('User Group')}</Label>
             <Select
               value={userGroup ?? ''}
               onValueChange={(value) => {
                 if (value) setValue('user_group', value)
               }}
             >
-              <SelectTrigger id="user_group">
+              <SelectTrigger id='user_group'>
                 <SelectValue placeholder={t('Select user group')} />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={ALL_USER_GROUP}>
+                  {t('All User Groups')}
+                </SelectItem>
                 {userGroupsData?.map((group) => (
                   <SelectItem key={group.name} value={group.name}>
                     {group.name} ({group.user_count} {t('users')})
@@ -214,55 +217,63 @@ export function RebateRuleDialog({
               </SelectContent>
             </Select>
             {errors.user_group && (
-              <p className="text-sm text-destructive">{errors.user_group.message}</p>
+              <p className='text-destructive text-sm'>
+                {errors.user_group.message}
+              </p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="rule_type">{t('Rule Type')}</Label>
+          <div className='space-y-2'>
+            <Label htmlFor='rule_type'>{t('Rule Type')}</Label>
             <Select
               value={ruleType ?? 'subscription'}
               onValueChange={(value) =>
                 setValue('rule_type', value as 'subscription' | 'topup')
               }
             >
-              <SelectTrigger id="rule_type">
+              <SelectTrigger id='rule_type'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="subscription">{t('Subscription')}</SelectItem>
-                <SelectItem value="topup">{t('Top-up')}</SelectItem>
+                <SelectItem value='subscription'>
+                  {t('Subscription')}
+                </SelectItem>
+                <SelectItem value='topup'>{t('Top-up')}</SelectItem>
               </SelectContent>
             </Select>
             {errors.rule_type && (
-              <p className="text-sm text-destructive">{errors.rule_type.message}</p>
+              <p className='text-destructive text-sm'>
+                {errors.rule_type.message}
+              </p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="rebate_rate">{t('Rebate Rate')} (%)</Label>
+          <div className='space-y-2'>
+            <Label htmlFor='rebate_rate'>{t('Rebate Rate')} (%)</Label>
             <Input
-              id="rebate_rate"
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
-              placeholder="5.00"
+              id='rebate_rate'
+              type='number'
+              step='0.01'
+              min='0'
+              max='100'
+              placeholder='5.00'
               {...register('rebate_rate')}
             />
             {errors.rebate_rate && (
-              <p className="text-sm text-destructive">{errors.rebate_rate.message}</p>
+              <p className='text-destructive text-sm'>
+                {errors.rebate_rate.message}
+              </p>
             )}
-            <p className="text-sm text-muted-foreground">
+            <p className='text-muted-foreground text-sm'>
               {t('Enter percentage value (0-100)')}
             </p>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type='button' variant='outline' onClick={onClose}>
               {t('Cancel')}
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type='submit' disabled={isPending}>
               {isPending ? t('Saving...') : t('Save')}
             </Button>
           </DialogFooter>

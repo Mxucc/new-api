@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useTranslation } from 'react-i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Edit, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -28,10 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import type { RebateRule } from '../../types'
 import { deleteRebateRule } from '../../api'
+import { ALL_USER_GROUP, type RebateRule } from '../../types'
 
 interface RebateRulesTableProps {
   rules: RebateRule[]
@@ -39,7 +39,11 @@ interface RebateRulesTableProps {
   onEdit: (id: number) => void
 }
 
-export function RebateRulesTable({ rules, loading, onEdit }: RebateRulesTableProps) {
+export function RebateRulesTable({
+  rules,
+  loading,
+  onEdit,
+}: RebateRulesTableProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
@@ -65,6 +69,10 @@ export function RebateRulesTable({ rules, loading, onEdit }: RebateRulesTablePro
     return type === 'subscription' ? t('Subscription') : t('Top-up')
   }
 
+  const formatUserGroup = (group: string) => {
+    return group === ALL_USER_GROUP ? t('All User Groups') : group
+  }
+
   const formatRebateRate = (rate: string) => {
     const percentage = (parseFloat(rate) * 100).toFixed(2)
     return `${percentage}%`
@@ -76,22 +84,22 @@ export function RebateRulesTable({ rules, loading, onEdit }: RebateRulesTablePro
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-muted-foreground">{t('Loading...')}</div>
+      <div className='flex items-center justify-center py-8'>
+        <div className='text-muted-foreground'>{t('Loading...')}</div>
       </div>
     )
   }
 
   if (rules.length === 0) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-muted-foreground">{t('No rules found')}</div>
+      <div className='flex items-center justify-center py-8'>
+        <div className='text-muted-foreground'>{t('No rules found')}</div>
       </div>
     )
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className='overflow-x-auto'>
       <Table>
         <TableHeader>
           <TableRow>
@@ -99,38 +107,40 @@ export function RebateRulesTable({ rules, loading, onEdit }: RebateRulesTablePro
             <TableHead>{t('Rule Type')}</TableHead>
             <TableHead>{t('Rebate Rate')}</TableHead>
             <TableHead>{t('Created At')}</TableHead>
-            <TableHead className="text-right">{t('Actions')}</TableHead>
+            <TableHead className='text-right'>{t('Actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rules.map((rule) => (
             <TableRow key={rule.id}>
               <TableCell>
-                <Badge variant="secondary">{rule.user_group}</Badge>
+                <Badge variant='secondary'>
+                  {formatUserGroup(rule.user_group)}
+                </Badge>
               </TableCell>
               <TableCell>{formatRuleType(rule.rule_type)}</TableCell>
-              <TableCell className="font-medium">
+              <TableCell className='font-medium'>
                 {formatRebateRate(rule.rebate_rate)}
               </TableCell>
-              <TableCell className="text-muted-foreground">
+              <TableCell className='text-muted-foreground'>
                 {formatDate(rule.created_at)}
               </TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
+              <TableCell className='text-right'>
+                <div className='flex justify-end gap-2'>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant='ghost'
+                    size='sm'
                     onClick={() => onEdit(rule.id)}
                   >
-                    <Edit className="size-4" />
+                    <Edit className='size-4' />
                   </Button>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant='ghost'
+                    size='sm'
                     onClick={() => handleDelete(rule.id)}
                     disabled={deleteMutation.isPending}
                   >
-                    <Trash2 className="size-4" />
+                    <Trash2 className='size-4' />
                   </Button>
                 </div>
               </TableCell>

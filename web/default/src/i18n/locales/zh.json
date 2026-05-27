@@ -4593,6 +4593,7 @@
     "Failed to update rule": "规则更新失败",
     "Configure rebate rules for different user groups": "为不同用户组配置返利规则",
     "Select user group": "选择用户组",
+    "All User Groups": "全部用户组",
     "users": "用户",
     "Enter percentage value (0-100)": "输入百分比值（0-100）",
     "cents": "分",

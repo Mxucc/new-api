@@ -110,6 +110,8 @@ export interface RebateRequestFormData {
 // 管理员类型定义
 // ============================================================================
 
+export const ALL_USER_GROUP = '__all__'
+
 // 返利规则
 export interface RebateRule {
   id: number
