@@ -103,11 +103,17 @@ export const useMessageEdit = (
                   inputs,
                   parameterEnabled,
                 );
-                setMessage((prevMsg) => [
-                  ...prevMsg,
-                  createLoadingAssistantMessage(),
-                ]);
-                sendRequest(payload, inputs.stream);
+                const loadingMessage = createLoadingAssistantMessage();
+                const messagesWithLoading = [
+                  ...messagesUntilUser,
+                  loadingMessage,
+                ];
+
+                setMessage(messagesWithLoading);
+                setTimeout(() => {
+                  sendRequest(payload, inputs.stream, loadingMessage.id);
+                }, 0);
+                setTimeout(() => saveMessages(messagesWithLoading), 0);
               }, 100);
             },
             onCancel: () => {
