@@ -47,6 +47,7 @@ import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
+import { Route as AuthenticatedInvitationsIndexRouteImport } from './routes/_authenticated/invitations/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
@@ -269,6 +270,12 @@ const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
   path: '/keys/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedInvitationsIndexRoute =
+  AuthenticatedInvitationsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedInvitationsRoute,
+  } as any)
 const AuthenticatedDashboardIndexRoute =
   AuthenticatedDashboardIndexRouteImport.update({
     id: '/dashboard/',
@@ -441,6 +448,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/invitations/': typeof AuthenticatedInvitationsIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
@@ -484,7 +492,6 @@ export interface FileRoutesByTo {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/chat2link': typeof AuthenticatedChat2linkRoute
-  '/invitations': typeof AuthenticatedInvitationsRouteWithChildren
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
@@ -501,6 +508,7 @@ export interface FileRoutesByTo {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
+  '/invitations': typeof AuthenticatedInvitationsIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
@@ -565,6 +573,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/_authenticated/invitations/': typeof AuthenticatedInvitationsIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
@@ -628,6 +637,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/channels/'
     | '/dashboard/'
+    | '/invitations/'
     | '/keys/'
     | '/models/'
     | '/playground/'
@@ -671,7 +681,6 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/chat2link'
-    | '/invitations'
     | '/console/log'
     | '/console/topup'
     | '/oauth/$provider'
@@ -688,6 +697,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/channels'
     | '/dashboard'
+    | '/invitations'
     | '/keys'
     | '/models'
     | '/playground'
@@ -751,6 +761,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
+    | '/_authenticated/invitations/'
     | '/_authenticated/keys/'
     | '/_authenticated/models/'
     | '/_authenticated/playground/'
@@ -1067,6 +1078,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/invitations/': {
+      id: '/_authenticated/invitations/'
+      path: '/'
+      fullPath: '/invitations/'
+      preLoaderRoute: typeof AuthenticatedInvitationsIndexRouteImport
+      parentRoute: typeof AuthenticatedInvitationsRoute
+    }
     '/_authenticated/dashboard/': {
       id: '/_authenticated/dashboard/'
       path: '/dashboard'
@@ -1316,11 +1334,13 @@ const AuthenticatedSystemSettingsRouteRouteWithChildren =
 
 interface AuthenticatedInvitationsRouteChildren {
   AuthenticatedInvitationsAdminRoute: typeof AuthenticatedInvitationsAdminRoute
+  AuthenticatedInvitationsIndexRoute: typeof AuthenticatedInvitationsIndexRoute
 }
 
 const AuthenticatedInvitationsRouteChildren: AuthenticatedInvitationsRouteChildren =
   {
     AuthenticatedInvitationsAdminRoute: AuthenticatedInvitationsAdminRoute,
+    AuthenticatedInvitationsIndexRoute: AuthenticatedInvitationsIndexRoute,
   }
 
 const AuthenticatedInvitationsRouteWithChildren =

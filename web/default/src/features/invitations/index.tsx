@@ -17,17 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback } from 'react'
-import { useNavigate, useSearch } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Gift, History, Wallet } from 'lucide-react'
-import { SectionPageLayout } from '@/components/layout'
+import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SectionPageLayout } from '@/components/layout'
+import { getMyCode, getRebateRecords } from './api'
 import { InvitationCodeCard } from './components/invitation-code-card'
 import { RebateRecordsTable } from './components/rebate-records-table'
 import { RebateTrendChart } from './components/rebate-trend-chart'
 import { WithdrawalManagement } from './components/withdrawal-management'
-import { getMyCode, getRebateRecords } from './api'
 
 type TabValue = 'invite' | 'records' | 'withdrawal'
 
@@ -36,7 +36,7 @@ const DEFAULT_TAB: TabValue = 'invite'
 export function Invitations() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const search = useSearch({ from: '/_authenticated/invitations' })
+  const search = useSearch({ from: '/_authenticated/invitations/' })
 
   // 从 URL query 获取当前 tab，默认为 'invite'
   const currentTab = (search.tab as TabValue) || DEFAULT_TAB
@@ -72,40 +72,48 @@ export function Invitations() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Invitation Rebate')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>
+        {t('Invitation Rebate')}
+      </SectionPageLayout.Title>
       <SectionPageLayout.Description>
         {t('Invite friends to earn rebates')}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
-        <div className="mx-auto w-full max-w-7xl">
+        <div className='mx-auto w-full max-w-7xl'>
           <Tabs value={currentTab} onValueChange={handleTabChange}>
-            <TabsList className="mb-6">
-              <TabsTrigger value="invite" className="gap-2">
-                <Gift className="size-4" />
+            <TabsList className='mb-6'>
+              <TabsTrigger value='invite' className='gap-2'>
+                <Gift className='size-4' />
                 {t('My Invitation')}
               </TabsTrigger>
-              <TabsTrigger value="records" className="gap-2">
-                <History className="size-4" />
+              <TabsTrigger value='records' className='gap-2'>
+                <History className='size-4' />
                 {t('Rebate Records')}
               </TabsTrigger>
-              <TabsTrigger value="withdrawal" className="gap-2">
-                <Wallet className="size-4" />
+              <TabsTrigger value='withdrawal' className='gap-2'>
+                <Wallet className='size-4' />
                 {t('Withdrawal Management')}
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="invite">
-              <InvitationCodeCard stats={statsData ?? null} loading={statsLoading} />
+            <TabsContent value='invite'>
+              <InvitationCodeCard
+                stats={statsData ?? null}
+                loading={statsLoading}
+              />
             </TabsContent>
 
-            <TabsContent value="records">
-              <div className="space-y-6">
-                <RebateTrendChart records={recordsData?.items ?? []} days={30} />
+            <TabsContent value='records'>
+              <div className='space-y-6'>
+                <RebateTrendChart
+                  records={recordsData?.items ?? []}
+                  days={30}
+                />
                 <RebateRecordsTable />
               </div>
             </TabsContent>
 
-            <TabsContent value="withdrawal">
+            <TabsContent value='withdrawal'>
               <WithdrawalManagement />
             </TabsContent>
           </Tabs>

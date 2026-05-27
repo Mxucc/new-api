@@ -16,8 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { z } from 'zod'
+import { createFileRoute } from '@tanstack/react-router'
+import { Invitations } from '@/features/invitations'
 
-export const Route = createFileRoute('/_authenticated/invitations')({
-  component: Outlet,
+const invitationsSearchSchema = z.object({
+  tab: z.enum(['invite', 'records', 'withdrawal']).optional().catch(undefined),
+})
+
+export const Route = createFileRoute('/_authenticated/invitations/')({
+  component: Invitations,
+  validateSearch: invitationsSearchSchema,
 })
