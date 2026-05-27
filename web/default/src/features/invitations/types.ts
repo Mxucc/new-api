@@ -32,6 +32,9 @@ export type RebateStatus = 'pending' | 'requested' | 'approved' | 'completed'
 // 订单类型
 export type OrderType = 'topup' | 'subscription' | 'other'
 
+// 管理员返利记录展示状态
+export type AdminRebateOrderStatus = 'estimated' | 'claimable' | 'paid'
+
 // 返利记录
 export interface RebateRecord {
   id: number
@@ -135,6 +138,23 @@ export interface RebateStats {
   requested_rebate: number
   approved_rebate: number
   total_invitations: number
+}
+
+// 管理员返利订单记录
+export interface AdminRebateOrderRecord {
+  orderType: 'topup' | 'subscription'
+  orderId: number
+  inviterId: number
+  userGroup: string
+  orderAmount: number
+  rebateAmount: number
+  rebateRatio?: number | null
+  status: AdminRebateOrderStatus
+  ruleMissing: boolean
+  localRebateRecordId?: number | null
+  localRebateStatus?: string | null
+  orderTime: string
+  effectiveAt: string
 }
 
 // 返利规则表单数据

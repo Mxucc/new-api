@@ -18,15 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
+import { Settings, ReceiptText, CheckCircle, BarChart3 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Settings, CheckCircle, BarChart3 } from 'lucide-react'
-import { SectionPageLayout } from '@/components/layout'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SectionPageLayout } from '@/components/layout'
+import { RebateOrderRecordsTab } from './components/admin/rebate-order-records-tab'
 import { RebateRulesTab } from './components/admin/rebate-rules-tab'
-import { WithdrawalApprovalsTab } from './components/admin/withdrawal-approvals-tab'
 import { StatisticsTab } from './components/admin/statistics-tab'
+import { WithdrawalApprovalsTab } from './components/admin/withdrawal-approvals-tab'
 
-type TabValue = 'rules' | 'approvals' | 'statistics'
+type TabValue = 'rules' | 'records' | 'approvals' | 'statistics'
 
 const DEFAULT_TAB: TabValue = 'rules'
 
@@ -52,37 +53,47 @@ export function InvitationsAdmin() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Rebate Management')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>
+        {t('Rebate Management')}
+      </SectionPageLayout.Title>
       <SectionPageLayout.Description>
         {t('Manage rebate rules, withdrawal approvals, and statistics')}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
-        <div className="mx-auto w-full max-w-7xl">
+        <div className='mx-auto w-full max-w-7xl'>
           <Tabs value={currentTab} onValueChange={handleTabChange}>
-            <TabsList className="mb-6">
-              <TabsTrigger value="rules" className="gap-2">
-                <Settings className="size-4" />
+            <TabsList className='mb-6'>
+              <TabsTrigger value='rules' className='gap-2'>
+                <Settings className='size-4' />
                 {t('Rebate Rules')}
               </TabsTrigger>
-              <TabsTrigger value="approvals" className="gap-2">
-                <CheckCircle className="size-4" />
+              <TabsTrigger value='records' className='gap-2'>
+                <ReceiptText className='size-4' />
+                {t('Rebate Records')}
+              </TabsTrigger>
+              <TabsTrigger value='approvals' className='gap-2'>
+                <CheckCircle className='size-4' />
                 {t('Withdrawal Approvals')}
               </TabsTrigger>
-              <TabsTrigger value="statistics" className="gap-2">
-                <BarChart3 className="size-4" />
+              <TabsTrigger value='statistics' className='gap-2'>
+                <BarChart3 className='size-4' />
                 {t('Statistics')}
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="rules">
+            <TabsContent value='rules'>
               <RebateRulesTab />
             </TabsContent>
 
-            <TabsContent value="approvals">
+            <TabsContent value='records'>
+              <RebateOrderRecordsTab />
+            </TabsContent>
+
+            <TabsContent value='approvals'>
               <WithdrawalApprovalsTab />
             </TabsContent>
 
-            <TabsContent value="statistics">
+            <TabsContent value='statistics'>
               <StatisticsTab />
             </TabsContent>
           </Tabs>

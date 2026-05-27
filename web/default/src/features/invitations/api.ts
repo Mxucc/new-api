@@ -26,6 +26,7 @@ import type {
   PaginationParams,
   PaginatedResponse,
   RebateStatus,
+  AdminRebateOrderRecord,
 } from './types'
 
 const BASE_PATH = '/invitations/api/invitations'
@@ -165,7 +166,9 @@ export async function getWithdrawalRequests(
 ): Promise<
   ApiResponse<PaginatedResponse<import('./types').WithdrawalRequestAdmin>>
 > {
-  const res = await api.get(`${ADMIN_BASE_PATH}/withdrawal-requests`, { params })
+  const res = await api.get(`${ADMIN_BASE_PATH}/withdrawal-requests`, {
+    params,
+  })
   return res.data
 }
 
@@ -216,6 +219,18 @@ export async function getRebateStats(): Promise<
   ApiResponse<import('./types').RebateStats>
 > {
   const res = await api.get(`${ADMIN_BASE_PATH}/rebate-stats`)
+  return res.data
+}
+
+/**
+ * 获取管理员返利订单记录
+ */
+export async function getAdminRebateOrderRecords(
+  params?: PaginationParams & { orderType?: 'topup' | 'subscription' }
+): Promise<ApiResponse<PaginatedResponse<AdminRebateOrderRecord>>> {
+  const res = await api.get(`${ADMIN_BASE_PATH}/rebate-order-records`, {
+    params,
+  })
   return res.data
 }
 
