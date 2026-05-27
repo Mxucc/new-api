@@ -21,6 +21,11 @@ import i18n from 'i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
+import {
+  DEFAULT_AUTH_REDIRECT,
+  getAuthRedirectSearch,
+  getSafeAuthRedirectTarget,
+} from '../lib/redirect'
 import { saveUserId } from '../lib/storage'
 
 function getSavedLanguage(user: User): string | undefined {
@@ -85,23 +90,37 @@ export function useAuthRedirect() {
       console.error('Failed to fetch user data:', error)
     }
 
-    // Navigate to target page
-    const targetPath = redirectTo || '/dashboard'
-    navigate({ to: targetPath, replace: true })
+    // Navigate to target page. Use a document navigation for explicit
+    // redirect targets so non-SPA routes such as /connect/authorize work.
+    const targetPath = getSafeAuthRedirectTarget(redirectTo)
+    if (targetPath) {
+      await navigate({ href: targetPath, replace: true, reloadDocument: true })
+      return
+    }
+
+    await navigate({ to: DEFAULT_AUTH_REDIRECT, replace: true })
   }
 
   /**
    * Redirect to 2FA page
    */
-  const redirectTo2FA = () => {
-    navigate({ to: '/otp', replace: true })
+  const redirectTo2FA = (redirectTo?: string) => {
+    navigate({
+      to: '/otp',
+      search: getAuthRedirectSearch(redirectTo),
+      replace: true,
+    })
   }
 
   /**
    * Redirect to login page
    */
-  const redirectToLogin = () => {
-    navigate({ to: '/sign-in', replace: true })
+  const redirectToLogin = (redirectTo?: string) => {
+    navigate({
+      to: '/sign-in',
+      search: getAuthRedirectSearch(redirectTo),
+      replace: true,
+    })
   }
 
   /**

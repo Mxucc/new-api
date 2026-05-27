@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
 import { getOAuthState } from '../api'
+import { rememberAuthRedirect } from '../lib/redirect'
 import {
   buildGitHubOAuthUrl,
   buildDiscordOAuthUrl,
@@ -38,17 +39,18 @@ type LogoutRequestConfig = AxiosRequestConfig & {
 /**
  * Hook for managing OAuth login
  */
-export function useOAuthLogin(status: SystemStatus | null) {
+export function useOAuthLogin(status: SystemStatus | null, redirectTo?: string) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
-  const [githubButtonText, setGithubButtonText] = useState('')
+  const [githubButtonTextOverride, setGithubButtonTextOverride] = useState<
+    string | null
+  >(null)
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false)
   const githubTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { auth } = useAuthStore()
+  const githubButtonText = githubButtonTextOverride ?? t('Continue with GitHub')
 
   useEffect(() => {
-    setGithubButtonText(t('Continue with GitHub'))
-
     return () => {
       if (githubTimeoutRef.current) {
         clearTimeout(githubTimeoutRef.current)
@@ -71,13 +73,17 @@ export function useOAuthLogin(status: SystemStatus | null) {
     }
   }
 
+  const rememberRedirect = () => {
+    rememberAuthRedirect(redirectTo)
+  }
+
   const handleGitHubLogin = async () => {
     if (!status?.github_client_id) return
     if (githubButtonDisabled) return
 
     setIsLoading(true)
     setGithubButtonDisabled(true)
-    setGithubButtonText(t('Redirecting to GitHub...'))
+    setGithubButtonTextOverride(t('Redirecting to GitHub...'))
 
     if (githubTimeoutRef.current) {
       clearTimeout(githubTimeoutRef.current)
@@ -85,13 +91,14 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     githubTimeoutRef.current = setTimeout(() => {
       setIsLoading(false)
-      setGithubButtonText(
+      setGithubButtonTextOverride(
         t('Request timed out, please refresh and restart GitHub login')
       )
       setGithubButtonDisabled(true)
     }, 20000)
 
     try {
+      rememberRedirect()
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
@@ -100,7 +107,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
           clearTimeout(githubTimeoutRef.current)
         }
         setIsLoading(false)
-        setGithubButtonText(t('Continue with GitHub'))
+        setGithubButtonTextOverride(null)
         setGithubButtonDisabled(false)
         return
       }
@@ -113,7 +120,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
         clearTimeout(githubTimeoutRef.current)
       }
       setIsLoading(false)
-      setGithubButtonText(t('Continue with GitHub'))
+      setGithubButtonTextOverride(null)
       setGithubButtonDisabled(false)
     }
   }
@@ -123,6 +130,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
+      rememberRedirect()
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
@@ -144,6 +152,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
+      rememberRedirect()
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
@@ -169,6 +178,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
+      rememberRedirect()
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
@@ -194,6 +204,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
+      rememberRedirect()
       await resetSession()
       const state = await getOAuthState()
       if (!state) {

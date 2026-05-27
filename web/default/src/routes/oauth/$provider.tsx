@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AxiosRequestConfig } from 'axios'
+import { z } from 'zod'
 import {
   createFileRoute,
   useNavigate,
@@ -30,21 +31,30 @@ import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { api, getSelf } from '@/lib/api'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+import {
+  DEFAULT_AUTH_REDIRECT,
+  getAuthRedirectSearch,
+  getSafeAuthRedirectTarget,
+  takeRememberedAuthRedirect,
+} from '@/features/auth/lib/redirect'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
 }
+
+const searchSchema = z.object({
+  code: z.string().optional(),
+  state: z.string().optional(),
+  redirect: z.string().optional(),
+})
 
 function OAuthCallback() {
   const navigate = useNavigate()
   const { provider } = useParams({ from: '/oauth/$provider' }) as {
     provider: string
   }
-  const search = useSearch({ from: '/oauth/$provider' }) as {
-    code?: string
-    state?: string
-    redirect?: string
-  }
+  const search = useSearch({ from: '/oauth/$provider' })
+  const pendingRedirectRef = useRef<string | null | undefined>(undefined)
   const [mode, setMode] = useState<'login' | 'bind'>(() => {
     if (typeof window === 'undefined') return 'login'
     return window.opener ? 'bind' : 'login'
@@ -52,12 +62,19 @@ function OAuthCallback() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setMode(window.opener ? 'bind' : 'login')
   }, [])
 
   useEffect(() => {
     ;(async () => {
+      if (pendingRedirectRef.current === undefined) {
+        const rememberedRedirect = takeRememberedAuthRedirect()
+        pendingRedirectRef.current =
+          getSafeAuthRedirectTarget(search?.redirect) ?? rememberedRedirect
+      }
+      const pendingRedirect = pendingRedirectRef.current
+
       const safeNavigate = (target: string) => {
         navigate({ to: target as never, replace: true })
         if (typeof window !== 'undefined') {
@@ -77,9 +94,17 @@ function OAuthCallback() {
         }
       }
 
+      const navigateToSignIn = () => {
+        navigate({
+          to: '/sign-in',
+          search: getAuthRedirectSearch(pendingRedirect),
+          replace: true,
+        })
+      }
+
       if (!search?.code) {
         toast.error(i18next.t('Missing code'))
-        safeNavigate('/sign-in')
+        navigateToSignIn()
         return
       }
       const isBindingFlow =
@@ -143,9 +168,13 @@ function OAuthCallback() {
       }
 
       const redirectAfterLogin = (target?: string) => {
-        const to = target || search?.redirect || '/dashboard'
-        safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
+        const to = getSafeAuthRedirectTarget(target) ?? pendingRedirect
+        if (to) {
+          navigate({ href: to, replace: true, reloadDocument: true })
+          return
+        }
+        safeNavigate(DEFAULT_AUTH_REDIRECT)
       }
 
       const handleBindingFailure = (message: string) => {
@@ -159,7 +188,7 @@ function OAuthCallback() {
           return
         }
         toast.error(message)
-        safeNavigate('/sign-in')
+        navigateToSignIn()
       }
 
       try {
@@ -201,7 +230,7 @@ function OAuthCallback() {
             return
           }
           toast.error(res?.data?.message || i18next.t('OAuth failed'))
-          safeNavigate('/sign-in')
+          navigateToSignIn()
           return
         }
         const message = res?.data?.message || 'OAuth failed'
@@ -243,5 +272,6 @@ function OAuthCallback() {
 }
 
 export const Route = createFileRoute('/oauth/$provider')({
+  validateSearch: searchSchema,
   component: OAuthCallback,
 })

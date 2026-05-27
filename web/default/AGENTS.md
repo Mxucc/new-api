@@ -76,6 +76,7 @@
 - **可读性**：控制函数圈复杂度，复杂逻辑拆成小函数；变量与函数命名需有意义，遵循驼峰等常规约定。
 - **TypeScript**：避免 `any`，优先具体类型或 `unknown`；为参数与返回值显式标注类型；仅类型用途的导入使用 `import type { X } from '...'`。
 - **类型检查**：每次改动 TypeScript 或 TSX 代码后都要执行类型检查（如 `bun run typecheck`）；若出现类型错误，须修复至无错误为止，不得遗留。
+- **React Hooks lint**：ESLint 仅强制核心 Hooks 规则（`react-hooks/rules-of-hooks`、`react-hooks/exhaustive-deps`）。不要直接展开 `eslint-plugin-react-hooks@7` 的 `recommended`，因为它会同时启用 React Compiler 迁移规则（如 `set-state-in-effect`、`refs`、`static-components`），当前代码基线尚未按 React Compiler 规则迁移。
 - **解构**：对象非必要不要进行解构，特别是组件的 props；直接使用 `props.xxx` 更清晰，避免不必要的解构增加代码复杂度。
 
 ### 3.3 组件

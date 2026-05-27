@@ -20,37 +20,60 @@ import { useEffect } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
 import { wechatLoginByCode } from '@/features/auth/api'
+import {
+  DEFAULT_AUTH_REDIRECT,
+  getAuthRedirectSearch,
+  getSafeAuthRedirectTarget,
+} from '@/features/auth/lib/redirect'
+
+const searchSchema = z.object({
+  redirect: z.string().optional(),
+  provider: z
+    .enum(['github', 'discord', 'oidc', 'linuxdo', 'telegram', 'wechat'])
+    .optional(),
+  code: z.string().optional(),
+  state: z.string().optional(),
+})
 
 function OAuthComponent() {
   const navigate = useNavigate()
-  const search = useSearch({ from: '/(auth)/oauth' }) as {
-    redirect?: string
-    provider?: 'github' | 'discord' | 'oidc' | 'linuxdo' | 'telegram' | 'wechat'
-    code?: string
-    state?: string
-  }
+  const search = useSearch({ from: '/(auth)/oauth' })
 
   useEffect(() => {
     ;(async () => {
       try {
+        const redirectTarget = getSafeAuthRedirectTarget(search?.redirect)
+
         if (search?.provider === 'wechat' && search.code) {
           await wechatLoginByCode(search.code)
         }
         const res = await getSelf()
         if (res?.success) {
           useAuthStore.getState().auth.setUser(res.data as AuthUser)
-          const target = search?.redirect || '/dashboard'
-          navigate({ to: target, replace: true })
+          if (redirectTarget) {
+            navigate({
+              href: redirectTarget,
+              replace: true,
+              reloadDocument: true,
+            })
+          } else {
+            navigate({ to: DEFAULT_AUTH_REDIRECT, replace: true })
+          }
           return
         }
       } catch {
         /* empty */
       }
       toast.error(i18next.t('OAuth failed'))
-      navigate({ to: '/sign-in', replace: true })
+      navigate({
+        to: '/sign-in',
+        search: getAuthRedirectSearch(search?.redirect),
+        replace: true,
+      })
     })()
   }, [navigate, search])
 
@@ -58,5 +81,6 @@ function OAuthComponent() {
 }
 
 export const Route = createFileRoute('/(auth)/oauth')({
+  validateSearch: searchSchema,
   component: OAuthComponent,
 })

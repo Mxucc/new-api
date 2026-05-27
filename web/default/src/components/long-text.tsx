@@ -46,7 +46,7 @@ export function LongText({
 
   useEffect(() => {
     if (checkOverflow(ref.current)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setIsOverflown(true)
       return
     }
