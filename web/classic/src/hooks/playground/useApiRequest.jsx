@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next';
 import { SSE } from 'sse.js';
 import {
   API_ENDPOINTS,
-  MESSAGE_ROLES,
   MESSAGE_STATUS,
   DEBUG_TABS,
 } from '../../constants/playground.constants';
@@ -42,30 +41,6 @@ export const useApiRequest = (
 ) => {
   const { t } = useTranslation();
 
-  const findTargetAssistantIndex = useCallback(
-    (messages, targetMessageId = null) => {
-      if (!Array.isArray(messages) || messages.length === 0) {
-        return -1;
-      }
-
-      if (targetMessageId) {
-        return messages.findIndex(
-          (msg) =>
-            msg.id === targetMessageId && msg.role === MESSAGE_ROLES.ASSISTANT,
-        );
-      }
-
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i]?.role === MESSAGE_ROLES.ASSISTANT) {
-          return i;
-        }
-      }
-
-      return -1;
-    },
-    [],
-  );
-
   // 处理消息自动关闭逻辑的公共函数
   const applyAutoCollapseLogic = useCallback(
     (message, isThinkingComplete = true) => {
@@ -84,40 +59,39 @@ export const useApiRequest = (
 
   // 流式消息更新
   const streamMessageUpdate = useCallback(
-    (textChunk, type, targetMessageId = null) => {
+    (textChunk, type) => {
       setMessage((prevMessage) => {
-        const targetIndex = findTargetAssistantIndex(
-          prevMessage,
-          targetMessageId,
-        );
-        if (targetIndex === -1) return prevMessage;
-
-        const targetMessage = prevMessage[targetIndex];
-        if (targetMessage.status === MESSAGE_STATUS.ERROR) {
+        const lastMessage = prevMessage[prevMessage.length - 1];
+        if (!lastMessage) return prevMessage;
+        if (lastMessage.role !== 'assistant') return prevMessage;
+        if (lastMessage.status === MESSAGE_STATUS.ERROR) {
           return prevMessage;
         }
 
         if (
-          targetMessage.status === MESSAGE_STATUS.LOADING ||
-          targetMessage.status === MESSAGE_STATUS.INCOMPLETE
+          lastMessage.status === MESSAGE_STATUS.LOADING ||
+          lastMessage.status === MESSAGE_STATUS.INCOMPLETE
         ) {
-          let newMessage = { ...targetMessage };
+          let newMessage = { ...lastMessage };
 
           if (type === 'reasoning') {
             newMessage = {
               ...newMessage,
               reasoningContent:
-                (targetMessage.reasoningContent || '') + textChunk,
+                (lastMessage.reasoningContent || '') + textChunk,
               status: MESSAGE_STATUS.INCOMPLETE,
               isThinkingComplete: false,
             };
           } else if (type === 'content') {
-            const newContent = (targetMessage.content || '') + textChunk;
+            const shouldCollapseReasoning =
+              !lastMessage.content && lastMessage.reasoningContent;
+            const newContent = (lastMessage.content || '') + textChunk;
 
-            let thinkingCompleteFromTags = targetMessage.isThinkingComplete;
+            let shouldCollapseFromThinkTag = false;
+            let thinkingCompleteFromTags = lastMessage.isThinkingComplete;
 
             if (
-              targetMessage.isReasoningExpanded &&
+              lastMessage.isReasoningExpanded &&
               newContent.includes('</think>')
             ) {
               const thinkMatches = newContent.match(/<think>/g);
@@ -127,18 +101,19 @@ export const useApiRequest = (
                 thinkCloseMatches &&
                 thinkCloseMatches.length >= thinkMatches.length
               ) {
+                shouldCollapseFromThinkTag = true;
                 thinkingCompleteFromTags = true; // think标签闭合也标记思考完成
               }
             }
 
             // 如果开始接收content内容，且之前有reasoning内容，或者think标签已闭合，则标记思考完成
             const isThinkingComplete =
-              (targetMessage.reasoningContent &&
-                !targetMessage.isThinkingComplete) ||
+              (lastMessage.reasoningContent &&
+                !lastMessage.isThinkingComplete) ||
               thinkingCompleteFromTags;
 
             const autoCollapseState = applyAutoCollapseLogic(
-              targetMessage,
+              lastMessage,
               isThinkingComplete,
             );
 
@@ -150,43 +125,37 @@ export const useApiRequest = (
             };
           }
 
-          const updatedMessages = [...prevMessage];
-          updatedMessages[targetIndex] = newMessage;
-          return updatedMessages;
+          return [...prevMessage.slice(0, -1), newMessage];
         }
 
         return prevMessage;
       });
     },
-    [setMessage, findTargetAssistantIndex, applyAutoCollapseLogic],
+    [setMessage, applyAutoCollapseLogic],
   );
 
   // 完成消息
   const completeMessage = useCallback(
-    (status = MESSAGE_STATUS.COMPLETE, targetMessageId = null) => {
+    (status = MESSAGE_STATUS.COMPLETE) => {
       setMessage((prevMessage) => {
-        const targetIndex = findTargetAssistantIndex(
-          prevMessage,
-          targetMessageId,
-        );
-        if (targetIndex === -1) return prevMessage;
-
-        const targetMessage = prevMessage[targetIndex];
+        const lastMessage = prevMessage[prevMessage.length - 1];
         if (
-          targetMessage.status === MESSAGE_STATUS.COMPLETE ||
-          targetMessage.status === MESSAGE_STATUS.ERROR
+          lastMessage.status === MESSAGE_STATUS.COMPLETE ||
+          lastMessage.status === MESSAGE_STATUS.ERROR
         ) {
           return prevMessage;
         }
 
-        const autoCollapseState = applyAutoCollapseLogic(targetMessage, true);
+        const autoCollapseState = applyAutoCollapseLogic(lastMessage, true);
 
-        const updatedMessages = [...prevMessage];
-        updatedMessages[targetIndex] = {
-          ...targetMessage,
-          status: status,
-          ...autoCollapseState,
-        };
+        const updatedMessages = [
+          ...prevMessage.slice(0, -1),
+          {
+            ...lastMessage,
+            status: status,
+            ...autoCollapseState,
+          },
+        ];
 
         // 在消息完成时保存，传入更新后的消息列表
         if (
@@ -199,17 +168,12 @@ export const useApiRequest = (
         return updatedMessages;
       });
     },
-    [
-      setMessage,
-      findTargetAssistantIndex,
-      applyAutoCollapseLogic,
-      saveMessages,
-    ],
+    [setMessage, applyAutoCollapseLogic, saveMessages],
   );
 
   // 非流式请求
   const handleNonStreamRequest = useCallback(
-    async (payload, targetMessageId = null) => {
+    async (payload) => {
       setDebugData((prev) => ({
         ...prev,
         request: payload,
@@ -286,31 +250,23 @@ export const useApiRequest = (
           const processed = processThinkTags(content, reasoningContent);
 
           setMessage((prevMessage) => {
-            const targetIndex = findTargetAssistantIndex(
-              prevMessage,
-              targetMessageId,
-            );
-            if (targetIndex === -1) return prevMessage;
-
-            const targetMessage = prevMessage[targetIndex];
-            if (targetMessage?.status === MESSAGE_STATUS.LOADING) {
+            const newMessages = [...prevMessage];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage?.status === MESSAGE_STATUS.LOADING) {
               const autoCollapseState = applyAutoCollapseLogic(
-                targetMessage,
+                lastMessage,
                 true,
               );
 
-              const newMessages = [...prevMessage];
-              newMessages[targetIndex] = {
-                ...targetMessage,
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
                 content: processed.content,
                 reasoningContent: processed.reasoningContent,
                 status: MESSAGE_STATUS.COMPLETE,
                 ...autoCollapseState,
               };
-              return newMessages;
             }
-
-            return prevMessage;
+            return newMessages;
           });
         }
       } catch (error) {
@@ -324,47 +280,29 @@ export const useApiRequest = (
         setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
         setMessage((prevMessage) => {
-          const targetIndex = findTargetAssistantIndex(
-            prevMessage,
-            targetMessageId,
-          );
-          if (targetIndex === -1) return prevMessage;
+          const newMessages = [...prevMessage];
+          const lastMessage = newMessages[newMessages.length - 1];
+          if (lastMessage?.status === MESSAGE_STATUS.LOADING) {
+            const autoCollapseState = applyAutoCollapseLogic(lastMessage, true);
 
-          const targetMessage = prevMessage[targetIndex];
-          if (targetMessage?.status === MESSAGE_STATUS.LOADING) {
-            const autoCollapseState = applyAutoCollapseLogic(
-              targetMessage,
-              true,
-            );
-
-            const newMessages = [...prevMessage];
-            newMessages[targetIndex] = {
-              ...targetMessage,
+            newMessages[newMessages.length - 1] = {
+              ...lastMessage,
               content: t('请求发生错误: ') + error.message,
               errorCode: error.errorCode || null,
               status: MESSAGE_STATUS.ERROR,
               ...autoCollapseState,
             };
-            return newMessages;
           }
-
-          return prevMessage;
+          return newMessages;
         });
       }
     },
-    [
-      setDebugData,
-      setActiveDebugTab,
-      setMessage,
-      t,
-      findTargetAssistantIndex,
-      applyAutoCollapseLogic,
-    ],
+    [setDebugData, setActiveDebugTab, setMessage, t, applyAutoCollapseLogic],
   );
 
   // SSE请求
   const handleSSE = useCallback(
-    (payload, targetMessageId = null) => {
+    (payload) => {
       setDebugData((prev) => ({
         ...prev,
         request: payload,
@@ -401,7 +339,7 @@ export const useApiRequest = (
             sseMessages: [...(prev.sseMessages || []), '[DONE]'], // 添加 DONE 标记
             isStreaming: false,
           }));
-          completeMessage(MESSAGE_STATUS.COMPLETE, targetMessageId);
+          completeMessage();
           return;
         }
 
@@ -423,21 +361,13 @@ export const useApiRequest = (
           const delta = payload.choices?.[0]?.delta;
           if (delta) {
             if (delta.reasoning_content) {
-              streamMessageUpdate(
-                delta.reasoning_content,
-                'reasoning',
-                targetMessageId,
-              );
+              streamMessageUpdate(delta.reasoning_content, 'reasoning');
             }
             if (delta.reasoning) {
-              streamMessageUpdate(
-                delta.reasoning,
-                'reasoning',
-                targetMessageId,
-              );
+              streamMessageUpdate(delta.reasoning, 'reasoning');
             }
             if (delta.content) {
-              streamMessageUpdate(delta.content, 'content', targetMessageId);
+              streamMessageUpdate(delta.content, 'content');
             }
           }
         } catch (error) {
@@ -452,12 +382,8 @@ export const useApiRequest = (
           }));
           setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
-          streamMessageUpdate(
-            t('解析响应数据时发生错误'),
-            'content',
-            targetMessageId,
-          );
-          completeMessage(MESSAGE_STATUS.ERROR, targetMessageId);
+          streamMessageUpdate(t('解析响应数据时发生错误'), 'content');
+          completeMessage(MESSAGE_STATUS.ERROR);
         }
       });
 
@@ -493,29 +419,17 @@ export const useApiRequest = (
           setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
           setMessage((prevMessage) => {
-            const targetIndex = findTargetAssistantIndex(
-              prevMessage,
-              targetMessageId,
-            );
-            if (targetIndex === -1) return prevMessage;
-
-            const targetMessage = prevMessage[targetIndex];
-            if (
-              targetMessage &&
-              targetMessage.status !== MESSAGE_STATUS.COMPLETE &&
-              targetMessage.status !== MESSAGE_STATUS.ERROR
-            ) {
-              const newMessages = [...prevMessage];
-              newMessages[targetIndex] = {
-                ...targetMessage,
-                content: (targetMessage.content || '') + errorMessage,
+            const newMessages = [...prevMessage];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage && lastMessage.status !== MESSAGE_STATUS.COMPLETE && lastMessage.status !== MESSAGE_STATUS.ERROR) {
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                content: (lastMessage.content || '') + errorMessage,
                 errorCode: errorCode,
                 status: MESSAGE_STATUS.ERROR,
               };
-              return newMessages;
             }
-
-            return prevMessage;
+            return newMessages;
           });
           sseSourceRef.current = null;
           source.close();
@@ -544,8 +458,8 @@ export const useApiRequest = (
           setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
           source.close();
-          streamMessageUpdate(t('连接已断开'), 'content', targetMessageId);
-          completeMessage(MESSAGE_STATUS.ERROR, targetMessageId);
+          streamMessageUpdate(t('连接已断开'), 'content');
+          completeMessage(MESSAGE_STATUS.ERROR);
         }
       });
 
@@ -561,12 +475,8 @@ export const useApiRequest = (
         }));
         setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
-        streamMessageUpdate(
-          t('建立连接时发生错误'),
-          'content',
-          targetMessageId,
-        );
-        completeMessage(MESSAGE_STATUS.ERROR, targetMessageId);
+        streamMessageUpdate(t('建立连接时发生错误'), 'content');
+        completeMessage(MESSAGE_STATUS.ERROR);
       }
     },
     [
@@ -576,7 +486,6 @@ export const useApiRequest = (
       streamMessageUpdate,
       completeMessage,
       t,
-      findTargetAssistantIndex,
       applyAutoCollapseLogic,
     ],
   );
@@ -627,11 +536,11 @@ export const useApiRequest = (
 
   // 发送请求
   const sendRequest = useCallback(
-    (payload, isStream, targetMessageId = null) => {
+    (payload, isStream) => {
       if (isStream) {
-        handleSSE(payload, targetMessageId);
+        handleSSE(payload);
       } else {
-        handleNonStreamRequest(payload, targetMessageId);
+        handleNonStreamRequest(payload);
       }
     },
     [handleSSE, handleNonStreamRequest],

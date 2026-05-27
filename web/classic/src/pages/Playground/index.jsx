@@ -247,21 +247,18 @@ const Playground = () => {
     if (customRequestMode && customRequestBody) {
       try {
         const customPayload = JSON.parse(customRequestBody);
-        const newMessages = [...message, userMessage, loadingMessage];
 
-        setMessage(newMessages);
+        setMessage((prevMessage) => {
+          const newMessages = [...prevMessage, userMessage, loadingMessage];
 
-        // 发送自定义请求体
-        setTimeout(() => {
-          sendRequest(
-            customPayload,
-            customPayload.stream !== false,
-            loadingMessage.id,
-          );
-        }, 0);
+          // 发送自定义请求体
+          sendRequest(customPayload, customPayload.stream !== false);
 
-        // 发送消息后保存，传入新消息列表
-        setTimeout(() => saveMessagesImmediately(newMessages), 0);
+          // 发送消息后保存，传入新消息列表
+          setTimeout(() => saveMessagesImmediately(newMessages), 0);
+
+          return newMessages;
+        });
         return;
       } catch (error) {
         console.error('自定义请求体JSON解析失败:', error);
@@ -282,29 +279,30 @@ const Playground = () => {
       messageContent,
     );
 
-    const newMessages = [...message, userMessageWithImages];
-    const payload = buildApiPayload(
-      newMessages,
-      null,
-      inputs,
-      parameterEnabled,
-    );
-    const messagesWithLoading = [...newMessages, loadingMessage];
+    setMessage((prevMessage) => {
+      const newMessages = [...prevMessage, userMessageWithImages];
 
-    setMessage(messagesWithLoading);
+      const payload = buildApiPayload(
+        newMessages,
+        null,
+        inputs,
+        parameterEnabled,
+      );
+      sendRequest(payload, inputs.stream);
 
-    // 禁用图片模式
-    if (inputs.imageEnabled) {
-      setTimeout(() => {
-        handleInputChange('imageEnabled', false);
-      }, 100);
-    }
+      // 禁用图片模式
+      if (inputs.imageEnabled) {
+        setTimeout(() => {
+          handleInputChange('imageEnabled', false);
+        }, 100);
+      }
 
-    // 发送消息后保存，传入新消息列表（包含用户消息和加载消息）
-    setTimeout(() => {
-      sendRequest(payload, inputs.stream, loadingMessage.id);
-    }, 0);
-    setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
+      // 发送消息后保存，传入新消息列表（包含用户消息和加载消息）
+      const messagesWithLoading = [...newMessages, loadingMessage];
+      setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
+
+      return messagesWithLoading;
+    });
   }
 
   // 切换推理展开状态
