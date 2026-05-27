@@ -16,12 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
+import { createFileRoute } from '@tanstack/react-router'
 import { InvitationsAdmin } from '@/features/invitations/admin'
 
 const searchSchema = z.object({
-  tab: z.enum(['rules', 'approvals', 'statistics']).optional().default('rules'),
+  tab: z.enum(['rules', 'approvals', 'statistics']).optional().catch('rules'),
 })
 
 export const Route = createFileRoute('/_authenticated/invitations/admin')({
