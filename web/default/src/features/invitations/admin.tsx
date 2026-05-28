@@ -18,17 +18,29 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Settings, ReceiptText, CheckCircle, BarChart3 } from 'lucide-react'
+import {
+  Settings,
+  ReceiptText,
+  CheckCircle,
+  BarChart3,
+  UserRoundPlus,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
+import { InvitationRegistrationsTab } from './components/admin/invitation-registrations-tab'
 import { RebateApprovalsTab } from './components/admin/rebate-approvals-tab'
 import { RebateOrderRecordsTab } from './components/admin/rebate-order-records-tab'
 import { RebateRulesTab } from './components/admin/rebate-rules-tab'
 import { StatisticsTab } from './components/admin/statistics-tab'
 import { useInvitationFeatureStatus } from './hooks/use-invitation-feature-status'
 
-type TabValue = 'rules' | 'records' | 'approvals' | 'statistics'
+type TabValue =
+  | 'rules'
+  | 'records'
+  | 'registrations'
+  | 'approvals'
+  | 'statistics'
 
 const DEFAULT_TAB: TabValue = 'rules'
 
@@ -63,12 +75,14 @@ export function InvitationsAdmin() {
         {t('Rebate Management')}
       </SectionPageLayout.Title>
       <SectionPageLayout.Description>
-        {t('Manage rebate rules, rebate approvals, and statistics')}
+        {t(
+          'Manage rebate rules, rebate records, invitation registrations, rebate approvals, and statistics'
+        )}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
         <div className='mx-auto w-full max-w-7xl'>
           <Tabs value={currentTab} onValueChange={handleTabChange}>
-            <TabsList className='mb-6'>
+            <TabsList className='mb-6 h-auto flex-wrap justify-start'>
               <TabsTrigger value='rules' className='gap-2'>
                 <Settings className='size-4' />
                 {t('Rebate Rules')}
@@ -76,6 +90,10 @@ export function InvitationsAdmin() {
               <TabsTrigger value='records' className='gap-2'>
                 <ReceiptText className='size-4' />
                 {t('Rebate Records')}
+              </TabsTrigger>
+              <TabsTrigger value='registrations' className='gap-2'>
+                <UserRoundPlus className='size-4' />
+                {t('Invitation Registrations')}
               </TabsTrigger>
               <TabsTrigger value='approvals' className='gap-2'>
                 <CheckCircle className='size-4' />
@@ -93,6 +111,10 @@ export function InvitationsAdmin() {
 
             <TabsContent value='records'>
               <RebateOrderRecordsTab />
+            </TabsContent>
+
+            <TabsContent value='registrations'>
+              <InvitationRegistrationsTab />
             </TabsContent>
 
             <TabsContent value='approvals'>

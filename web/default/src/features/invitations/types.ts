@@ -30,13 +30,21 @@ export interface InvitationStats {
 export interface InvitationFeatureStatus {
   available: boolean
   userInvitationRebateEnabled: boolean
+  orderRebateEnabled: boolean
+  invitationSignupRewardEnabled: boolean
+  rebateToBalanceEnabled: boolean
 }
 
 // 返利记录状态
 export type RebateStatus = 'pending' | 'requested' | 'approved' | 'completed'
 
 // 订单类型
-export type OrderType = 'topup' | 'subscription' | 'other'
+export type OrderType =
+  | 'topup'
+  | 'subscription'
+  | 'invite_inviter'
+  | 'invite_invitee'
+  | 'other'
 
 // 管理员返利记录展示状态
 export type AdminRebateOrderStatus =
@@ -46,7 +54,11 @@ export type AdminRebateOrderStatus =
   | 'paid'
   | 'closed'
 
-export type RebateDisplayStatus = 'estimated' | 'claimable' | 'paid'
+export type RebateDisplayStatus =
+  | 'estimated'
+  | 'claimable'
+  | 'paid'
+  | 'waiting_unlock'
 
 // 返利记录：用户侧不暴露被邀请客户身份
 export interface RebateRecord {
@@ -58,6 +70,8 @@ export interface RebateRecord {
   rebateRatio?: number | null
   status: RebateStatus
   displayStatus?: RebateDisplayStatus
+  unlockRequired: boolean
+  unlockedAt?: string | null
   effectiveAt?: string
   createdAt: string
   updatedAt: string
@@ -139,6 +153,13 @@ export interface SystemConfig {
   minRebateRequestAmount: number
   rebateRequestFrequencyDays: number
   userInvitationRebateEnabled: boolean
+  orderRebateEnabled: boolean
+  invitationSignupRewardEnabled: boolean
+  invitationSignupRewardAmount: number
+  invitationSignupRewardReviewRequired: boolean
+  invitationSignupInviterRewardRequiresPaidOrder: boolean
+  invitationSignupInviteeRewardRequiresPaidOrder: boolean
+  rebateToBalanceEnabled: boolean
 }
 
 // 管理员返利申请
@@ -184,6 +205,31 @@ export interface AdminRebateOrderRecord {
   canReopen: boolean
   canEndInitialization: boolean
   canExtendInitialization: boolean
+}
+
+// 管理员邀请注册记录
+export interface AdminInvitationRegistration {
+  id: number
+  inviterId: number
+  inviterName?: string | null
+  inviteeId: number
+  inviteeName?: string | null
+  userGroup: string
+  invitedAt: string
+  totalRewardAmount: number
+  inviterRewardGenerated: boolean
+  inviterRewardRecordId?: number | null
+  inviterRewardAmount: number
+  inviterRewardStatus?: string | null
+  inviteeRewardGenerated: boolean
+  inviteeRewardRecordId?: number | null
+  inviteeRewardAmount: number
+  inviteeRewardStatus?: string | null
+}
+
+export interface InvitationRegistrationRewardResponse {
+  generated: boolean
+  recordId?: number | null
 }
 
 export interface RebateOrderRecordBatchResponse {

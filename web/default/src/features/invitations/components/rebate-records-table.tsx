@@ -67,10 +67,15 @@ const STATUS_COLORS: Record<RebateDisplayStatus, string> = {
   estimated: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
   claimable: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
   paid: 'bg-gray-500/10 text-gray-700 dark:text-gray-400',
+  waiting_unlock: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
 }
 
 function fallbackDisplayStatus(status: RebateStatus): RebateDisplayStatus {
   return status === 'pending' ? 'claimable' : 'paid'
+}
+
+function isInvitationSignupReward(orderType: OrderType): boolean {
+  return orderType === 'invite_inviter' || orderType === 'invite_invitee'
 }
 
 export function RebateRecordsTable() {
@@ -110,6 +115,8 @@ export function RebateRecordsTable() {
           const typeLabels: Record<OrderType, string> = {
             topup: t('Topup'),
             subscription: t('Subscription'),
+            invite_inviter: t('Invitation Reward'),
+            invite_invitee: t('New User Invitation Reward'),
             other: t('Other'),
           }
           return typeLabels[type] || type
@@ -117,7 +124,10 @@ export function RebateRecordsTable() {
       }),
       columnHelper.accessor('orderAmount', {
         header: () => t('Order Amount'),
-        cell: (info) => formatRebateAmount(info.getValue()),
+        cell: (info) =>
+          isInvitationSignupReward(info.row.original.orderType)
+            ? '-'
+            : formatRebateAmount(info.getValue()),
       }),
       columnHelper.accessor('rebateAmount', {
         header: () => t('Rebate Amount'),
@@ -127,6 +137,9 @@ export function RebateRecordsTable() {
         header: () => t('Rebate Ratio'),
         cell: (info) => {
           const ratio = info.getValue()
+          if (isInvitationSignupReward(info.row.original.orderType)) {
+            return '-'
+          }
           return ratio == null
             ? t('Not configured')
             : `${(ratio * 100).toFixed(1)}%`
@@ -146,9 +159,15 @@ export function RebateRecordsTable() {
             estimated: t('Estimated Rebate'),
             claimable: t('Claimable Rebate'),
             paid: t('Paid Rebate'),
+            waiting_unlock: t(
+              'Pending rebate (waiting for first top-up/subscription to unlock)'
+            ),
           }
           return (
-            <Badge variant='outline' className={STATUS_COLORS[status]}>
+            <Badge
+              variant='outline'
+              className={`h-auto max-w-[14rem] justify-start whitespace-normal py-1 text-left leading-tight ${STATUS_COLORS[status]}`}
+            >
               {statusLabels[status]}
             </Badge>
           )

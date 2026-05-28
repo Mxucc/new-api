@@ -29,7 +29,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getRebateRecords } from '../../api'
+import { getAdminRebateRecords } from '../../api'
 import {
   aggregateRebateData,
   formatChartDate,
@@ -45,13 +45,10 @@ export function RebateTrendChartAdmin({
 }: RebateTrendChartAdminProps) {
   const { t } = useTranslation()
 
-  // 获取所有返利记录（管理员视角）
-  // 注意：这里使用用户 API，因为管理员 API 没有提供获取所有返利记录的接口
-  // 实际应用中可能需要后端提供专门的管理员统计接口
   const { data, isLoading } = useQuery({
     queryKey: ['adminRebateRecords'],
     queryFn: async () => {
-      const response = await getRebateRecords({ pageSize: 1000 })
+      const response = await getAdminRebateRecords({ pageSize: 1000 })
       return response.data
     },
   })

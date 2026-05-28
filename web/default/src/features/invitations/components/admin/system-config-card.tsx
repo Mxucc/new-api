@@ -16,12 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Edit, Save, X } from 'lucide-react'
+import { RotateCcw, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -43,16 +42,42 @@ const formSchema = z.object({
     .int()
     .min(1, 'Rebate request frequency must be at least 1 day'),
   userInvitationRebateEnabled: z.boolean(),
+  orderRebateEnabled: z.boolean(),
+  invitationSignupRewardEnabled: z.boolean(),
+  invitationSignupRewardAmount: z
+    .number()
+    .int()
+    .min(0, 'Invitation signup reward amount must be at least 0'),
+  invitationSignupRewardReviewRequired: z.boolean(),
+  invitationSignupInviterRewardRequiresPaidOrder: z.boolean(),
+  invitationSignupInviteeRewardRequiresPaidOrder: z.boolean(),
+  rebateToBalanceEnabled: z.boolean(),
 })
 
 type FormData = z.infer<typeof formSchema>
 
+function systemConfigToFormData(config: SystemConfig): FormData {
+  return {
+    minRebateRequestAmount: config.minRebateRequestAmount,
+    rebateRequestFrequencyDays: config.rebateRequestFrequencyDays,
+    userInvitationRebateEnabled: config.userInvitationRebateEnabled,
+    orderRebateEnabled: config.orderRebateEnabled,
+    invitationSignupRewardEnabled: config.invitationSignupRewardEnabled,
+    invitationSignupRewardAmount: config.invitationSignupRewardAmount,
+    invitationSignupRewardReviewRequired:
+      config.invitationSignupRewardReviewRequired,
+    invitationSignupInviterRewardRequiresPaidOrder:
+      config.invitationSignupInviterRewardRequiresPaidOrder,
+    invitationSignupInviteeRewardRequiresPaidOrder:
+      config.invitationSignupInviteeRewardRequiresPaidOrder,
+    rebateToBalanceEnabled: config.rebateToBalanceEnabled,
+  }
+}
+
 export function SystemConfigCard() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [isEditing, setIsEditing] = useState(false)
 
-  // 获取系统配置
   const { data: configData, isLoading } = useQuery({
     queryKey: ['systemConfig'],
     queryFn: async () => {
@@ -70,24 +95,29 @@ export function SystemConfigCard() {
     watch,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    values: configData
-      ? {
-          minRebateRequestAmount: configData.minRebateRequestAmount,
-          rebateRequestFrequencyDays: configData.rebateRequestFrequencyDays,
-          userInvitationRebateEnabled: configData.userInvitationRebateEnabled,
-        }
-      : undefined,
+    values: configData ? systemConfigToFormData(configData) : undefined,
   })
-  const userInvitationRebateEnabled = watch('userInvitationRebateEnabled')
 
-  // 更新配置
+  const userInvitationRebateEnabled = watch('userInvitationRebateEnabled')
+  const orderRebateEnabled = watch('orderRebateEnabled')
+  const invitationSignupRewardEnabled = watch('invitationSignupRewardEnabled')
+  const invitationSignupRewardReviewRequired = watch(
+    'invitationSignupRewardReviewRequired'
+  )
+  const invitationSignupInviterRewardRequiresPaidOrder = watch(
+    'invitationSignupInviterRewardRequiresPaidOrder'
+  )
+  const invitationSignupInviteeRewardRequiresPaidOrder = watch(
+    'invitationSignupInviteeRewardRequiresPaidOrder'
+  )
+  const rebateToBalanceEnabled = watch('rebateToBalanceEnabled')
+
   const updateMutation = useMutation({
     mutationFn: (data: SystemConfig) => updateSystemConfig(data),
     onSuccess: () => {
       toast.success(t('System configuration updated successfully'))
       queryClient.invalidateQueries({ queryKey: ['systemConfig'] })
       queryClient.invalidateQueries({ queryKey: ['invitationFeatureStatus'] })
-      setIsEditing(false)
     },
     onError: (error: Error) => {
       toast.error(error.message || t('Failed to update system configuration'))
@@ -98,9 +128,12 @@ export function SystemConfigCard() {
     updateMutation.mutate(data)
   }
 
-  const handleCancel = () => {
+  const handleReset = () => {
+    if (configData) {
+      reset(systemConfigToFormData(configData))
+      return
+    }
     reset()
-    setIsEditing(false)
   }
 
   if (isLoading) {
@@ -118,156 +151,306 @@ export function SystemConfigCard() {
 
   return (
     <Card>
-      <CardHeader className='flex flex-row items-center justify-between'>
-        <CardTitle>{t('System Configuration')}</CardTitle>
-        {!isEditing && (
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => setIsEditing(true)}
-          >
-            <Edit className='mr-2 size-4' />
-            {t('Edit')}
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent>
-        {isEditing ? (
-          <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
-            <div className='grid gap-4 sm:grid-cols-2'>
-              <div className='space-y-2'>
-                <Label htmlFor='minRebateRequestAmount'>
-                  {t('Minimum Rebate Request Amount')} ({t('cents')})
-                </Label>
-                <Input
-                  id='minRebateRequestAmount'
-                  type='number'
-                  min='0'
-                  {...register('minRebateRequestAmount', {
-                    valueAsNumber: true,
-                  })}
-                />
-                {errors.minRebateRequestAmount && (
-                  <p className='text-destructive text-sm'>
-                    {errors.minRebateRequestAmount.message}
-                  </p>
-                )}
-                <p className='text-muted-foreground text-sm'>
-                  {t('Amount in cents (100 = {{amount}})', {
-                    amount: formatRebateAmount(100),
-                  })}
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+          <CardTitle>{t('System Configuration')}</CardTitle>
+          <div className='flex items-center gap-2'>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={handleReset}
+              disabled={updateMutation.isPending}
+            >
+              <RotateCcw className='mr-2 size-4' />
+              {t('Reset')}
+            </Button>
+            <Button type='submit' size='sm' disabled={updateMutation.isPending}>
+              <Save className='mr-2 size-4' />
+              {updateMutation.isPending ? t('Saving...') : t('Save')}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className='grid gap-4 sm:grid-cols-2'>
+            <div className='space-y-2'>
+              <Label htmlFor='minRebateRequestAmount'>
+                {t('Minimum Rebate Request Amount')} ({t('cents')})
+              </Label>
+              <Input
+                id='minRebateRequestAmount'
+                type='number'
+                min='0'
+                {...register('minRebateRequestAmount', {
+                  valueAsNumber: true,
+                })}
+              />
+              {errors.minRebateRequestAmount && (
+                <p className='text-destructive text-sm'>
+                  {errors.minRebateRequestAmount.message}
                 </p>
-              </div>
-
-              <div className='space-y-2'>
-                <Label htmlFor='rebateRequestFrequencyDays'>
-                  {t('Rebate Request Frequency (Days)')}
-                </Label>
-                <Input
-                  id='rebateRequestFrequencyDays'
-                  type='number'
-                  min='1'
-                  {...register('rebateRequestFrequencyDays', {
-                    valueAsNumber: true,
-                  })}
-                />
-                {errors.rebateRequestFrequencyDays && (
-                  <p className='text-destructive text-sm'>
-                    {errors.rebateRequestFrequencyDays.message}
-                  </p>
-                )}
-                <p className='text-muted-foreground text-sm'>
-                  {t('Minimum days between rebate requests')}
-                </p>
-              </div>
-
-              <div className='space-y-2 sm:col-span-2'>
-                <Label htmlFor='userInvitationRebateEnabled'>
-                  {t('User Invitation Rebate')}
-                </Label>
-                <div className='border-input flex min-h-10 items-center justify-between rounded-md border px-3 py-2'>
-                  <div className='space-y-1'>
-                    <div className='text-sm font-medium'>
-                      {userInvitationRebateEnabled
-                        ? t('Enabled')
-                        : t('Disabled')}
-                    </div>
-                    <p className='text-muted-foreground text-sm'>
-                      {t('Show invitation rebate to users')}
-                    </p>
-                  </div>
-                  <Switch
-                    id='userInvitationRebateEnabled'
-                    checked={userInvitationRebateEnabled === true}
-                    onCheckedChange={(checked) =>
-                      setValue('userInvitationRebateEnabled', checked, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className='flex justify-end gap-2'>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={handleCancel}
-                disabled={updateMutation.isPending}
-              >
-                <X className='mr-2 size-4' />
-                {t('Cancel')}
-              </Button>
-              <Button type='submit' disabled={updateMutation.isPending}>
-                <Save className='mr-2 size-4' />
-                {updateMutation.isPending ? t('Saving...') : t('Save')}
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <div className='grid gap-4 sm:grid-cols-3'>
-            <div>
-              <div className='text-muted-foreground text-sm'>
-                {t('Minimum Rebate Request Amount')}
-              </div>
-              <div className='mt-1 text-lg font-medium'>
-                {configData
-                  ? formatRebateAmount(configData.minRebateRequestAmount)
-                  : '-'}
-              </div>
-            </div>
-            <div>
-              <div className='text-muted-foreground text-sm'>
-                {t('Rebate Request Frequency (Days)')}
-              </div>
-              <div className='mt-1 text-lg font-medium'>
-                {configData
-                  ? `${configData.rebateRequestFrequencyDays} ${t('days')}`
-                  : '-'}
-              </div>
-            </div>
-            <div>
-              <div className='text-muted-foreground text-sm'>
-                {t('User Invitation Rebate')}
-              </div>
-              <div className='mt-1 text-lg font-medium'>
-                {configData
-                  ? configData.userInvitationRebateEnabled
-                    ? t('Enabled')
-                    : t('Disabled')
-                  : '-'}
-              </div>
-              <p className='text-muted-foreground mt-1 text-sm'>
-                {configData?.userInvitationRebateEnabled
-                  ? t('User invitation rebate is visible to normal users')
-                  : t('User invitation rebate is hidden from normal users')}
+              )}
+              <p className='text-muted-foreground text-sm'>
+                {t('Amount in cents (100 = {{amount}})', {
+                  amount: formatRebateAmount(100),
+                })}
               </p>
             </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='rebateRequestFrequencyDays'>
+                {t('Rebate Request Frequency (Days)')}
+              </Label>
+              <Input
+                id='rebateRequestFrequencyDays'
+                type='number'
+                min='1'
+                {...register('rebateRequestFrequencyDays', {
+                  valueAsNumber: true,
+                })}
+              />
+              {errors.rebateRequestFrequencyDays && (
+                <p className='text-destructive text-sm'>
+                  {errors.rebateRequestFrequencyDays.message}
+                </p>
+              )}
+              <p className='text-muted-foreground text-sm'>
+                {t('Minimum days between rebate requests')}
+              </p>
+            </div>
+
+            <div className='space-y-2 sm:col-span-2'>
+              <Label htmlFor='userInvitationRebateEnabled'>
+                {t('User Invitation Rebate')}
+              </Label>
+              <div className='border-input flex min-h-10 items-center justify-between rounded-md border px-3 py-2'>
+                <div className='space-y-1'>
+                  <div className='text-sm font-medium'>
+                    {userInvitationRebateEnabled ? t('Enabled') : t('Disabled')}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Show invitation rebate to users')}
+                  </p>
+                </div>
+                <Switch
+                  id='userInvitationRebateEnabled'
+                  checked={userInvitationRebateEnabled === true}
+                  onCheckedChange={(checked) =>
+                    setValue('userInvitationRebateEnabled', checked, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='orderRebateEnabled'>{t('Order Rebate')}</Label>
+              <div className='border-input flex min-h-10 items-center justify-between rounded-md border px-3 py-2'>
+                <div className='space-y-1'>
+                  <div className='text-sm font-medium'>
+                    {orderRebateEnabled ? t('Enabled') : t('Disabled')}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Generate rebates from top-up and subscription orders')}
+                  </p>
+                </div>
+                <Switch
+                  id='orderRebateEnabled'
+                  checked={orderRebateEnabled === true}
+                  onCheckedChange={(checked) =>
+                    setValue('orderRebateEnabled', checked, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='rebateToBalanceEnabled'>
+                {t('Rebate to Balance')}
+              </Label>
+              <div className='border-input flex min-h-10 items-center justify-between rounded-md border px-3 py-2'>
+                <div className='space-y-1'>
+                  <div className='text-sm font-medium'>
+                    {rebateToBalanceEnabled ? t('Enabled') : t('Disabled')}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Allow users to claim rebates to balance')}
+                  </p>
+                </div>
+                <Switch
+                  id='rebateToBalanceEnabled'
+                  checked={rebateToBalanceEnabled === true}
+                  onCheckedChange={(checked) =>
+                    setValue('rebateToBalanceEnabled', checked, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='invitationSignupRewardAmount'>
+                {t('Invitation Signup Reward Amount')} ({t('cents')})
+              </Label>
+              <Input
+                id='invitationSignupRewardAmount'
+                type='number'
+                min='0'
+                {...register('invitationSignupRewardAmount', {
+                  valueAsNumber: true,
+                })}
+              />
+              {errors.invitationSignupRewardAmount && (
+                <p className='text-destructive text-sm'>
+                  {errors.invitationSignupRewardAmount.message}
+                </p>
+              )}
+              <p className='text-muted-foreground text-sm'>
+                {t('Amount in cents (200 = {{amount}})', {
+                  amount: formatRebateAmount(200),
+                })}
+              </p>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='invitationSignupRewardEnabled'>
+                {t('Invitation Signup Reward')}
+              </Label>
+              <div className='border-input flex min-h-10 items-center justify-between rounded-md border px-3 py-2'>
+                <div className='space-y-1'>
+                  <div className='text-sm font-medium'>
+                    {invitationSignupRewardEnabled
+                      ? t('Enabled')
+                      : t('Disabled')}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Generate rewards for invited registrations')}
+                  </p>
+                </div>
+                <Switch
+                  id='invitationSignupRewardEnabled'
+                  checked={invitationSignupRewardEnabled === true}
+                  onCheckedChange={(checked) =>
+                    setValue('invitationSignupRewardEnabled', checked, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className='space-y-2 sm:col-span-2'>
+              <Label htmlFor='invitationSignupRewardReviewRequired'>
+                {t('Invitation Signup Reward Review')}
+              </Label>
+              <div className='border-input flex min-h-10 items-center justify-between rounded-md border px-3 py-2'>
+                <div className='space-y-1'>
+                  <div className='text-sm font-medium'>
+                    {invitationSignupRewardReviewRequired
+                      ? t('Review Required')
+                      : t('Manual payout only')}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'When disabled, claimed invitation rewards skip approval and wait for manual payout'
+                    )}
+                  </p>
+                </div>
+                <Switch
+                  id='invitationSignupRewardReviewRequired'
+                  checked={invitationSignupRewardReviewRequired === true}
+                  onCheckedChange={(checked) =>
+                    setValue('invitationSignupRewardReviewRequired', checked, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='invitationSignupInviterRewardRequiresPaidOrder'>
+                {t('Inviter Reward Unlock')}
+              </Label>
+              <div className='border-input flex min-h-10 items-center justify-between gap-3 rounded-md border px-3 py-2'>
+                <div className='space-y-1'>
+                  <div className='text-sm font-medium'>
+                    {invitationSignupInviterRewardRequiresPaidOrder
+                      ? t('Wait for paid order')
+                      : t('Immediately claimable')}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Inviter reward waits until the invited user first tops up or subscribes'
+                    )}
+                  </p>
+                </div>
+                <Switch
+                  id='invitationSignupInviterRewardRequiresPaidOrder'
+                  checked={
+                    invitationSignupInviterRewardRequiresPaidOrder === true
+                  }
+                  onCheckedChange={(checked) =>
+                    setValue(
+                      'invitationSignupInviterRewardRequiresPaidOrder',
+                      checked,
+                      {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      }
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='invitationSignupInviteeRewardRequiresPaidOrder'>
+                {t('Invitee Reward Unlock')}
+              </Label>
+              <div className='border-input flex min-h-10 items-center justify-between gap-3 rounded-md border px-3 py-2'>
+                <div className='space-y-1'>
+                  <div className='text-sm font-medium'>
+                    {invitationSignupInviteeRewardRequiresPaidOrder
+                      ? t('Wait for paid order')
+                      : t('Immediately claimable')}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Invitee reward waits until the invited user first tops up or subscribes'
+                    )}
+                  </p>
+                </div>
+                <Switch
+                  id='invitationSignupInviteeRewardRequiresPaidOrder'
+                  checked={
+                    invitationSignupInviteeRewardRequiresPaidOrder === true
+                  }
+                  onCheckedChange={(checked) =>
+                    setValue(
+                      'invitationSignupInviteeRewardRequiresPaidOrder',
+                      checked,
+                      {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      }
+                    )
+                  }
+                />
+              </div>
+            </div>
           </div>
-        )}
-      </CardContent>
+        </CardContent>
+      </form>
     </Card>
   )
 }

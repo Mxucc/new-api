@@ -4,6 +4,9 @@ import { getInvitationFeatureStatus } from '../api'
 const DISABLED_STATUS = {
   available: false,
   userInvitationRebateEnabled: false,
+  orderRebateEnabled: false,
+  invitationSignupRewardEnabled: false,
+  rebateToBalanceEnabled: false,
 }
 
 export function useInvitationFeatureStatus() {
@@ -21,10 +24,19 @@ export function useInvitationFeatureStatus() {
   const available = query.isSuccess && query.data?.available === true
   const userVisible =
     available && query.data?.userInvitationRebateEnabled === true
+  const rebateRecordsVisible =
+    userVisible &&
+    (query.data?.orderRebateEnabled === true ||
+      query.data?.invitationSignupRewardEnabled === true)
+  const rebateManagementVisible =
+    rebateRecordsVisible && query.data?.rebateToBalanceEnabled === true
 
   return {
     query,
     available,
     userVisible,
+    rebateRecordsVisible,
+    rebateManagementVisible,
+    hasAnyRebateFeature: rebateRecordsVisible || rebateManagementVisible,
   }
 }

@@ -42,6 +42,11 @@ export function Invitations() {
 
   // 从 URL query 获取当前 tab，默认为 'invite'
   const currentTab = (search.tab as TabValue) || DEFAULT_TAB
+  const activeTab =
+    (currentTab === 'records' && !invitationFeature.rebateRecordsVisible) ||
+    (currentTab === 'rebate' && !invitationFeature.rebateManagementVisible)
+      ? DEFAULT_TAB
+      : currentTab
 
   // 获取邀请码和统计信息
   const { data: statsData, isLoading: statsLoading } = useQuery({
@@ -60,7 +65,7 @@ export function Invitations() {
       const response = await getRebateRecords({ pageSize: 1000 })
       return response.data
     },
-    enabled: invitationFeature.userVisible,
+    enabled: invitationFeature.rebateRecordsVisible,
   })
 
   // Tab 切换处理
@@ -81,49 +86,62 @@ export function Invitations() {
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
-        {t('Invitation Rebate')}
+        {invitationFeature.hasAnyRebateFeature
+          ? t('Invitation Rebate')
+          : t('My Invitation')}
       </SectionPageLayout.Title>
       <SectionPageLayout.Description>
-        {t('Invite friends to earn rebates')}
+        {invitationFeature.hasAnyRebateFeature
+          ? t('Invite friends to earn rebates')
+          : t('View your invitation count')}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
         <div className='mx-auto w-full max-w-7xl'>
-          <Tabs value={currentTab} onValueChange={handleTabChange}>
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList className='mb-6'>
               <TabsTrigger value='invite' className='gap-2'>
                 <Gift className='size-4' />
                 {t('My Invitation')}
               </TabsTrigger>
-              <TabsTrigger value='records' className='gap-2'>
-                <History className='size-4' />
-                {t('Rebate Records')}
-              </TabsTrigger>
-              <TabsTrigger value='rebate' className='gap-2'>
-                <Wallet className='size-4' />
-                {t('Rebate Management')}
-              </TabsTrigger>
+              {invitationFeature.rebateRecordsVisible && (
+                <TabsTrigger value='records' className='gap-2'>
+                  <History className='size-4' />
+                  {t('Rebate Records')}
+                </TabsTrigger>
+              )}
+              {invitationFeature.rebateManagementVisible && (
+                <TabsTrigger value='rebate' className='gap-2'>
+                  <Wallet className='size-4' />
+                  {t('Rebate Management')}
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value='invite'>
               <InvitationCodeCard
                 stats={statsData ?? null}
                 loading={statsLoading}
+                showRebateStats={invitationFeature.hasAnyRebateFeature}
               />
             </TabsContent>
 
-            <TabsContent value='records'>
-              <div className='space-y-6'>
-                <RebateTrendChart
-                  records={recordsData?.items ?? []}
-                  days={30}
-                />
-                <RebateRecordsTable />
-              </div>
-            </TabsContent>
+            {invitationFeature.rebateRecordsVisible && (
+              <TabsContent value='records'>
+                <div className='space-y-6'>
+                  <RebateTrendChart
+                    records={recordsData?.items ?? []}
+                    days={30}
+                  />
+                  <RebateRecordsTable />
+                </div>
+              </TabsContent>
+            )}
 
-            <TabsContent value='rebate'>
-              <RebateManagement />
-            </TabsContent>
+            {invitationFeature.rebateManagementVisible && (
+              <TabsContent value='rebate'>
+                <RebateManagement />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </SectionPageLayout.Content>

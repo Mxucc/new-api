@@ -28,7 +28,9 @@ import type {
   PaginatedResponse,
   RebateStatus,
   AdminRebateOrderRecord,
+  AdminInvitationRegistration,
   RebateOrderRecordBatchResponse,
+  InvitationRegistrationRewardResponse,
   UpdateRebateOrderRecordsData,
   RebateOrderRecordIdsData,
   ExtendRebateInitializationData,
@@ -241,6 +243,18 @@ export async function getRebateStats(): Promise<
 }
 
 /**
+ * 获取管理员返利记录列表（不受用户侧邀请返利开关影响）
+ */
+export async function getAdminRebateRecords(
+  params?: PaginationParams & { status?: RebateStatus }
+): Promise<ApiResponse<PaginatedResponse<RebateRecord>>> {
+  const res = await api.get(`${ADMIN_BASE_PATH}/rebate-records`, {
+    params,
+  })
+  return res.data
+}
+
+/**
  * 获取管理员返利订单记录
  */
 export async function getAdminRebateOrderRecords(
@@ -310,6 +324,42 @@ export async function extendAdminRebateOrderInitialization(
   const res = await api.post(
     `${ADMIN_BASE_PATH}/rebate-order-records/extend-initialization`,
     data
+  )
+  return res.data
+}
+
+/**
+ * 获取管理员邀请注册列表
+ */
+export async function getAdminInvitationRegistrations(
+  params?: PaginationParams
+): Promise<ApiResponse<PaginatedResponse<AdminInvitationRegistration>>> {
+  const res = await api.get(`${ADMIN_BASE_PATH}/invitation-registrations`, {
+    params,
+  })
+  return res.data
+}
+
+/**
+ * 为邀请人生成邀请注册奖励
+ */
+export async function generateAdminInvitationInviterReward(
+  id: number
+): Promise<ApiResponse<InvitationRegistrationRewardResponse>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/invitation-registrations/${id}/inviter-reward`
+  )
+  return res.data
+}
+
+/**
+ * 为被邀请人生成邀请注册奖励
+ */
+export async function generateAdminInvitationInviteeReward(
+  id: number
+): Promise<ApiResponse<InvitationRegistrationRewardResponse>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/invitation-registrations/${id}/invitee-reward`
   )
   return res.data
 }

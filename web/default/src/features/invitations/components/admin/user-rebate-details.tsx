@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/table'
 import { getUserRebateDetails } from '../../api'
 import { formatRebateAmount } from '../../lib/format'
-import type { RebateRecord } from '../../types'
+import type { OrderType, RebateDisplayStatus, RebateRecord } from '../../types'
 
 const formSchema = z.object({
   userId: z
@@ -84,27 +84,42 @@ export function UserRebateDetails() {
     return new Date(dateString).toLocaleString()
   }
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<
-      string,
-      'default' | 'secondary' | 'destructive' | 'outline'
-    > = {
-      pending: 'default',
-      requested: 'secondary',
-      approved: 'outline',
-      completed: 'outline',
+  const getStatusBadge = (record: RebateRecord) => {
+    const status: RebateDisplayStatus =
+      record.displayStatus ?? (record.status === 'pending' ? 'claimable' : 'paid')
+    const labels: Record<RebateDisplayStatus, string> = {
+      estimated: t('Estimated Rebate'),
+      claimable: t('Claimable Rebate'),
+      paid: t('Paid Rebate'),
+      waiting_unlock: t(
+        'Pending rebate (waiting for first top-up/subscription to unlock)'
+      ),
+    }
+    const classes: Record<RebateDisplayStatus, string> = {
+      estimated: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+      claimable: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+      paid: 'bg-gray-500/10 text-gray-700 dark:text-gray-400',
+      waiting_unlock: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
     }
     return (
-      <Badge variant={variants[status] || 'default'}>
-        {t(status.charAt(0).toUpperCase() + status.slice(1))}
+      <Badge
+        variant='outline'
+        className={`h-auto max-w-[14rem] justify-start whitespace-normal py-1 text-left leading-tight ${classes[status]}`}
+      >
+        {labels[status]}
       </Badge>
     )
   }
 
-  const formatOrderType = (type: string) => {
-    const types: Record<string, string> = {
+  const isInvitationSignupReward = (type: OrderType) =>
+    type === 'invite_inviter' || type === 'invite_invitee'
+
+  const formatOrderType = (type: OrderType) => {
+    const types: Record<OrderType, string> = {
       topup: t('Top-up'),
       subscription: t('Subscription'),
+      invite_inviter: t('Invitation Reward'),
+      invite_invitee: t('New User Invitation Reward'),
       other: t('Other'),
     }
     return types[type] || type
@@ -164,17 +179,21 @@ export function UserRebateDetails() {
                     <TableRow key={record.id}>
                       <TableCell>{formatOrderType(record.orderType)}</TableCell>
                       <TableCell>
-                        {formatRebateAmount(record.orderAmount)}
+                        {isInvitationSignupReward(record.orderType)
+                          ? '-'
+                          : formatRebateAmount(record.orderAmount)}
                       </TableCell>
                       <TableCell className='font-medium'>
                         {formatRebateAmount(record.rebateAmount)}
                       </TableCell>
                       <TableCell>
-                        {record.rebateRatio == null
-                          ? t('Not configured')
-                          : `${(record.rebateRatio * 100).toFixed(2)}%`}
+                        {isInvitationSignupReward(record.orderType)
+                          ? '-'
+                          : record.rebateRatio == null
+                            ? t('Not configured')
+                            : `${(record.rebateRatio * 100).toFixed(2)}%`}
                       </TableCell>
-                      <TableCell>{getStatusBadge(record.status)}</TableCell>
+                      <TableCell>{getStatusBadge(record)}</TableCell>
                       <TableCell className='text-muted-foreground'>
                         {formatDate(record.createdAt)}
                       </TableCell>

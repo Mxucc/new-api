@@ -22,7 +22,7 @@ import { InvitationsAdmin } from '@/features/invitations/admin'
 
 const searchSchema = z.object({
   tab: z
-    .enum(['rules', 'records', 'approvals', 'statistics'])
+    .enum(['rules', 'records', 'registrations', 'approvals', 'statistics'])
     .optional()
     .catch('rules'),
 })
