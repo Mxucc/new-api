@@ -35,6 +35,8 @@ import Channel from './pages/Channel';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
+import Invitations from './pages/Invitations';
+import InvitationsAdmin from './pages/InvitationsAdmin';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
@@ -164,6 +166,14 @@ function App() {
           }
         />
         <Route
+          path='/console/invitations/admin'
+          element={
+            <AdminRoute>
+              <InvitationsAdmin />
+            </AdminRoute>
+          }
+        />
+        <Route
           path='/console/user'
           element={
             <AdminRoute>
@@ -273,6 +283,16 @@ function App() {
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <TopUp />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/invitations'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Invitations />
               </Suspense>
             </PrivateRoute>
           }

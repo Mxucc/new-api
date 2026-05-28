@@ -42,6 +42,7 @@ export const DEFAULT_ADMIN_CONFIG = {
   personal: {
     enabled: true,
     topup: true,
+    invitations: true,
     personal: true,
   },
   admin: {
@@ -50,6 +51,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     models: true,
     deployment: true,
     redemption: true,
+    invitationsAdmin: true,
     user: true,
     subscription: true,
     setting: true,

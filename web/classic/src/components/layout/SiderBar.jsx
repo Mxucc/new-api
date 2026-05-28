@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon } from '../../helpers/render';
@@ -27,6 +27,10 @@ import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { isAdmin, isRoot, showError } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
+import {
+  invitationApi,
+  INVITATION_FEATURE_STATUS_REFRESH_EVENT,
+} from '../invitations/api';
 
 import { Nav, Divider, Button } from '@douyinfe/semi-ui';
 
@@ -36,6 +40,8 @@ const routerMap = {
   token: '/console/token',
   redemption: '/console/redemption',
   topup: '/console/topup',
+  invitations: '/console/invitations',
+  invitationsAdmin: '/console/invitations/admin',
   user: '/console/user',
   subscription: '/console/subscription',
   log: '/console/log',
@@ -67,6 +73,45 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const [openedKeys, setOpenedKeys] = useState([]);
   const location = useLocation();
   const [routerMapState, setRouterMapState] = useState(routerMap);
+  const [invitationMenuVisible, setInvitationMenuVisible] = useState(false);
+
+  const loadInvitationMenuStatus = useCallback(async () => {
+    try {
+      const response = await invitationApi.getStatus();
+      return Boolean(
+        response?.success &&
+          response?.data?.available &&
+          response?.data?.userInvitationRebateEnabled,
+      );
+    } catch (error) {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const updateInvitationMenuStatus = async () => {
+      const visible = await loadInvitationMenuStatus();
+      if (active) {
+        setInvitationMenuVisible(visible);
+      }
+    };
+
+    updateInvitationMenuStatus();
+    window.addEventListener(
+      INVITATION_FEATURE_STATUS_REFRESH_EVENT,
+      updateInvitationMenuStatus,
+    );
+
+    return () => {
+      active = false;
+      window.removeEventListener(
+        INVITATION_FEATURE_STATUS_REFRESH_EVENT,
+        updateInvitationMenuStatus,
+      );
+    };
+  }, [loadInvitationMenuStatus]);
 
   const workspaceItems = useMemo(() => {
     const items = [
@@ -130,6 +175,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/topup',
       },
       {
+        text: t('邀请返利'),
+        itemKey: 'invitations',
+        to: '/invitations',
+      },
+      {
         text: t('个人设置'),
         itemKey: 'personal',
         to: '/personal',
@@ -138,12 +188,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
+      if (item.itemKey === 'invitations' && !invitationMenuVisible) {
+        return false;
+      }
+
       const configVisible = isModuleVisible('personal', item.itemKey);
       return configVisible;
     });
 
     return filteredItems;
-  }, [t, isModuleVisible]);
+  }, [t, isModuleVisible, invitationMenuVisible]);
 
   const adminItems = useMemo(() => {
     const items = [
@@ -175,6 +229,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('兑换码管理'),
         itemKey: 'redemption',
         to: '/redemption',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('返利管理'),
+        itemKey: 'invitationsAdmin',
+        to: '/invitations/admin',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
@@ -467,7 +527,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           )}
 
           {/* 个人中心区域 */}
-          {hasSectionVisibleModules('personal') && (
+          {hasSectionVisibleModules('personal') && financeItems.length > 0 && (
             <>
               <Divider className='sidebar-divider' />
               <div>
