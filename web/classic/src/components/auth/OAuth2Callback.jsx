@@ -26,6 +26,8 @@ import {
   showSuccess,
   updateAPI,
   setUserData,
+  takeRememberedAuthRedirect,
+  navigateToAuthRedirect,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import Loading from '../common/ui/Loading';
@@ -35,7 +37,8 @@ const OAuth2Callback = (props) => {
   const [searchParams] = useSearchParams();
   const [, userDispatch] = useContext(UserContext);
   const navigate = useNavigate();
-  
+  const pendingRedirectRef = useRef(null);
+
   // 防止 React 18 Strict Mode 下重复执行
   const hasExecuted = useRef(false);
 
@@ -65,6 +68,9 @@ const OAuth2Callback = (props) => {
         setUserData(data);
         updateAPI();
         showSuccess(t('登录成功！'));
+        if (navigateToAuthRedirect(pendingRedirectRef.current)) {
+          return;
+        }
         navigate('/console/token');
       }
     } catch (error) {
@@ -87,6 +93,7 @@ const OAuth2Callback = (props) => {
       return;
     }
     hasExecuted.current = true;
+    pendingRedirectRef.current = takeRememberedAuthRedirect();
 
     const code = searchParams.get('code');
     const state = searchParams.get('state');

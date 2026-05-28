@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { history } from './history';
+import { getSafeAuthRedirectTarget } from './authRedirect';
 
 export function authHeader() {
   // return authorization header with jwt token
@@ -32,10 +33,26 @@ export function authHeader() {
   }
 }
 
+function DocumentRedirect({ target }) {
+  useEffect(() => {
+    window.location.replace(target);
+  }, [target]);
+
+  return null;
+}
+
 export const AuthRedirect = ({ children }) => {
   const user = localStorage.getItem('user');
+  const location = useLocation();
 
   if (user) {
+    const redirectTarget = getSafeAuthRedirectTarget(
+      new URLSearchParams(location.search).get('redirect'),
+    );
+    if (redirectTarget) {
+      return <DocumentRedirect target={redirectTarget} />;
+    }
+
     return <Navigate to='/console' replace />;
   }
 

@@ -36,6 +36,9 @@ import {
   onOIDCClicked,
   onLinuxDOOAuthClicked,
   onCustomOAuthClicked,
+  getSafeAuthRedirectTarget,
+  rememberAuthRedirect,
+  navigateToAuthRedirect,
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
@@ -81,7 +84,7 @@ const LoginForm = () => {
     wechat_verification_code: '',
   });
   const { username, password } = inputs;
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [submitted, setSubmitted] = useState(false);
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
@@ -115,6 +118,22 @@ const LoginForm = () => {
 
   const logo = getLogo();
   const systemName = getSystemName();
+  const redirectTo = searchParams.get('redirect');
+  const redirectTarget = useMemo(
+    () => getSafeAuthRedirectTarget(redirectTo),
+    [redirectTo],
+  );
+
+  const redirectAfterLogin = (fallback = '/console') => {
+    if (navigateToAuthRedirect(redirectTarget)) {
+      return;
+    }
+    navigate(fallback);
+  };
+
+  const rememberLoginRedirect = () => {
+    rememberAuthRedirect(redirectTarget);
+  };
 
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
@@ -170,7 +189,7 @@ const LoginForm = () => {
     if (searchParams.get('expired')) {
       showError(t('未登录或登录已过期，请重新登录'));
     }
-  }, []);
+  }, [searchParams, t]);
 
   const onWeChatLoginClicked = () => {
     if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
@@ -198,7 +217,7 @@ const LoginForm = () => {
         localStorage.setItem('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
-        navigate('/');
+        redirectAfterLogin('/');
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
@@ -255,7 +274,7 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          navigate('/console');
+          redirectAfterLogin('/console');
         } else {
           showError(message);
         }
@@ -300,7 +319,7 @@ const LoginForm = () => {
         showSuccess('登录成功！');
         setUserData(data);
         updateAPI();
-        navigate('/');
+        redirectAfterLogin('/');
       } else {
         showError(message);
       }
@@ -330,6 +349,7 @@ const LoginForm = () => {
       setGithubButtonDisabled(true);
     }, 20000);
     try {
+      rememberLoginRedirect();
       onGitHubOAuthClicked(status.github_client_id, { shouldLogout: true });
     } finally {
       // 由于重定向，这里不会执行到，但为了完整性添加
@@ -345,6 +365,7 @@ const LoginForm = () => {
     }
     setDiscordLoading(true);
     try {
+      rememberLoginRedirect();
       onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
     } finally {
       // 由于重定向，这里不会执行到，但为了完整性添加
@@ -360,6 +381,7 @@ const LoginForm = () => {
     }
     setOidcLoading(true);
     try {
+      rememberLoginRedirect();
       onOIDCClicked(
         status.oidc_authorization_endpoint,
         status.oidc_client_id,
@@ -380,6 +402,7 @@ const LoginForm = () => {
     }
     setLinuxdoLoading(true);
     try {
+      rememberLoginRedirect();
       onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
     } finally {
       // 由于重定向，这里不会执行到，但为了完整性添加
@@ -395,6 +418,7 @@ const LoginForm = () => {
     }
     setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: true }));
     try {
+      rememberLoginRedirect();
       onCustomOAuthClicked(provider, { shouldLogout: true });
     } finally {
       // 由于重定向，这里不会执行到，但为了完整性添加
@@ -456,7 +480,7 @@ const LoginForm = () => {
         setUserData(finish.data);
         updateAPI();
         showSuccess('登录成功！');
-        navigate('/console');
+        redirectAfterLogin('/console');
       } else {
         showError(finish.message || 'Passkey 登录失败，请重试');
       }
@@ -491,7 +515,7 @@ const LoginForm = () => {
     setUserData(data);
     updateAPI();
     showSuccess('登录成功！');
-    navigate('/console');
+    redirectAfterLogin('/console');
   };
 
   // 返回登录页面
@@ -958,8 +982,7 @@ const LoginForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
+        {showEmailLogin || !hasOAuthLoginOptions
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

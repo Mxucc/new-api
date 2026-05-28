@@ -29,6 +29,7 @@ import { ThemeCustomizationProvider } from '@/context/theme-customization-provid
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Toaster } from '@/components/ui/sonner'
 import { NavigationProgress } from '@/components/navigation-progress'
+import { getAuthRedirectSearch } from '@/features/auth/lib/redirect'
 import { saveAffiliateCode } from '@/features/auth/lib/storage'
 import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
@@ -121,6 +122,18 @@ export const Route = createRootRouteWithContext<{
       }
       setupStatusChecked = true
       setSetupStatusCache(true)
+    }
+
+    if (pathname === '/login') {
+      const redirectTo =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('redirect')
+          : null
+
+      throw redirect({
+        to: '/sign-in',
+        search: getAuthRedirectSearch(redirectTo),
+      })
     }
     // 用户认证状态完全依赖 localStorage 缓存
     // 如果用户有有效 session 但 localStorage 被清空，会被重定向到登录页重新登录
