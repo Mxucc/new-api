@@ -375,6 +375,11 @@ function RebateRecordsPanel() {
         },
       },
       {
+        title: t('订单/邀请时间'),
+        dataIndex: 'orderTime',
+        render: (value, record) => formatDateTime(value || record.createdAt),
+      },
+      {
         title: t('创建时间'),
         dataIndex: 'createdAt',
         render: (value) => formatDateTime(value),
@@ -411,7 +416,7 @@ function RebateRecordsPanel() {
         rowKey='id'
         pagination={false}
         empty={<Empty description={t('暂无返利记录')} />}
-        scroll={{ x: 920 }}
+        scroll={{ x: 1080 }}
       />
       {data.total > 0 && (
         <div className='mt-4 flex flex-wrap items-center justify-between gap-3'>
@@ -557,9 +562,9 @@ function RebateBalancePanel() {
         render: (value) => formatRebateAmount(value),
       },
       {
-        title: t('创建时间'),
-        dataIndex: 'createdAt',
-        render: (value) => formatDateTime(value),
+        title: t('订单/邀请时间'),
+        dataIndex: 'orderTime',
+        render: (value, record) => formatDateTime(value || record.createdAt),
       },
     ],
     [t],

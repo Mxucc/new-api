@@ -71,6 +71,7 @@ export interface RebateRecord {
   inviterId: number
   orderType: OrderType
   orderAmount: number
+  orderTime?: string | null
   rebateAmount: number
   rebateRatio?: number | null
   status: RebateStatus

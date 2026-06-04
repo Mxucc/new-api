@@ -173,6 +173,7 @@ export function UserRebateDetails() {
                     <TableHead>{t('Rebate Amount')}</TableHead>
                     <TableHead>{t('Rebate Rate')}</TableHead>
                     <TableHead>{t('Status')}</TableHead>
+                    <TableHead>{t('Order / Invitation Time')}</TableHead>
                     <TableHead>{t('Created At')}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -196,6 +197,9 @@ export function UserRebateDetails() {
                             : `${(record.rebateRatio * 100).toFixed(2)}%`}
                       </TableCell>
                       <TableCell>{getStatusBadge(record)}</TableCell>
+                      <TableCell className='text-muted-foreground'>
+                        {formatDate(record.orderTime ?? record.createdAt)}
+                      </TableCell>
                       <TableCell className='text-muted-foreground'>
                         {formatDate(record.createdAt)}
                       </TableCell>

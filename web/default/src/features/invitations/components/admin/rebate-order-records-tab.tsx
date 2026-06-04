@@ -1135,6 +1135,9 @@ function SignupRewardRecordsPanel() {
                     </TableHead>
                     <TableHead className='min-w-32'>{t('Status')}</TableHead>
                     <TableHead className='min-w-44'>
+                      {t('Invited At')}
+                    </TableHead>
+                    <TableHead className='min-w-44'>
                       {t('Created At')}
                     </TableHead>
                     <TableHead className='bg-popover sticky right-0 z-20 w-44 min-w-44 border-l shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.2)]'>
@@ -1167,6 +1170,11 @@ function SignupRewardRecordsPanel() {
                             >
                               {rebateStatusLabel(t, record.status)}
                             </Badge>
+                          </TableCell>
+                          <TableCell className='text-muted-foreground'>
+                            {formatDateTime(
+                              record.orderTime ?? record.createdAt
+                            )}
                           </TableCell>
                           <TableCell className='text-muted-foreground'>
                             {formatDateTime(record.createdAt)}

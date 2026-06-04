@@ -342,7 +342,7 @@ export function RebateManagement() {
                     <TableHead>{t('Order Type')}</TableHead>
                     <TableHead>{t('Order Amount')}</TableHead>
                     <TableHead>{t('Rebate Amount')}</TableHead>
-                    <TableHead>{t('Created At')}</TableHead>
+                    <TableHead>{t('Order / Invitation Time')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -376,7 +376,7 @@ export function RebateManagement() {
                           {formatRebateAmount(record.rebateAmount)}
                         </TableCell>
                         <TableCell className='text-muted-foreground'>
-                          {formatDate(record.createdAt)}
+                          {formatDate(record.orderTime ?? record.createdAt)}
                         </TableCell>
                       </TableRow>
                     ))

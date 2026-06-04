@@ -1444,6 +1444,12 @@ function SignupRewardRecordsPanel() {
         },
       },
       {
+        title: t('邀请时间'),
+        dataIndex: 'orderTime',
+        width: 190,
+        render: (value, record) => formatDateTime(value || record.createdAt),
+      },
+      {
         title: t('创建时间'),
         dataIndex: 'createdAt',
         width: 190,
@@ -2195,6 +2201,11 @@ function RebateStatsPanel() {
         render: (value, record) => (
           <Tag>{userRebateStatusLabel(t, value, record.status)}</Tag>
         ),
+      },
+      {
+        title: t('订单/邀请时间'),
+        dataIndex: 'orderTime',
+        render: (value, record) => formatDateTime(value || record.createdAt),
       },
       {
         title: t('创建时间'),

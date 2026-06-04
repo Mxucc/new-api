@@ -145,6 +145,11 @@ export function RebateRecordsTable() {
             : `${(ratio * 100).toFixed(1)}%`
         },
       }),
+      columnHelper.accessor((row) => row.orderTime ?? row.createdAt, {
+        id: 'orderTime',
+        header: () => t('Order / Invitation Time'),
+        cell: (info) => format(new Date(info.getValue()), 'yyyy-MM-dd HH:mm'),
+      }),
       columnHelper.accessor('createdAt', {
         header: () => t('Created At'),
         cell: (info) => format(new Date(info.getValue()), 'yyyy-MM-dd HH:mm'),
@@ -166,7 +171,7 @@ export function RebateRecordsTable() {
           return (
             <Badge
               variant='outline'
-              className={`h-auto max-w-[14rem] justify-start whitespace-normal py-1 text-left leading-tight ${STATUS_COLORS[status]}`}
+              className={`h-auto max-w-[14rem] justify-start py-1 text-left leading-tight whitespace-normal ${STATUS_COLORS[status]}`}
             >
               {statusLabels[status]}
             </Badge>
