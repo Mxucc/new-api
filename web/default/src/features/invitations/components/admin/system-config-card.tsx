@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { getSystemConfig, updateSystemConfig } from '../../api'
+import { getInvitationErrorMessage } from '../../lib/error'
 import { formatRebateAmount } from '../../lib/format'
 import type { SystemConfig } from '../../types'
 
@@ -40,7 +41,7 @@ const formSchema = z.object({
   rebateRequestFrequencyDays: z
     .number()
     .int()
-    .min(1, 'Rebate request frequency must be at least 1 day'),
+    .min(0, 'Rebate request frequency must be at least 0 days'),
   userInvitationRebateEnabled: z.boolean(),
   orderRebateEnabled: z.boolean(),
   invitationSignupRewardEnabled: z.boolean(),
@@ -48,6 +49,14 @@ const formSchema = z.object({
     .number()
     .int()
     .min(0, 'Invitation signup reward amount must be at least 0'),
+  invitationSignupInviterRewardAmount: z
+    .number()
+    .int()
+    .min(0, 'Inviter reward amount must be at least 0'),
+  invitationSignupInviteeRewardAmount: z
+    .number()
+    .int()
+    .min(0, 'Invitee reward amount must be at least 0'),
   invitationSignupRewardReviewRequired: z.boolean(),
   invitationSignupInviterRewardRequiresPaidOrder: z.boolean(),
   invitationSignupInviteeRewardRequiresPaidOrder: z.boolean(),
@@ -64,6 +73,12 @@ function systemConfigToFormData(config: SystemConfig): FormData {
     orderRebateEnabled: config.orderRebateEnabled,
     invitationSignupRewardEnabled: config.invitationSignupRewardEnabled,
     invitationSignupRewardAmount: config.invitationSignupRewardAmount,
+    invitationSignupInviterRewardAmount:
+      config.invitationSignupInviterRewardAmount ??
+      config.invitationSignupRewardAmount,
+    invitationSignupInviteeRewardAmount:
+      config.invitationSignupInviteeRewardAmount ??
+      config.invitationSignupRewardAmount,
     invitationSignupRewardReviewRequired:
       config.invitationSignupRewardReviewRequired,
     invitationSignupInviterRewardRequiresPaidOrder:
@@ -119,13 +134,28 @@ export function SystemConfigCard() {
       queryClient.invalidateQueries({ queryKey: ['systemConfig'] })
       queryClient.invalidateQueries({ queryKey: ['invitationFeatureStatus'] })
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to update system configuration'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(
+          error,
+          t('Failed to update system configuration')
+        )
+      )
     },
   })
 
   const onSubmit = (data: FormData) => {
-    updateMutation.mutate(data)
+    updateMutation.mutate({
+      ...data,
+      invitationSignupRewardAmount:
+        data.invitationSignupInviterRewardAmount === 0 &&
+        data.invitationSignupInviteeRewardAmount === 0
+          ? 0
+          : Math.max(
+              data.invitationSignupInviterRewardAmount,
+              data.invitationSignupInviteeRewardAmount
+            ),
+    })
   }
 
   const handleReset = () => {
@@ -204,7 +234,7 @@ export function SystemConfigCard() {
               <Input
                 id='rebateRequestFrequencyDays'
                 type='number'
-                min='1'
+                min='0'
                 {...register('rebateRequestFrequencyDays', {
                   valueAsNumber: true,
                 })}
@@ -215,7 +245,9 @@ export function SystemConfigCard() {
                 </p>
               )}
               <p className='text-muted-foreground text-sm'>
-                {t('Minimum days between rebate requests')}
+                {t(
+                  'Minimum days between rebate requests; 0 disables the limit'
+                )}
               </p>
             </div>
 
@@ -296,20 +328,44 @@ export function SystemConfigCard() {
             </div>
 
             <div className='space-y-2'>
-              <Label htmlFor='invitationSignupRewardAmount'>
-                {t('Invitation Signup Reward Amount')} ({t('cents')})
+              <Label htmlFor='invitationSignupInviterRewardAmount'>
+                {t('Inviter Signup Reward Amount')} ({t('cents')})
               </Label>
               <Input
-                id='invitationSignupRewardAmount'
+                id='invitationSignupInviterRewardAmount'
                 type='number'
                 min='0'
-                {...register('invitationSignupRewardAmount', {
+                {...register('invitationSignupInviterRewardAmount', {
                   valueAsNumber: true,
                 })}
               />
-              {errors.invitationSignupRewardAmount && (
+              {errors.invitationSignupInviterRewardAmount && (
                 <p className='text-destructive text-sm'>
-                  {errors.invitationSignupRewardAmount.message}
+                  {errors.invitationSignupInviterRewardAmount.message}
+                </p>
+              )}
+              <p className='text-muted-foreground text-sm'>
+                {t('Amount in cents (200 = {{amount}})', {
+                  amount: formatRebateAmount(200),
+                })}
+              </p>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='invitationSignupInviteeRewardAmount'>
+                {t('Invitee Signup Reward Amount')} ({t('cents')})
+              </Label>
+              <Input
+                id='invitationSignupInviteeRewardAmount'
+                type='number'
+                min='0'
+                {...register('invitationSignupInviteeRewardAmount', {
+                  valueAsNumber: true,
+                })}
+              />
+              {errors.invitationSignupInviteeRewardAmount && (
+                <p className='text-destructive text-sm'>
+                  {errors.invitationSignupInviteeRewardAmount.message}
                 </p>
               )}
               <p className='text-muted-foreground text-sm'>

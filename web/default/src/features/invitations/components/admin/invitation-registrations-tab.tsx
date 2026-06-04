@@ -43,6 +43,7 @@ import {
   generateAdminInvitationInviterReward,
   getAdminInvitationRegistrations,
 } from '../../api'
+import { getInvitationErrorMessage } from '../../lib/error'
 import { formatRebateAmount } from '../../lib/format'
 import type { AdminInvitationRegistration } from '../../types'
 
@@ -125,8 +126,10 @@ export function InvitationRegistrationsTab() {
       )
       invalidateList()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to generate inviter reward'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to generate inviter reward'))
+      )
     },
   })
 
@@ -140,8 +143,10 @@ export function InvitationRegistrationsTab() {
       )
       invalidateList()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to generate invitee reward'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to generate invitee reward'))
+      )
     },
   })
 
@@ -157,7 +162,7 @@ export function InvitationRegistrationsTab() {
     status?: string | null
   ) => (
     <div className='flex min-w-40 flex-col gap-1'>
-      <div>{generated ? formatRebateAmount(amount) : '-'}</div>
+      <div>{amount > 0 ? formatRebateAmount(amount) : '-'}</div>
       <div>{rewardBadge(t, generated, status)}</div>
     </div>
   )

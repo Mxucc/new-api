@@ -81,6 +81,7 @@ import {
   formatUser,
   getRecordId,
   groupNameLabel,
+  invitationErrorMessage,
   orderTypeLabel,
   requestStatusLabel,
   timestampToDateTime,
@@ -147,6 +148,8 @@ function buildDefaultConfig() {
     orderRebateEnabled: false,
     invitationSignupRewardEnabled: false,
     invitationSignupRewardAmount: 0,
+    invitationSignupInviterRewardAmount: 0,
+    invitationSignupInviteeRewardAmount: 0,
     invitationSignupRewardReviewRequired: true,
     invitationSignupInviterRewardRequiresPaidOrder: false,
     invitationSignupInviteeRewardRequiresPaidOrder: false,
@@ -164,21 +167,39 @@ function configToForm(config) {
     invitationSignupRewardAmountDisplay: centsToDisplayAmount(
       next.invitationSignupRewardAmount,
     ),
+    invitationSignupInviterRewardAmountDisplay: centsToDisplayAmount(
+      next.invitationSignupInviterRewardAmount ??
+        next.invitationSignupRewardAmount,
+    ),
+    invitationSignupInviteeRewardAmountDisplay: centsToDisplayAmount(
+      next.invitationSignupInviteeRewardAmount ??
+        next.invitationSignupRewardAmount,
+    ),
   };
 }
 
 function formToConfig(form) {
+  const inviterAmount = displayAmountToCents(
+    form.invitationSignupInviterRewardAmountDisplay,
+  );
+  const inviteeAmount = displayAmountToCents(
+    form.invitationSignupInviteeRewardAmountDisplay,
+  );
+
   return {
     minRebateRequestAmount: displayAmountToCents(
       form.minRebateRequestAmountDisplay,
     ),
-    rebateRequestFrequencyDays: Number(form.rebateRequestFrequencyDays || 1),
+    rebateRequestFrequencyDays: Number(form.rebateRequestFrequencyDays ?? 0),
     userInvitationRebateEnabled: Boolean(form.userInvitationRebateEnabled),
     orderRebateEnabled: Boolean(form.orderRebateEnabled),
     invitationSignupRewardEnabled: Boolean(form.invitationSignupRewardEnabled),
-    invitationSignupRewardAmount: displayAmountToCents(
-      form.invitationSignupRewardAmountDisplay,
-    ),
+    invitationSignupRewardAmount:
+      inviterAmount === 0 && inviteeAmount === 0
+        ? 0
+        : Math.max(inviterAmount, inviteeAmount),
+    invitationSignupInviterRewardAmount: inviterAmount,
+    invitationSignupInviteeRewardAmount: inviteeAmount,
     invitationSignupRewardReviewRequired: Boolean(
       form.invitationSignupRewardReviewRequired,
     ),
@@ -227,7 +248,7 @@ function SystemConfigCard() {
       setConfig(data);
       setForm(configToForm(data));
     } catch (error) {
-      showError(error.message || t('加载系统配置失败'));
+      showError(invitationErrorMessage(error, t('加载系统配置失败')));
     } finally {
       setLoading(false);
     }
@@ -247,8 +268,8 @@ function SystemConfigCard() {
 
   const saveConfig = async () => {
     const payload = formToConfig(form);
-    if (payload.rebateRequestFrequencyDays < 1) {
-      showError(t('返利申请频率至少为 1 天'));
+    if (payload.rebateRequestFrequencyDays < 0) {
+      showError(t('返利申请频率不能为负数'));
       return;
     }
 
@@ -261,7 +282,7 @@ function SystemConfigCard() {
       window.dispatchEvent(new Event(INVITATION_FEATURE_STATUS_REFRESH_EVENT));
       showSuccess(t('系统配置已保存'));
     } catch (error) {
-      showError(error.message || t('保存系统配置失败'));
+      showError(invitationErrorMessage(error, t('保存系统配置失败')));
     } finally {
       setSaving(false);
     }
@@ -315,7 +336,7 @@ function SystemConfigCard() {
             <Text strong>{t('返利申请间隔（天）')}</Text>
             <InputNumber
               className='mt-2 w-full'
-              min={1}
+              min={0}
               step={1}
               value={form.rebateRequestFrequencyDays}
               onChange={(value) =>
@@ -323,7 +344,7 @@ function SystemConfigCard() {
               }
             />
             <Text type='secondary' size='small'>
-              {t('两次返利到余额申请之间的最小天数')}
+              {t('两次返利到余额申请之间的最小天数，0 表示不限制')}
             </Text>
           </Col>
           <Col xs={24}>
@@ -353,15 +374,31 @@ function SystemConfigCard() {
             />
           </Col>
           <Col xs={24} md={12}>
-            <Text strong>{t('邀请注册奖励金额')}</Text>
+            <Text strong>{t('邀请者注册奖励金额')}</Text>
             <InputNumber
               className='mt-2 w-full'
               min={0}
               step={0.01}
               precision={2}
-              value={form.invitationSignupRewardAmountDisplay}
+              value={form.invitationSignupInviterRewardAmountDisplay}
               onChange={(value) =>
-                updateForm('invitationSignupRewardAmountDisplay', value)
+                updateForm('invitationSignupInviterRewardAmountDisplay', value)
+              }
+            />
+            <Text type='secondary' size='small'>
+              {t('当前示例：')}200 {t('分')} = {formatRebateAmount(200)}
+            </Text>
+          </Col>
+          <Col xs={24} md={12}>
+            <Text strong>{t('被邀请者注册奖励金额')}</Text>
+            <InputNumber
+              className='mt-2 w-full'
+              min={0}
+              step={0.01}
+              precision={2}
+              value={form.invitationSignupInviteeRewardAmountDisplay}
+              onChange={(value) =>
+                updateForm('invitationSignupInviteeRewardAmountDisplay', value)
               }
             />
             <Text type='secondary' size='small'>
@@ -472,7 +509,7 @@ function RuleDialog({ visible, editingRule, userGroups, onCancel, onSaved }) {
       showSuccess(editingRule ? t('规则已更新') : t('规则已创建'));
       onSaved();
     } catch (error) {
-      showError(error.message || t('保存规则失败'));
+      showError(invitationErrorMessage(error, t('保存规则失败')));
     } finally {
       setSaving(false);
     }
@@ -563,7 +600,7 @@ function RebateRulesPanel() {
       setRules(extractData(rulesResponse, []));
       setUserGroups(extractData(groupsResponse, []));
     } catch (error) {
-      showError(error.message || t('加载返利规则失败'));
+      showError(invitationErrorMessage(error, t('加载返利规则失败')));
     } finally {
       setLoading(false);
     }
@@ -587,7 +624,7 @@ function RebateRulesPanel() {
           showSuccess(t('规则已删除'));
           await loadData();
         } catch (error) {
-          showError(error.message || t('删除规则失败'));
+          showError(invitationErrorMessage(error, t('删除规则失败')));
         }
       },
     });
@@ -729,7 +766,7 @@ function RebateOrderRecordsPanel() {
       });
       setData(extractData(response, { items: [], total: 0 }));
     } catch (error) {
-      showError(error.message || t('加载返利记录失败'));
+      showError(invitationErrorMessage(error, t('加载返利记录失败')));
     } finally {
       setLoading(false);
     }
@@ -818,7 +855,7 @@ function RebateOrderRecordsPanel() {
       setSelectedKeys(new Set());
       await loadRecords();
     } catch (error) {
-      showError(error.message || errorText);
+      showError(invitationErrorMessage(error, errorText));
     } finally {
       setMutating(false);
     }
@@ -1322,7 +1359,7 @@ function InvitationRegistrationsPanel() {
       });
       setData(extractData(response, { items: [], total: 0 }));
     } catch (error) {
-      showError(error.message || t('加载邀请注册列表失败'));
+      showError(invitationErrorMessage(error, t('加载邀请注册列表失败')));
     } finally {
       setLoading(false);
     }
@@ -1334,7 +1371,7 @@ function InvitationRegistrationsPanel() {
 
   const renderReward = (generated, amount, status) => (
     <Space vertical spacing={2} align='start'>
-      <span>{generated ? formatRebateAmount(amount) : '-'}</span>
+      <span>{amount > 0 ? formatRebateAmount(amount) : '-'}</span>
       <Tag color={generated ? 'green' : 'grey'}>
         {generated ? requestStatusLabel(t, status) : t('未生成')}
       </Tag>
@@ -1363,10 +1400,12 @@ function InvitationRegistrationsPanel() {
       await loadRegistrations();
     } catch (error) {
       showError(
-        error.message ||
-          (type === 'inviter'
+        invitationErrorMessage(
+          error,
+          type === 'inviter'
             ? t('生成邀请者奖励失败')
-            : t('生成被邀请者奖励失败')),
+            : t('生成被邀请者奖励失败'),
+        ),
       );
     } finally {
       setMutatingKey('');
@@ -1544,7 +1583,7 @@ function RebateRequestsPanel() {
       });
       setData(extractData(response, { items: [], total: 0 }));
     } catch (error) {
-      showError(error.message || t('加载返利申请失败'));
+      showError(invitationErrorMessage(error, t('加载返利申请失败')));
     } finally {
       setLoading(false);
     }
@@ -1556,8 +1595,8 @@ function RebateRequestsPanel() {
 
   const openAction = (request, type) => {
     setDialog({ request, type });
-    setNote('');
-    setReason('');
+    setNote(request.reviewNote || '');
+    setReason(request.rejectReason || request.reviewNote || '');
   };
 
   const submitAction = async () => {
@@ -1585,6 +1624,10 @@ function RebateRequestsPanel() {
             note: note.trim() || undefined,
           },
         );
+      } else if (dialog.type === 'reset') {
+        response = await invitationAdminApi.resetRebateRequestReview(
+          dialog.request.id,
+        );
       } else {
         response = await invitationAdminApi.completeRebateRequest(
           dialog.request.id,
@@ -1595,7 +1638,7 @@ function RebateRequestsPanel() {
       setDialog(null);
       await loadRequests();
     } catch (error) {
-      showError(error.message || t('操作失败'));
+      showError(invitationErrorMessage(error, t('操作失败')));
     } finally {
       setMutating(false);
     }
@@ -1646,11 +1689,16 @@ function RebateRequestsPanel() {
         render: (value) => formatDateTime(value),
       },
       {
+        title: t('审核备注'),
+        dataIndex: 'reviewNote',
+        render: (value, record) => value || record.rejectReason || '-',
+      },
+      {
         title: t('操作'),
         dataIndex: 'actions',
         render: (_, record) => (
           <Space>
-            {record.status === 'pending' && (
+            {record.status !== 'completed' && (
               <>
                 <Button
                   icon={<CheckCircle size={15} />}
@@ -1663,6 +1711,13 @@ function RebateRequestsPanel() {
                   type='danger'
                   onClick={() => openAction(record, 'reject')}
                 />
+                {record.status !== 'pending' && (
+                  <Button
+                    icon={<RotateCcw size={15} />}
+                    theme='borderless'
+                    onClick={() => openAction(record, 'reset')}
+                  />
+                )}
               </>
             )}
             {record.status === 'approved' && (
@@ -1672,8 +1727,7 @@ function RebateRequestsPanel() {
                 onClick={() => openAction(record, 'complete')}
               />
             )}
-            {(record.status === 'completed' || record.status === 'rejected') &&
-              '-'}
+            {record.status === 'completed' && '-'}
           </Space>
         ),
       },
@@ -1684,6 +1738,7 @@ function RebateRequestsPanel() {
   const dialogTitle = {
     approve: t('通过返利申请'),
     reject: t('拒绝返利申请'),
+    reset: t('撤回审核'),
     complete: t('标记处理完成'),
   }[dialog?.type];
 
@@ -1764,7 +1819,7 @@ function RebateRequestsPanel() {
               />
             </div>
           )}
-          {dialog?.type !== 'complete' && (
+          {dialog?.type !== 'complete' && dialog?.type !== 'reset' && (
             <div>
               <Text strong>{t('备注')}</Text>
               <TextArea
@@ -1774,6 +1829,11 @@ function RebateRequestsPanel() {
                 autosize
               />
             </div>
+          )}
+          {dialog?.type === 'reset' && (
+            <Text type='secondary'>
+              {t('撤回后申请会回到待审核状态，并清空当前审核备注。')}
+            </Text>
           )}
         </Space>
       </Modal>
@@ -1795,7 +1855,7 @@ function RebateStatsPanel() {
       const response = await invitationAdminApi.getRebateStats();
       setStats(extractData(response, null));
     } catch (error) {
-      showError(error.message || t('加载返利统计失败'));
+      showError(invitationErrorMessage(error, t('加载返利统计失败')));
     } finally {
       setLoading(false);
     }
@@ -1815,7 +1875,7 @@ function RebateStatsPanel() {
       const response = await invitationAdminApi.getUserRebateDetails(userId);
       setUserRecords(extractData(response, { items: [], total: 0 }));
     } catch (error) {
-      showError(error.message || t('加载用户返利详情失败'));
+      showError(invitationErrorMessage(error, t('加载用户返利详情失败')));
     } finally {
       setUserLoading(false);
     }

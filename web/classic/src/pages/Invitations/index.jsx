@@ -56,6 +56,7 @@ import {
   formatDateTime,
   formatPercent,
   formatRebateAmount,
+  invitationErrorMessage,
   isInvitationSignupReward,
   orderTypeLabel,
   requestStatusLabel,
@@ -318,7 +319,7 @@ function RebateRecordsPanel() {
       });
       setData(extractData(response, { items: [], total: 0 }));
     } catch (error) {
-      showError(error.message || t('加载返利记录失败'));
+      showError(invitationErrorMessage(error, t('加载返利记录失败')));
     } finally {
       setLoading(false);
     }
@@ -461,7 +462,7 @@ function RebateBalancePanel() {
       });
       setRequests(extractData(response, { items: [], total: 0 }));
     } catch (error) {
-      showError(error.message || t('加载返利到余额记录失败'));
+      showError(invitationErrorMessage(error, t('加载返利到余额记录失败')));
     } finally {
       setLoading(false);
     }
@@ -471,7 +472,7 @@ function RebateBalancePanel() {
     try {
       await Promise.all([loadAvailable(), loadRequests()]);
     } catch (error) {
-      showError(error.message || t('加载返利到余额数据失败'));
+      showError(invitationErrorMessage(error, t('加载返利到余额数据失败')));
     }
   }, [loadAvailable, loadRequests, t]);
 
@@ -505,7 +506,7 @@ function RebateBalancePanel() {
       setAmount();
       await refresh();
     } catch (error) {
-      showError(error.message || t('提交返利到余额申请失败'));
+      showError(invitationErrorMessage(error, t('提交返利到余额申请失败')));
     } finally {
       setSubmitting(false);
     }
@@ -665,7 +666,8 @@ const Invitations = () => {
         const response = await invitationApi.getMyCode();
         if (active) setStats(extractData(response, null));
       } catch (error) {
-        if (active) showError(error.message || t('加载邀请信息失败'));
+        if (active)
+          showError(invitationErrorMessage(error, t('加载邀请信息失败')));
       } finally {
         if (active) setStatsLoading(false);
       }

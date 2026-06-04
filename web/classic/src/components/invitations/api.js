@@ -47,7 +47,9 @@ export const invitationApi = {
   },
 
   requestRebate(data) {
-    return API.post(`${USER_BASE_PATH}/rebate-requests`, data).then(unwrap);
+    return API.post(`${USER_BASE_PATH}/rebate-requests`, data, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   getMyRebateRequests(params) {
@@ -63,15 +65,21 @@ export const invitationAdminApi = {
   },
 
   createRebateRule(data) {
-    return API.post(`${ADMIN_BASE_PATH}/rebate-rules`, data).then(unwrap);
+    return API.post(`${ADMIN_BASE_PATH}/rebate-rules`, data, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   updateRebateRule(id, data) {
-    return API.put(`${ADMIN_BASE_PATH}/rebate-rules/${id}`, data).then(unwrap);
+    return API.put(`${ADMIN_BASE_PATH}/rebate-rules/${id}`, data, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   deleteRebateRule(id) {
-    return API.delete(`${ADMIN_BASE_PATH}/rebate-rules/${id}`).then(unwrap);
+    return API.delete(`${ADMIN_BASE_PATH}/rebate-rules/${id}`, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   getUserGroups() {
@@ -83,7 +91,9 @@ export const invitationAdminApi = {
   },
 
   updateSystemConfig(data) {
-    return API.put(`${ADMIN_BASE_PATH}/system-config`, data).then(unwrap);
+    return API.put(`${ADMIN_BASE_PATH}/system-config`, data, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   getRebateRequests(params) {
@@ -93,23 +103,31 @@ export const invitationAdminApi = {
   },
 
   approveRebateRequest(id, data) {
-    return API.post(
-      `${ADMIN_BASE_PATH}/rebate-requests/${id}/approve`,
-      data,
-    ).then(unwrap);
+    return API.post(`${ADMIN_BASE_PATH}/rebate-requests/${id}/approve`, data, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   rejectRebateRequest(id, data) {
-    return API.post(
-      `${ADMIN_BASE_PATH}/rebate-requests/${id}/reject`,
-      data,
-    ).then(unwrap);
+    return API.post(`${ADMIN_BASE_PATH}/rebate-requests/${id}/reject`, data, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   completeRebateRequest(id) {
-    return API.post(`${ADMIN_BASE_PATH}/rebate-requests/${id}/complete`).then(
-      unwrap,
-    );
+    return API.post(
+      `${ADMIN_BASE_PATH}/rebate-requests/${id}/complete`,
+      undefined,
+      { skipErrorHandler: true },
+    ).then(unwrap);
+  },
+
+  resetRebateRequestReview(id) {
+    return API.post(
+      `${ADMIN_BASE_PATH}/rebate-requests/${id}/reset`,
+      undefined,
+      { skipErrorHandler: true },
+    ).then(unwrap);
   },
 
   getRebateStats() {
@@ -123,28 +141,28 @@ export const invitationAdminApi = {
   },
 
   updateRebateOrderRecords(data) {
-    return API.patch(`${ADMIN_BASE_PATH}/rebate-order-records`, data).then(
-      unwrap,
-    );
+    return API.patch(`${ADMIN_BASE_PATH}/rebate-order-records`, data, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   closeRebateOrderRecords(data) {
-    return API.post(`${ADMIN_BASE_PATH}/rebate-order-records/close`, data).then(
-      unwrap,
-    );
+    return API.post(`${ADMIN_BASE_PATH}/rebate-order-records/close`, data, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   reopenRebateOrderRecords(data) {
-    return API.post(
-      `${ADMIN_BASE_PATH}/rebate-order-records/reopen`,
-      data,
-    ).then(unwrap);
+    return API.post(`${ADMIN_BASE_PATH}/rebate-order-records/reopen`, data, {
+      skipErrorHandler: true,
+    }).then(unwrap);
   },
 
   endRebateOrderInitialization(data) {
     return API.post(
       `${ADMIN_BASE_PATH}/rebate-order-records/end-initialization`,
       data,
+      { skipErrorHandler: true },
     ).then(unwrap);
   },
 
@@ -152,6 +170,7 @@ export const invitationAdminApi = {
     return API.post(
       `${ADMIN_BASE_PATH}/rebate-order-records/extend-initialization`,
       data,
+      { skipErrorHandler: true },
     ).then(unwrap);
   },
 
@@ -164,12 +183,16 @@ export const invitationAdminApi = {
   generateInvitationInviterReward(id) {
     return API.post(
       `${ADMIN_BASE_PATH}/invitation-registrations/${id}/inviter-reward`,
+      undefined,
+      { skipErrorHandler: true },
     ).then(unwrap);
   },
 
   generateInvitationInviteeReward(id) {
     return API.post(
       `${ADMIN_BASE_PATH}/invitation-registrations/${id}/invitee-reward`,
+      undefined,
+      { skipErrorHandler: true },
     ).then(unwrap);
   },
 

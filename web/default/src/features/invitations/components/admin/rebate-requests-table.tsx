@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { CheckCircle, XCircle, Check } from 'lucide-react'
+import { CheckCircle, XCircle, Check, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -38,7 +38,7 @@ interface RebateRequestsTableProps {
   loading: boolean
 }
 
-type ActionType = 'approve' | 'reject' | 'complete'
+type ActionType = 'approve' | 'reject' | 'reset' | 'complete'
 
 export function RebateRequestsTable({
   requests,
@@ -114,6 +114,7 @@ export function RebateRequestsTable({
               <TableHead>{t('Created At')}</TableHead>
               <TableHead>{t('Approved At')}</TableHead>
               <TableHead>{t('Completed At')}</TableHead>
+              <TableHead>{t('Review Note')}</TableHead>
               <TableHead className='text-right'>{t('Actions')}</TableHead>
             </TableRow>
           </TableHeader>
@@ -136,15 +137,22 @@ export function RebateRequestsTable({
                 <TableCell className='text-muted-foreground'>
                   {formatDate(request.completedAt)}
                 </TableCell>
+                <TableCell className='text-muted-foreground'>
+                  {request.reviewNote || request.rejectReason || '-'}
+                </TableCell>
                 <TableCell className='text-right'>
                   <div className='flex justify-end gap-2'>
-                    {request.status === 'pending' && (
+                    {request.status !== 'completed' && (
                       <>
                         <Button
                           variant='ghost'
                           size='sm'
                           onClick={() => handleAction(request, 'approve')}
-                          title={t('Approve')}
+                          title={
+                            request.status === 'approved'
+                              ? t('Edit Approval')
+                              : t('Approve')
+                          }
                         >
                           <CheckCircle className='size-4 text-green-600' />
                         </Button>
@@ -152,10 +160,24 @@ export function RebateRequestsTable({
                           variant='ghost'
                           size='sm'
                           onClick={() => handleAction(request, 'reject')}
-                          title={t('Reject')}
+                          title={
+                            request.status === 'rejected'
+                              ? t('Edit Rejection')
+                              : t('Reject')
+                          }
                         >
                           <XCircle className='size-4 text-red-600' />
                         </Button>
+                        {request.status !== 'pending' && (
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => handleAction(request, 'reset')}
+                            title={t('Reset Review')}
+                          >
+                            <RotateCcw className='size-4 text-amber-600' />
+                          </Button>
+                        )}
                       </>
                     )}
                     {request.status === 'approved' && (
@@ -168,8 +190,7 @@ export function RebateRequestsTable({
                         <Check className='size-4 text-blue-600' />
                       </Button>
                     )}
-                    {(request.status === 'completed' ||
-                      request.status === 'rejected') && (
+                    {request.status === 'completed' && (
                       <span className='text-muted-foreground text-sm'>-</span>
                     )}
                   </div>

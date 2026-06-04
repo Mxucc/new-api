@@ -89,7 +89,9 @@ export async function getAvailableRebates(): Promise<
 export async function requestRebate(
   data: RebateRequestFormData
 ): Promise<ApiResponse<RebateRequest>> {
-  const res = await api.post(`${BASE_PATH}/rebate-requests`, data)
+  const res = await api.post(`${BASE_PATH}/rebate-requests`, data, {
+    skipErrorHandler: true,
+  })
   return res.data
 }
 
@@ -125,7 +127,9 @@ export async function getRebateRules(): Promise<
 export async function createRebateRule(
   data: import('./types').RebateRuleFormData
 ): Promise<ApiResponse<import('./types').RebateRule>> {
-  const res = await api.post(`${ADMIN_BASE_PATH}/rebate-rules`, data)
+  const res = await api.post(`${ADMIN_BASE_PATH}/rebate-rules`, data, {
+    skipErrorHandler: true,
+  })
   return res.data
 }
 
@@ -136,7 +140,9 @@ export async function updateRebateRule(
   id: number,
   data: import('./types').RebateRuleFormData
 ): Promise<ApiResponse<import('./types').RebateRule>> {
-  const res = await api.put(`${ADMIN_BASE_PATH}/rebate-rules/${id}`, data)
+  const res = await api.put(`${ADMIN_BASE_PATH}/rebate-rules/${id}`, data, {
+    skipErrorHandler: true,
+  })
   return res.data
 }
 
@@ -144,7 +150,9 @@ export async function updateRebateRule(
  * 删除返利规则
  */
 export async function deleteRebateRule(id: number): Promise<ApiResponse<void>> {
-  const res = await api.delete(`${ADMIN_BASE_PATH}/rebate-rules/${id}`)
+  const res = await api.delete(`${ADMIN_BASE_PATH}/rebate-rules/${id}`, {
+    skipErrorHandler: true,
+  })
   return res.data
 }
 
@@ -174,7 +182,9 @@ export async function getSystemConfig(): Promise<
 export async function updateSystemConfig(
   data: import('./types').SystemConfig
 ): Promise<ApiResponse<import('./types').SystemConfig>> {
-  const res = await api.put(`${ADMIN_BASE_PATH}/system-config`, data)
+  const res = await api.put(`${ADMIN_BASE_PATH}/system-config`, data, {
+    skipErrorHandler: true,
+  })
   return res.data
 }
 
@@ -201,7 +211,8 @@ export async function approveRebateRequest(
 ): Promise<ApiResponse<import('./types').RebateRequestAdmin>> {
   const res = await api.post(
     `${ADMIN_BASE_PATH}/rebate-requests/${id}/approve`,
-    data
+    data,
+    { skipErrorHandler: true }
   )
   return res.data
 }
@@ -215,7 +226,22 @@ export async function rejectRebateRequest(
 ): Promise<ApiResponse<import('./types').RebateRequestAdmin>> {
   const res = await api.post(
     `${ADMIN_BASE_PATH}/rebate-requests/${id}/reject`,
-    data
+    data,
+    { skipErrorHandler: true }
+  )
+  return res.data
+}
+
+/**
+ * 撤回返利申请审核
+ */
+export async function resetRebateRequestReview(
+  id: number
+): Promise<ApiResponse<import('./types').RebateRequestAdmin>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/rebate-requests/${id}/reset`,
+    undefined,
+    { skipErrorHandler: true }
   )
   return res.data
 }
@@ -227,7 +253,9 @@ export async function completeRebateRequest(
   id: number
 ): Promise<ApiResponse<import('./types').RebateRequestAdmin>> {
   const res = await api.post(
-    `${ADMIN_BASE_PATH}/rebate-requests/${id}/complete`
+    `${ADMIN_BASE_PATH}/rebate-requests/${id}/complete`,
+    undefined,
+    { skipErrorHandler: true }
   )
   return res.data
 }
@@ -272,7 +300,9 @@ export async function getAdminRebateOrderRecords(
 export async function updateAdminRebateOrderRecords(
   data: UpdateRebateOrderRecordsData
 ): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
-  const res = await api.patch(`${ADMIN_BASE_PATH}/rebate-order-records`, data)
+  const res = await api.patch(`${ADMIN_BASE_PATH}/rebate-order-records`, data, {
+    skipErrorHandler: true,
+  })
   return res.data
 }
 
@@ -284,7 +314,8 @@ export async function closeAdminRebateOrderRecords(
 ): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
   const res = await api.post(
     `${ADMIN_BASE_PATH}/rebate-order-records/close`,
-    data
+    data,
+    { skipErrorHandler: true }
   )
   return res.data
 }
@@ -297,7 +328,8 @@ export async function reopenAdminRebateOrderRecords(
 ): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
   const res = await api.post(
     `${ADMIN_BASE_PATH}/rebate-order-records/reopen`,
-    data
+    data,
+    { skipErrorHandler: true }
   )
   return res.data
 }
@@ -310,7 +342,8 @@ export async function endAdminRebateOrderInitialization(
 ): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
   const res = await api.post(
     `${ADMIN_BASE_PATH}/rebate-order-records/end-initialization`,
-    data
+    data,
+    { skipErrorHandler: true }
   )
   return res.data
 }
@@ -323,7 +356,8 @@ export async function extendAdminRebateOrderInitialization(
 ): Promise<ApiResponse<RebateOrderRecordBatchResponse>> {
   const res = await api.post(
     `${ADMIN_BASE_PATH}/rebate-order-records/extend-initialization`,
-    data
+    data,
+    { skipErrorHandler: true }
   )
   return res.data
 }
@@ -347,7 +381,9 @@ export async function generateAdminInvitationInviterReward(
   id: number
 ): Promise<ApiResponse<InvitationRegistrationRewardResponse>> {
   const res = await api.post(
-    `${ADMIN_BASE_PATH}/invitation-registrations/${id}/inviter-reward`
+    `${ADMIN_BASE_PATH}/invitation-registrations/${id}/inviter-reward`,
+    undefined,
+    { skipErrorHandler: true }
   )
   return res.data
 }
@@ -359,7 +395,9 @@ export async function generateAdminInvitationInviteeReward(
   id: number
 ): Promise<ApiResponse<InvitationRegistrationRewardResponse>> {
   const res = await api.post(
-    `${ADMIN_BASE_PATH}/invitation-registrations/${id}/invitee-reward`
+    `${ADMIN_BASE_PATH}/invitation-registrations/${id}/invitee-reward`,
+    undefined,
+    { skipErrorHandler: true }
   )
   return res.data
 }

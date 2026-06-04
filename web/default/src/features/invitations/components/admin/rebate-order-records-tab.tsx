@@ -79,6 +79,7 @@ import {
   reopenAdminRebateOrderRecords,
   updateAdminRebateOrderRecords,
 } from '../../api'
+import { getInvitationErrorMessage } from '../../lib/error'
 import { formatRebateAmount } from '../../lib/format'
 import type {
   AdminRebateOrderRecord,
@@ -217,8 +218,10 @@ export function RebateOrderRecordsTab() {
       toast.success(t('Rebate records updated successfully'))
       resetAfterMutation()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to update rebate records'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to update rebate records'))
+      )
     },
   })
 
@@ -228,8 +231,10 @@ export function RebateOrderRecordsTab() {
       toast.success(t('Rebate records closed successfully'))
       resetAfterMutation()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to close rebate records'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to close rebate records'))
+      )
     },
   })
 
@@ -239,8 +244,10 @@ export function RebateOrderRecordsTab() {
       toast.success(t('Rebate records reopened successfully'))
       resetAfterMutation()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to reopen rebate records'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to reopen rebate records'))
+      )
     },
   })
 
@@ -250,8 +257,10 @@ export function RebateOrderRecordsTab() {
       toast.success(t('Initialization ended successfully'))
       resetAfterMutation()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to end initialization'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to end initialization'))
+      )
     },
   })
 
@@ -261,8 +270,10 @@ export function RebateOrderRecordsTab() {
       toast.success(t('Initialization extended successfully'))
       resetAfterMutation()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to extend initialization'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to extend initialization'))
+      )
     },
   })
 

@@ -30,6 +30,26 @@ export function extractData(response, fallback = null) {
   return response.data ?? fallback;
 }
 
+const GENERIC_AXIOS_STATUS_MESSAGE = /^Request failed with status code \d+$/;
+
+export function invitationErrorMessage(error, fallback = '请求失败') {
+  const responseMessage = error?.response?.data?.message;
+  if (typeof responseMessage === 'string' && responseMessage.trim()) {
+    return responseMessage;
+  }
+
+  const message = error?.message;
+  if (
+    typeof message === 'string' &&
+    message.trim() &&
+    !GENERIC_AXIOS_STATUS_MESSAGE.test(message)
+  ) {
+    return message;
+  }
+
+  return fallback;
+}
+
 export function getQuotaPerUnitSafe() {
   const raw = parseFloat(localStorage.getItem('quota_per_unit') || '1');
   return Number.isFinite(raw) && raw > 0 ? raw : 1;

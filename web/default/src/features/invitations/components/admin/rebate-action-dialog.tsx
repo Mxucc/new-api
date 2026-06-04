@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -37,7 +38,9 @@ import {
   approveRebateRequest,
   rejectRebateRequest,
   completeRebateRequest,
+  resetRebateRequestReview,
 } from '../../api'
+import { getInvitationErrorMessage } from '../../lib/error'
 import { formatRebateAmount } from '../../lib/format'
 import type { RebateRequestAdmin } from '../../types'
 
@@ -57,7 +60,7 @@ interface RebateActionDialogProps {
   open: boolean
   onClose: () => void
   request: RebateRequestAdmin | null
-  actionType: 'approve' | 'reject' | 'complete'
+  actionType: 'approve' | 'reject' | 'reset' | 'complete'
 }
 
 export function RebateActionDialog({
@@ -79,6 +82,16 @@ export function RebateActionDialog({
     defaultValues: { reason: '', note: '' },
   })
 
+  useEffect(() => {
+    if (!request || !open) return
+
+    approveForm.reset({ note: request.reviewNote ?? '' })
+    rejectForm.reset({
+      reason: request.rejectReason ?? request.reviewNote ?? '',
+      note: request.reviewNote ?? '',
+    })
+  }, [approveForm, rejectForm, open, request])
+
   // 通过申请
   const approveMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data?: ApproveFormData }) =>
@@ -89,8 +102,10 @@ export function RebateActionDialog({
       onClose()
       approveForm.reset()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to approve rebate request'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to approve rebate request'))
+      )
     },
   })
 
@@ -104,8 +119,27 @@ export function RebateActionDialog({
       onClose()
       rejectForm.reset()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to reject rebate request'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to reject rebate request'))
+      )
+    },
+  })
+
+  // 撤回审核
+  const resetMutation = useMutation({
+    mutationFn: (id: number) => resetRebateRequestReview(id),
+    onSuccess: () => {
+      toast.success(t('Rebate review reset'))
+      queryClient.invalidateQueries({ queryKey: ['adminRebateRequests'] })
+      onClose()
+      approveForm.reset()
+      rejectForm.reset()
+    },
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to reset rebate review'))
+      )
     },
   })
 
@@ -117,8 +151,10 @@ export function RebateActionDialog({
       queryClient.invalidateQueries({ queryKey: ['adminRebateRequests'] })
       onClose()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to complete rebate request'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to complete rebate request'))
+      )
     },
   })
 
@@ -143,6 +179,11 @@ export function RebateActionDialog({
     }
   }
 
+  const handleReset = () => {
+    if (!request) return
+    resetMutation.mutate(request.id)
+  }
+
   const formatUser = (request: RebateRequestAdmin) => {
     return request.userName
       ? `${request.userName} (#${request.userId})`
@@ -152,6 +193,7 @@ export function RebateActionDialog({
   const isPending =
     approveMutation.isPending ||
     rejectMutation.isPending ||
+    resetMutation.isPending ||
     completeMutation.isPending
 
   if (!request) return null
@@ -163,6 +205,7 @@ export function RebateActionDialog({
           <DialogTitle>
             {actionType === 'approve' && t('Approve Rebate')}
             {actionType === 'reject' && t('Reject Rebate')}
+            {actionType === 'reset' && t('Reset Rebate Review')}
             {actionType === 'complete' && t('Complete Rebate')}
           </DialogTitle>
           <DialogDescription>
@@ -266,6 +309,36 @@ export function RebateActionDialog({
               </Button>
               <Button onClick={handleComplete} disabled={isPending}>
                 {isPending ? t('Processing...') : t('Complete')}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {actionType === 'reset' && (
+          <div className='space-y-4'>
+            <p className='text-muted-foreground text-sm'>
+              {t(
+                'This will reset the rebate request to pending review and clear the current review note.'
+              )}
+            </p>
+
+            {request.reviewNote && (
+              <div className='bg-muted rounded-md p-3'>
+                <div className='text-sm font-medium'>
+                  {t('Current Review Note')}:
+                </div>
+                <div className='text-muted-foreground mt-1 text-sm'>
+                  {request.reviewNote}
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button type='button' variant='outline' onClick={onClose}>
+                {t('Cancel')}
+              </Button>
+              <Button onClick={handleReset} disabled={isPending}>
+                {isPending ? t('Processing...') : t('Reset Review')}
               </Button>
             </DialogFooter>
           </div>

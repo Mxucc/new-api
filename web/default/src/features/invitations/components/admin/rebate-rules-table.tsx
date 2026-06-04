@@ -31,6 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { deleteRebateRule } from '../../api'
+import { getInvitationErrorMessage } from '../../lib/error'
 import { ALL_USER_GROUP, type RebateRule } from '../../types'
 
 interface RebateRulesTableProps {
@@ -54,8 +55,8 @@ export function RebateRulesTable({
       toast.success(t('Rule deleted successfully'))
       queryClient.invalidateQueries({ queryKey: ['rebateRules'] })
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to delete rule'))
+    onError: (error: unknown) => {
+      toast.error(getInvitationErrorMessage(error, t('Failed to delete rule')))
     },
   })
 

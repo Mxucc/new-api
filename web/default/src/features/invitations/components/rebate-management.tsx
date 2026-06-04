@@ -51,6 +51,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { getAvailableRebates, requestRebate, getMyRebateRequests } from '../api'
+import { getInvitationErrorMessage } from '../lib/error'
 import { formatRebateAmount } from '../lib/format'
 import type { RebateRequest, RebateRequestStatus } from '../types'
 
@@ -130,8 +131,13 @@ export function RebateManagement() {
       queryClient.invalidateQueries({ queryKey: ['availableRebates'] })
       queryClient.invalidateQueries({ queryKey: ['rebateRequests'] })
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to submit rebate balance request'))
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(
+          error,
+          t('Failed to submit rebate balance request')
+        )
+      )
     },
   })
 

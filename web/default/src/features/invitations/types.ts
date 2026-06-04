@@ -96,6 +96,7 @@ export interface RebateRequest {
   approvedAt?: string
   completedAt?: string
   rejectedAt?: string
+  reviewNote?: string
   rejectReason?: string
 }
 
@@ -156,6 +157,8 @@ export interface SystemConfig {
   orderRebateEnabled: boolean
   invitationSignupRewardEnabled: boolean
   invitationSignupRewardAmount: number
+  invitationSignupInviterRewardAmount: number
+  invitationSignupInviteeRewardAmount: number
   invitationSignupRewardReviewRequired: boolean
   invitationSignupInviterRewardRequiresPaidOrder: boolean
   invitationSignupInviteeRewardRequiresPaidOrder: boolean

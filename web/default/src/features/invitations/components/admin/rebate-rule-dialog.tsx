@@ -47,6 +47,7 @@ import {
   getRebateRules,
   getUserGroups,
 } from '../../api'
+import { getInvitationErrorMessage } from '../../lib/error'
 import { ALL_USER_GROUP, type RebateRuleFormData } from '../../types'
 
 const formSchema = z.object({
@@ -128,8 +129,8 @@ export function RebateRuleDialog({
       onClose()
       reset()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to create rule'))
+    onError: (error: unknown) => {
+      toast.error(getInvitationErrorMessage(error, t('Failed to create rule')))
     },
   })
 
@@ -143,8 +144,8 @@ export function RebateRuleDialog({
       onClose()
       reset()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to update rule'))
+    onError: (error: unknown) => {
+      toast.error(getInvitationErrorMessage(error, t('Failed to update rule')))
     },
   })
 
