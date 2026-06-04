@@ -36,7 +36,12 @@ export interface InvitationFeatureStatus {
 }
 
 // 返利记录状态
-export type RebateStatus = 'pending' | 'requested' | 'approved' | 'completed'
+export type RebateStatus =
+  | 'pending'
+  | 'requested'
+  | 'approved'
+  | 'completed'
+  | 'rejected'
 
 // 订单类型
 export type OrderType =
@@ -232,6 +237,11 @@ export interface AdminInvitationRegistration {
 
 export interface InvitationRegistrationRewardResponse {
   generated: boolean
+  recordId?: number | null
+}
+
+export interface InvitationRegistrationRewardRevokeResponse {
+  revoked: boolean
   recordId?: number | null
 }
 

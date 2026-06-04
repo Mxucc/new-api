@@ -39,6 +39,7 @@ import {
   rejectRebateRequest,
   completeRebateRequest,
   resetRebateRequestReview,
+  undoCompleteRebateRequest,
 } from '../../api'
 import { getInvitationErrorMessage } from '../../lib/error'
 import { formatRebateAmount } from '../../lib/format'
@@ -60,7 +61,7 @@ interface RebateActionDialogProps {
   open: boolean
   onClose: () => void
   request: RebateRequestAdmin | null
-  actionType: 'approve' | 'reject' | 'reset' | 'complete'
+  actionType: 'approve' | 'reject' | 'reset' | 'complete' | 'undoComplete'
 }
 
 export function RebateActionDialog({
@@ -149,11 +150,33 @@ export function RebateActionDialog({
     onSuccess: () => {
       toast.success(t('Rebate marked as completed'))
       queryClient.invalidateQueries({ queryKey: ['adminRebateRequests'] })
+      queryClient.invalidateQueries({ queryKey: ['rebateStats'] })
+      queryClient.invalidateQueries({ queryKey: ['adminRebateRecords'] })
       onClose()
     },
     onError: (error: unknown) => {
       toast.error(
         getInvitationErrorMessage(error, t('Failed to complete rebate request'))
+      )
+    },
+  })
+
+  // 撤回完成
+  const undoCompleteMutation = useMutation({
+    mutationFn: (id: number) => undoCompleteRebateRequest(id),
+    onSuccess: () => {
+      toast.success(t('Rebate completion withdrawn'))
+      queryClient.invalidateQueries({ queryKey: ['adminRebateRequests'] })
+      queryClient.invalidateQueries({ queryKey: ['rebateStats'] })
+      queryClient.invalidateQueries({ queryKey: ['adminRebateRecords'] })
+      onClose()
+    },
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(
+          error,
+          t('Failed to withdraw rebate completion')
+        )
       )
     },
   })
@@ -184,6 +207,11 @@ export function RebateActionDialog({
     resetMutation.mutate(request.id)
   }
 
+  const handleUndoComplete = () => {
+    if (!request) return
+    undoCompleteMutation.mutate(request.id)
+  }
+
   const formatUser = (request: RebateRequestAdmin) => {
     return request.userName
       ? `${request.userName} (#${request.userId})`
@@ -194,7 +222,8 @@ export function RebateActionDialog({
     approveMutation.isPending ||
     rejectMutation.isPending ||
     resetMutation.isPending ||
-    completeMutation.isPending
+    completeMutation.isPending ||
+    undoCompleteMutation.isPending
 
   if (!request) return null
 
@@ -207,6 +236,7 @@ export function RebateActionDialog({
             {actionType === 'reject' && t('Reject Rebate')}
             {actionType === 'reset' && t('Reset Rebate Review')}
             {actionType === 'complete' && t('Complete Rebate')}
+            {actionType === 'undoComplete' && t('Withdraw Rebate Completion')}
           </DialogTitle>
           <DialogDescription>
             {t('Rebate User')}: {formatUser(request)} | {t('Rebate Amount')}:{' '}
@@ -287,9 +317,7 @@ export function RebateActionDialog({
         {actionType === 'complete' && (
           <div className='space-y-4'>
             <p className='text-muted-foreground text-sm'>
-              {t(
-                'This will mark the rebate as completed. This action cannot be undone.'
-              )}
+              {t('This will mark the rebate as completed.')}
             </p>
 
             {request.rejectReason && (
@@ -339,6 +367,25 @@ export function RebateActionDialog({
               </Button>
               <Button onClick={handleReset} disabled={isPending}>
                 {isPending ? t('Processing...') : t('Reset Review')}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {actionType === 'undoComplete' && (
+          <div className='space-y-4'>
+            <p className='text-muted-foreground text-sm'>
+              {t(
+                'This will move the completed rebate request back to approved status.'
+              )}
+            </p>
+
+            <DialogFooter>
+              <Button type='button' variant='outline' onClick={onClose}>
+                {t('Cancel')}
+              </Button>
+              <Button onClick={handleUndoComplete} disabled={isPending}>
+                {isPending ? t('Processing...') : t('Withdraw Completion')}
               </Button>
             </DialogFooter>
           </div>

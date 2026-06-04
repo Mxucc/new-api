@@ -38,7 +38,7 @@ interface RebateRequestsTableProps {
   loading: boolean
 }
 
-type ActionType = 'approve' | 'reject' | 'reset' | 'complete'
+type ActionType = 'approve' | 'reject' | 'reset' | 'complete' | 'undoComplete'
 
 export function RebateRequestsTable({
   requests,
@@ -191,7 +191,14 @@ export function RebateRequestsTable({
                       </Button>
                     )}
                     {request.status === 'completed' && (
-                      <span className='text-muted-foreground text-sm'>-</span>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => handleAction(request, 'undoComplete')}
+                        title={t('Withdraw Completion')}
+                      >
+                        <RotateCcw className='size-4 text-amber-600' />
+                      </Button>
                     )}
                   </div>
                 </TableCell>

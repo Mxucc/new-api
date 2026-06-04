@@ -16,10 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
-import { z } from 'zod'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   createColumnHelper,
@@ -40,8 +37,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -50,19 +46,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getAvailableRebates, requestRebate, getMyRebateRequests } from '../api'
+import {
+  getAvailableRebates,
+  getMyRebateRequests,
+  getRebateRecords,
+  requestRebate,
+} from '../api'
 import { getInvitationErrorMessage } from '../lib/error'
 import { formatRebateAmount } from '../lib/format'
-import type { RebateRequest, RebateRequestStatus } from '../types'
+import type {
+  OrderType,
+  RebateRecord,
+  RebateRequest,
+  RebateRequestStatus,
+} from '../types'
 
 const columnHelper = createColumnHelper<RebateRequest>()
-
-// 返利到余额表单验证 schema
-const rebateRequestSchema = z.object({
-  amount: z.number().min(1, 'Rebate amount must be greater than 0'),
-})
-
-type RebateRequestFormValues = z.infer<typeof rebateRequestSchema>
 
 // 状态徽章颜色映射
 const STATUS_COLORS: Record<RebateRequestStatus, string> = {
@@ -72,9 +71,14 @@ const STATUS_COLORS: Record<RebateRequestStatus, string> = {
   completed: 'bg-gray-500/10 text-gray-700 dark:text-gray-400',
 }
 
+function isInvitationSignupReward(orderType: OrderType): boolean {
+  return orderType === 'invite_inviter' || orderType === 'invite_invitee'
+}
+
 export function RebateManagement() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([])
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
@@ -85,6 +89,19 @@ export function RebateManagement() {
     queryKey: ['availableRebates'],
     queryFn: async () => {
       const response = await getAvailableRebates()
+      return response.data
+    },
+  })
+
+  const { data: pendingRecordsData, isLoading: claimableLoading } = useQuery({
+    queryKey: ['claimableRebateRecords', availableData?.recordIds ?? []],
+    enabled: Boolean(availableData?.recordIds?.length),
+    queryFn: async () => {
+      const response = await getRebateRecords({
+        page: 1,
+        pageSize: 1000,
+        status: 'pending',
+      })
       return response.data
     },
   })
@@ -101,34 +118,75 @@ export function RebateManagement() {
     },
   })
 
-  // 返利到余额申请表单
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm<RebateRequestFormValues>({
-    resolver: zodResolver(rebateRequestSchema),
-    defaultValues: {
-      amount: 0,
-    },
-  })
+  const availableRecordIds = useMemo(
+    () => new Set(availableData?.recordIds ?? []),
+    [availableData?.recordIds]
+  )
+
+  const claimableRecords = useMemo(
+    () =>
+      (pendingRecordsData?.items ?? []).filter((record) =>
+        availableRecordIds.has(record.id)
+      ),
+    [availableRecordIds, pendingRecordsData?.items]
+  )
+
+  useEffect(() => {
+    setSelectedRecordIds(availableData?.recordIds ?? [])
+  }, [availableData?.recordIds])
+
+  const selectedRecordIdSet = useMemo(
+    () => new Set(selectedRecordIds),
+    [selectedRecordIds]
+  )
+
+  const selectedRecords = useMemo(
+    () =>
+      claimableRecords.filter((record) => selectedRecordIdSet.has(record.id)),
+    [claimableRecords, selectedRecordIdSet]
+  )
+
+  const selectedAmount = selectedRecords.reduce(
+    (sum, record) => sum + record.rebateAmount,
+    0
+  )
+
+  const allClaimableSelected =
+    claimableRecords.length > 0 &&
+    selectedRecords.length === claimableRecords.length
+  const someClaimableSelected =
+    selectedRecords.length > 0 &&
+    selectedRecords.length < claimableRecords.length
+
+  const toggleRecord = (recordId: number, checked: boolean) => {
+    setSelectedRecordIds((current) => {
+      if (checked) return Array.from(new Set([...current, recordId]))
+      return current.filter((id) => id !== recordId)
+    })
+  }
+
+  const toggleAllRecords = (checked: boolean) => {
+    setSelectedRecordIds(
+      checked ? claimableRecords.map((record) => record.id) : []
+    )
+  }
 
   // 返利到余额申请 mutation
   const rebateRequestMutation = useMutation({
-    mutationFn: async (values: RebateRequestFormValues) => {
-      if (!availableData?.recordIds || availableData.recordIds.length === 0) {
+    mutationFn: async () => {
+      if (selectedRecordIds.length === 0) {
         throw new Error(t('No available rebates to apply to balance'))
       }
       return requestRebate({
-        amount: Math.round(values.amount * 100), // 转换为分
-        rebateRecordIds: availableData.recordIds,
+        amount: selectedAmount,
+        rebateRecordIds: selectedRecordIds,
       })
     },
     onSuccess: () => {
       toast.success(t('Rebate balance request submitted successfully'))
-      reset()
+      setSelectedRecordIds([])
       queryClient.invalidateQueries({ queryKey: ['availableRebates'] })
+      queryClient.invalidateQueries({ queryKey: ['claimableRebateRecords'] })
       queryClient.invalidateQueries({ queryKey: ['rebateRequests'] })
     },
     onError: (error: unknown) => {
@@ -142,8 +200,25 @@ export function RebateManagement() {
   })
 
   // 提交返利到余额申请
-  const onSubmit = (values: RebateRequestFormValues) => {
-    rebateRequestMutation.mutate(values)
+  const submitSelectedRebates = () => {
+    rebateRequestMutation.mutate()
+  }
+
+  const formatOrderType = (type: OrderType) => {
+    const types: Record<OrderType, string> = {
+      topup: t('Top-up'),
+      subscription: t('Subscription'),
+      invite_inviter: t('Invitation Reward'),
+      invite_invitee: t('New User Invitation Reward'),
+      other: t('Other'),
+    }
+    return types[type] || type
+  }
+
+  const formatDate = (value?: string) => {
+    if (!value) return '-'
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '-' : format(date, 'yyyy-MM-dd HH:mm')
   }
 
   // 定义表格列
@@ -224,42 +299,114 @@ export function RebateManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
-            <div className='space-y-2'>
-              <Label>{t('Available Rebate Amount')}</Label>
-              <div className='text-2xl font-bold'>
-                {formatRebateAmount(availableAmount)}
+          <div className='space-y-4'>
+            <div className='grid gap-3 sm:grid-cols-3'>
+              <div>
+                <div className='text-muted-foreground text-sm'>
+                  {t('Available Rebate Amount')}
+                </div>
+                <div className='text-2xl font-bold'>
+                  {formatRebateAmount(availableAmount)}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground text-sm'>
+                  {t('Selected Rebate Amount')}
+                </div>
+                <div className='text-2xl font-bold'>
+                  {formatRebateAmount(selectedAmount)}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground text-sm'>
+                  {t('Selected Records')}
+                </div>
+                <div className='text-2xl font-bold'>
+                  {selectedRecords.length}/{claimableRecords.length}
+                </div>
               </div>
             </div>
 
-            <div className='space-y-2'>
-              <Label htmlFor='amount'>{t('Rebate Amount')}</Label>
-              <Input
-                id='amount'
-                type='number'
-                step='0.01'
-                placeholder='0.00'
-                {...register('amount', { valueAsNumber: true })}
-              />
-              {errors.amount && (
-                <p className='text-sm text-red-500'>{errors.amount.message}</p>
-              )}
+            <div className='overflow-x-auto rounded-md border'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className='w-12'>
+                      <Checkbox
+                        checked={allClaimableSelected}
+                        indeterminate={someClaimableSelected}
+                        onCheckedChange={(value) => toggleAllRecords(!!value)}
+                        aria-label={t('Select all')}
+                      />
+                    </TableHead>
+                    <TableHead>{t('Order Type')}</TableHead>
+                    <TableHead>{t('Order Amount')}</TableHead>
+                    <TableHead>{t('Rebate Amount')}</TableHead>
+                    <TableHead>{t('Created At')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {claimableLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className='h-20 text-center'>
+                        {t('Loading...')}
+                      </TableCell>
+                    </TableRow>
+                  ) : claimableRecords.length > 0 ? (
+                    claimableRecords.map((record: RebateRecord) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedRecordIdSet.has(record.id)}
+                            onCheckedChange={(value) =>
+                              toggleRecord(record.id, !!value)
+                            }
+                            aria-label={t('Select row')}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {formatOrderType(record.orderType)}
+                        </TableCell>
+                        <TableCell>
+                          {isInvitationSignupReward(record.orderType)
+                            ? '-'
+                            : formatRebateAmount(record.orderAmount)}
+                        </TableCell>
+                        <TableCell className='font-medium'>
+                          {formatRebateAmount(record.rebateAmount)}
+                        </TableCell>
+                        <TableCell className='text-muted-foreground'>
+                          {formatDate(record.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className='h-20 text-center'>
+                        {t('No available rebates to apply to balance')}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
 
-            <Button
-              type='submit'
-              disabled={
-                rebateRequestMutation.isPending ||
-                availableAmount === 0 ||
-                !availableData?.recordIds ||
-                availableData.recordIds.length === 0
-              }
-            >
-              {rebateRequestMutation.isPending
-                ? t('Submitting...')
-                : t('Apply to Balance')}
-            </Button>
-          </form>
+            <div className='flex justify-end'>
+              <Button
+                type='button'
+                disabled={
+                  rebateRequestMutation.isPending ||
+                  selectedRecords.length === 0 ||
+                  selectedAmount <= 0
+                }
+                onClick={submitSelectedRebates}
+              >
+                {rebateRequestMutation.isPending
+                  ? t('Submitting...')
+                  : t('Apply Selected to Balance')}
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

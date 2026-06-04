@@ -26,7 +26,6 @@ import {
   Col,
   Empty,
   Input,
-  InputNumber,
   Modal,
   Pagination,
   Row,
@@ -51,7 +50,6 @@ import { copy, showError, showSuccess } from '../../helpers';
 import { invitationApi } from '../../components/invitations/api';
 import {
   DEFAULT_PAGE_SIZE,
-  displayAmountToCents,
   extractData,
   formatDateTime,
   formatPercent,
@@ -441,8 +439,9 @@ function RebateRecordsPanel() {
 function RebateBalancePanel() {
   const { t } = useTranslation();
   const [available, setAvailable] = useState({ amount: 0, recordIds: [] });
+  const [claimableRecords, setClaimableRecords] = useState([]);
+  const [selectedRecordIds, setSelectedRecordIds] = useState([]);
   const [requests, setRequests] = useState({ items: [], total: 0 });
-  const [amount, setAmount] = useState();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
@@ -450,7 +449,27 @@ function RebateBalancePanel() {
 
   const loadAvailable = useCallback(async () => {
     const response = await invitationApi.getAvailableRebates();
-    setAvailable(extractData(response, { amount: 0, recordIds: [] }));
+    const availableData = extractData(response, { amount: 0, recordIds: [] });
+    setAvailable(availableData);
+
+    if (!availableData.recordIds?.length) {
+      setClaimableRecords([]);
+      setSelectedRecordIds([]);
+      return;
+    }
+
+    const recordsResponse = await invitationApi.getRebateRecords({
+      page: 1,
+      pageSize: 1000,
+      status: 'pending',
+    });
+    const pendingRecords = extractData(recordsResponse, { items: [] }).items;
+    const availableIds = new Set(availableData.recordIds);
+    const records = pendingRecords.filter((record) =>
+      availableIds.has(record.id),
+    );
+    setClaimableRecords(records);
+    setSelectedRecordIds(records.map((record) => record.id));
   }, []);
 
   const loadRequests = useCallback(async () => {
@@ -480,30 +499,35 @@ function RebateBalancePanel() {
     refresh();
   }, [refresh]);
 
+  const selectedRecords = useMemo(() => {
+    const selectedIds = new Set(selectedRecordIds);
+    return claimableRecords.filter((record) => selectedIds.has(record.id));
+  }, [claimableRecords, selectedRecordIds]);
+
+  const selectedAmount = useMemo(
+    () =>
+      selectedRecords.reduce(
+        (sum, record) => sum + Number(record.rebateAmount || 0),
+        0,
+      ),
+    [selectedRecords],
+  );
+
   const submitRequest = async () => {
-    const cents = displayAmountToCents(amount);
-    if (!cents || cents <= 0) {
-      showError(t('请输入有效返利金额'));
-      return;
-    }
-    if (cents > available.amount) {
-      showError(t('申请金额不能超过可返利金额'));
-      return;
-    }
-    if (!available.recordIds || available.recordIds.length === 0) {
-      showError(t('暂无可申请返利'));
+    if (!selectedRecordIds.length || selectedAmount <= 0) {
+      showError(t('请选择要返利到余额的记录'));
       return;
     }
 
     setSubmitting(true);
     try {
       const response = await invitationApi.requestRebate({
-        amount: cents,
-        rebateRecordIds: available.recordIds,
+        amount: selectedAmount,
+        rebateRecordIds: selectedRecordIds,
       });
       extractData(response, null);
       showSuccess(t('返利到余额申请已提交'));
-      setAmount();
+      setSelectedRecordIds([]);
       await refresh();
     } catch (error) {
       showError(invitationErrorMessage(error, t('提交返利到余额申请失败')));
@@ -511,6 +535,35 @@ function RebateBalancePanel() {
       setSubmitting(false);
     }
   };
+
+  const claimableColumns = useMemo(
+    () => [
+      {
+        title: t('订单类型'),
+        dataIndex: 'orderType',
+        render: (value) => orderTypeLabel(t, value),
+      },
+      {
+        title: t('订单金额'),
+        dataIndex: 'orderAmount',
+        render: (value, record) =>
+          isInvitationSignupReward(record.orderType)
+            ? '-'
+            : formatRebateAmount(value),
+      },
+      {
+        title: t('返利金额'),
+        dataIndex: 'rebateAmount',
+        render: (value) => formatRebateAmount(value),
+      },
+      {
+        title: t('创建时间'),
+        dataIndex: 'createdAt',
+        render: (value) => formatDateTime(value),
+      },
+    ],
+    [t],
+  );
 
   const columns = useMemo(
     () => [
@@ -568,34 +621,49 @@ function RebateBalancePanel() {
         bordered
         style={{ width: '100%' }}
       >
-        <Row gutter={[16, 16]} align='bottom'>
+        <Row gutter={[16, 16]}>
           <Col xs={24} md={8}>
             <Text type='secondary'>{t('可返利金额')}</Text>
             <div className='mt-1 text-2xl font-bold'>
               {formatRebateAmount(available.amount)}
             </div>
           </Col>
-          <Col xs={24} md={10}>
-            <Text strong>{t('申请金额')}</Text>
-            <InputNumber
-              value={amount}
-              onChange={setAmount}
-              min={0}
-              step={0.01}
-              precision={2}
-              placeholder='0.00'
-              className='mt-2 w-full'
+          <Col xs={24} md={8}>
+            <Text type='secondary'>{t('已选择金额')}</Text>
+            <div className='mt-1 text-2xl font-bold'>
+              {formatRebateAmount(selectedAmount)}
+            </div>
+          </Col>
+          <Col xs={24} md={8}>
+            <Text type='secondary'>{t('已选择记录')}</Text>
+            <div className='mt-1 text-2xl font-bold'>
+              {selectedRecords.length}/{claimableRecords.length}
+            </div>
+          </Col>
+          <Col xs={24}>
+            <Table
+              columns={claimableColumns}
+              dataSource={claimableRecords}
+              rowKey='id'
+              pagination={false}
+              empty={<Empty description={t('暂无可申请返利')} />}
+              scroll={{ x: 760 }}
+              rowSelection={{
+                selectedRowKeys: selectedRecordIds,
+                onChange: (selectedRowKeys) => {
+                  setSelectedRecordIds(selectedRowKeys.map(Number));
+                },
+              }}
             />
           </Col>
-          <Col xs={24} md={6}>
+          <Col xs={24}>
             <Button
               type='primary'
               loading={submitting}
-              disabled={!available.amount || !available.recordIds?.length}
+              disabled={!selectedRecordIds.length || selectedAmount <= 0}
               onClick={submitRequest}
-              block
             >
-              {t('申请到余额')}
+              {t('申请选中记录到余额')}
             </Button>
           </Col>
         </Row>

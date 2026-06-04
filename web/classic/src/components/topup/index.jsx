@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useContext, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   API,
   showError,
@@ -39,6 +39,7 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import { invitationApi } from '../invitations/api';
 
 // Reject non-navigable schemes (e.g. javascript:, data:) and relative URLs.
 // Only http / https are allowed for backend-provided redirect targets.
@@ -59,6 +60,7 @@ function isSafeHttpCheckoutUrl(value) {
 
 const TopUp = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
@@ -105,6 +107,11 @@ const TopUp = () => {
 
   // 邀请相关状态
   const [affLink, setAffLink] = useState('');
+  const [invitationRewardSummary, setInvitationRewardSummary] = useState({
+    enabled: false,
+    rebateToBalanceEnabled: false,
+    stats: null,
+  });
   const [openTransfer, setOpenTransfer] = useState(false);
   const [transferAmount, setTransferAmount] = useState(0);
 
@@ -736,6 +743,50 @@ const TopUp = () => {
     }
   };
 
+  const loadInvitationRewardSummary = async () => {
+    try {
+      const statusResponse = await invitationApi.getStatus();
+      const status = statusResponse?.data;
+      const enabled = Boolean(
+        statusResponse?.success &&
+          status?.available &&
+          status.userInvitationRebateEnabled &&
+          (status.orderRebateEnabled || status.invitationSignupRewardEnabled),
+      );
+
+      if (!enabled) {
+        setInvitationRewardSummary({
+          enabled: false,
+          rebateToBalanceEnabled: false,
+          stats: null,
+        });
+        return;
+      }
+
+      const statsResponse = await invitationApi.getMyCode({
+        skipBusinessError: true,
+        skipErrorHandler: true,
+      });
+
+      if (statsResponse?.success && statsResponse?.data) {
+        setInvitationRewardSummary({
+          enabled: true,
+          rebateToBalanceEnabled: status.rebateToBalanceEnabled === true,
+          stats: statsResponse.data,
+        });
+        return;
+      }
+    } catch (_error) {
+      // Fall back to the original aff_* fields when the sidecar is unavailable.
+    }
+
+    setInvitationRewardSummary({
+      enabled: false,
+      rebateToBalanceEnabled: false,
+      stats: null,
+    });
+  };
+
   // 划转邀请额度
   const transfer = async () => {
     if (transferAmount < getQuotaPerUnit()) {
@@ -756,8 +807,8 @@ const TopUp = () => {
   };
 
   // 复制邀请链接
-  const handleAffLinkClick = async () => {
-    await copy(affLink);
+  const handleAffLinkClick = async (link = affLink) => {
+    await copy(link);
     showSuccess(t('邀请链接已复制到剪切板'));
   };
 
@@ -780,6 +831,7 @@ const TopUp = () => {
     if (affFetchedRef.current) return;
     affFetchedRef.current = true;
     getAffLink().then();
+    loadInvitationRewardSummary().then();
   }, []);
 
   // 在 statusState 可用时获取充值信息
@@ -1022,7 +1074,11 @@ const TopUp = () => {
           userState={userState}
           renderQuota={renderQuota}
           setOpenTransfer={setOpenTransfer}
+          onInvitationRebateTransfer={() =>
+            navigate('/console/invitations?tab=rebate')
+          }
           affLink={affLink}
+          invitationRewardSummary={invitationRewardSummary}
           handleAffLinkClick={handleAffLinkClick}
           complianceConfirmed={topupInfo.payment_compliance_confirmed !== false}
         />

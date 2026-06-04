@@ -66,7 +66,8 @@ export function UserRebateDetails() {
 
   // 查询用户返利详情
   const queryMutation = useMutation({
-    mutationFn: (userId: number) => getUserRebateDetails(userId),
+    mutationFn: (userId: number) =>
+      getUserRebateDetails(userId, { page: 1, pageSize: 1000 }),
     onSuccess: (response) => {
       setRecords(response.data?.items ?? [])
     },
@@ -86,7 +87,8 @@ export function UserRebateDetails() {
 
   const getStatusBadge = (record: RebateRecord) => {
     const status: RebateDisplayStatus =
-      record.displayStatus ?? (record.status === 'pending' ? 'claimable' : 'paid')
+      record.displayStatus ??
+      (record.status === 'pending' ? 'claimable' : 'paid')
     const labels: Record<RebateDisplayStatus, string> = {
       estimated: t('Estimated Rebate'),
       claimable: t('Claimable Rebate'),
@@ -104,7 +106,7 @@ export function UserRebateDetails() {
     return (
       <Badge
         variant='outline'
-        className={`h-auto max-w-[14rem] justify-start whitespace-normal py-1 text-left leading-tight ${classes[status]}`}
+        className={`h-auto max-w-[14rem] justify-start py-1 text-left leading-tight whitespace-normal ${classes[status]}`}
       >
         {labels[status]}
       </Badge>

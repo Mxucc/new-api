@@ -34,8 +34,8 @@ export const invitationApi = {
     }).then(unwrap);
   },
 
-  getMyCode() {
-    return API.get(`${USER_BASE_PATH}/my-code`).then(unwrap);
+  getMyCode(config) {
+    return API.get(`${USER_BASE_PATH}/my-code`, config).then(unwrap);
   },
 
   getRebateRecords(params) {
@@ -122,6 +122,14 @@ export const invitationAdminApi = {
     ).then(unwrap);
   },
 
+  undoCompleteRebateRequest(id) {
+    return API.post(
+      `${ADMIN_BASE_PATH}/rebate-requests/${id}/undo-complete`,
+      undefined,
+      { skipErrorHandler: true },
+    ).then(unwrap);
+  },
+
   resetRebateRequestReview(id) {
     return API.post(
       `${ADMIN_BASE_PATH}/rebate-requests/${id}/reset`,
@@ -132,6 +140,20 @@ export const invitationAdminApi = {
 
   getRebateStats() {
     return API.get(`${ADMIN_BASE_PATH}/rebate-stats`).then(unwrap);
+  },
+
+  getRebateRecords(params) {
+    return API.get(`${ADMIN_BASE_PATH}/rebate-records`, { params }).then(
+      unwrap,
+    );
+  },
+
+  revokeSignupRewardRecord(id) {
+    return API.post(
+      `${ADMIN_BASE_PATH}/rebate-records/${id}/revoke-signup-reward`,
+      undefined,
+      { skipErrorHandler: true },
+    ).then(unwrap);
   },
 
   getRebateOrderRecords(params) {
@@ -196,9 +218,25 @@ export const invitationAdminApi = {
     ).then(unwrap);
   },
 
-  getUserRebateDetails(userId) {
-    return API.get(`${ADMIN_BASE_PATH}/users/${userId}/rebate-details`).then(
-      unwrap,
-    );
+  revokeInvitationInviterReward(id) {
+    return API.post(
+      `${ADMIN_BASE_PATH}/invitation-registrations/${id}/inviter-reward/revoke`,
+      undefined,
+      { skipErrorHandler: true },
+    ).then(unwrap);
+  },
+
+  revokeInvitationInviteeReward(id) {
+    return API.post(
+      `${ADMIN_BASE_PATH}/invitation-registrations/${id}/invitee-reward/revoke`,
+      undefined,
+      { skipErrorHandler: true },
+    ).then(unwrap);
+  },
+
+  getUserRebateDetails(userId, params) {
+    return API.get(`${ADMIN_BASE_PATH}/users/${userId}/rebate-details`, {
+      params,
+    }).then(unwrap);
   },
 };

@@ -28,6 +28,7 @@ import {
   Space,
 } from '@douyinfe/semi-ui';
 import { Copy, Users, BarChart2, TrendingUp, Gift, Zap } from 'lucide-react';
+import { formatRebateAmount } from '../invitations/utils';
 
 const { Text } = Typography;
 
@@ -36,10 +37,46 @@ const InvitationCard = ({
   userState,
   renderQuota,
   setOpenTransfer,
+  onInvitationRebateTransfer,
   affLink,
+  invitationRewardSummary,
   handleAffLinkClick,
   complianceConfirmed = true,
 }) => {
+  const invitationStats = invitationRewardSummary?.stats;
+  const usingInvitationBackend = Boolean(
+    invitationRewardSummary?.enabled && invitationStats,
+  );
+  const pendingAmount = usingInvitationBackend
+    ? invitationStats?.pendingRebate || 0
+    : userState?.user?.aff_quota || 0;
+  const totalAmount = usingInvitationBackend
+    ? invitationStats?.totalRebate || 0
+    : userState?.user?.aff_history_quota || 0;
+  const inviteCount = usingInvitationBackend
+    ? invitationStats?.invitedCount || 0
+    : userState?.user?.aff_count || 0;
+  const displayAffLink =
+    usingInvitationBackend && invitationStats?.invitationCode
+      ? `${window.location.origin}/register?aff=${invitationStats.invitationCode}`
+      : affLink;
+  const pendingDisplay = usingInvitationBackend
+    ? formatRebateAmount(pendingAmount)
+    : renderQuota(pendingAmount);
+  const totalDisplay = usingInvitationBackend
+    ? formatRebateAmount(totalAmount)
+    : renderQuota(totalAmount);
+  const canTransfer = usingInvitationBackend
+    ? invitationRewardSummary?.rebateToBalanceEnabled && pendingAmount > 0
+    : pendingAmount > 0;
+  const handleTransfer = () => {
+    if (usingInvitationBackend && onInvitationRebateTransfer) {
+      onInvitationRebateTransfer();
+      return;
+    }
+    setOpenTransfer(true);
+  };
+
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
@@ -81,12 +118,8 @@ const InvitationCard = ({
                     type='primary'
                     theme='solid'
                     size='small'
-                    disabled={
-                      !complianceConfirmed ||
-                      !userState?.user?.aff_quota ||
-                      userState?.user?.aff_quota <= 0
-                    }
-                    onClick={() => setOpenTransfer(true)}
+                    disabled={!complianceConfirmed || !canTransfer}
+                    onClick={handleTransfer}
                     className='!rounded-lg'
                   >
                     <Zap size={12} className='mr-1' />
@@ -112,7 +145,7 @@ const InvitationCard = ({
                       className='text-base sm:text-2xl font-bold mb-2'
                       style={{ color: 'white' }}
                     >
-                      {renderQuota(userState?.user?.aff_quota || 0)}
+                      {pendingDisplay}
                     </div>
                     <div className='flex items-center justify-center text-sm'>
                       <TrendingUp
@@ -137,7 +170,7 @@ const InvitationCard = ({
                       className='text-base sm:text-2xl font-bold mb-2'
                       style={{ color: 'white' }}
                     >
-                      {renderQuota(userState?.user?.aff_history_quota || 0)}
+                      {totalDisplay}
                     </div>
                     <div className='flex items-center justify-center text-sm'>
                       <BarChart2
@@ -162,7 +195,7 @@ const InvitationCard = ({
                       className='text-base sm:text-2xl font-bold mb-2'
                       style={{ color: 'white' }}
                     >
-                      {userState?.user?.aff_count || 0}
+                      {inviteCount}
                     </div>
                     <div className='flex items-center justify-center text-sm'>
                       <Users
@@ -187,7 +220,7 @@ const InvitationCard = ({
         >
           {/* 邀请链接部分 */}
           <Input
-            value={affLink}
+            value={displayAffLink}
             readonly
             className='!rounded-lg'
             prefix={t('邀请链接')}
@@ -195,7 +228,7 @@ const InvitationCard = ({
               <Button
                 type='primary'
                 theme='solid'
-                onClick={handleAffLinkClick}
+                onClick={() => handleAffLinkClick(displayAffLink)}
                 icon={<Copy size={14} />}
                 className='!rounded-lg'
               >

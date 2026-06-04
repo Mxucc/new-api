@@ -172,6 +172,7 @@ export function requestStatusLabel(t, status) {
     rejected: t('已拒绝'),
     completed: t('已完成'),
     requested: t('已申请'),
+    closed: t('已关闭'),
   };
   return labels[status] || status || '-';
 }

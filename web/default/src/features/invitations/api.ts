@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 import type {
   ApiResponse,
   InvitationFeatureStatus,
@@ -31,6 +31,7 @@ import type {
   AdminInvitationRegistration,
   RebateOrderRecordBatchResponse,
   InvitationRegistrationRewardResponse,
+  InvitationRegistrationRewardRevokeResponse,
   UpdateRebateOrderRecordsData,
   RebateOrderRecordIdsData,
   ExtendRebateInitializationData,
@@ -58,8 +59,10 @@ export async function getInvitationFeatureStatus(): Promise<
 /**
  * 获取我的邀请码和统计信息
  */
-export async function getMyCode(): Promise<ApiResponse<InvitationStats>> {
-  const res = await api.get(`${BASE_PATH}/my-code`)
+export async function getMyCode(
+  config?: ApiRequestConfig
+): Promise<ApiResponse<InvitationStats>> {
+  const res = await api.get(`${BASE_PATH}/my-code`, config)
   return res.data
 }
 
@@ -261,6 +264,20 @@ export async function completeRebateRequest(
 }
 
 /**
+ * 撤回返利处理完成状态
+ */
+export async function undoCompleteRebateRequest(
+  id: number
+): Promise<ApiResponse<import('./types').RebateRequestAdmin>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/rebate-requests/${id}/undo-complete`,
+    undefined,
+    { skipErrorHandler: true }
+  )
+  return res.data
+}
+
+/**
  * 获取返利统计
  */
 export async function getRebateStats(): Promise<
@@ -274,11 +291,28 @@ export async function getRebateStats(): Promise<
  * 获取管理员返利记录列表（不受用户侧邀请返利开关影响）
  */
 export async function getAdminRebateRecords(
-  params?: PaginationParams & { status?: RebateStatus }
+  params?: PaginationParams & {
+    status?: RebateStatus
+    source?: 'order' | 'signup'
+  }
 ): Promise<ApiResponse<PaginatedResponse<RebateRecord>>> {
   const res = await api.get(`${ADMIN_BASE_PATH}/rebate-records`, {
     params,
   })
+  return res.data
+}
+
+/**
+ * 按返利记录撤回邀请注册奖励
+ */
+export async function revokeAdminSignupRewardRecord(
+  id: number
+): Promise<ApiResponse<InvitationRegistrationRewardRevokeResponse>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/rebate-records/${id}/revoke-signup-reward`,
+    undefined,
+    { skipErrorHandler: true }
+  )
   return res.data
 }
 
@@ -403,11 +437,43 @@ export async function generateAdminInvitationInviteeReward(
 }
 
 /**
+ * 撤回邀请人邀请注册奖励
+ */
+export async function revokeAdminInvitationInviterReward(
+  id: number
+): Promise<ApiResponse<InvitationRegistrationRewardRevokeResponse>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/invitation-registrations/${id}/inviter-reward/revoke`,
+    undefined,
+    { skipErrorHandler: true }
+  )
+  return res.data
+}
+
+/**
+ * 撤回被邀请人邀请注册奖励
+ */
+export async function revokeAdminInvitationInviteeReward(
+  id: number
+): Promise<ApiResponse<InvitationRegistrationRewardRevokeResponse>> {
+  const res = await api.post(
+    `${ADMIN_BASE_PATH}/invitation-registrations/${id}/invitee-reward/revoke`,
+    undefined,
+    { skipErrorHandler: true }
+  )
+  return res.data
+}
+
+/**
  * 获取用户返利详情
  */
 export async function getUserRebateDetails(
-  userId: number
+  userId: number,
+  params?: PaginationParams
 ): Promise<ApiResponse<PaginatedResponse<RebateRecord>>> {
-  const res = await api.get(`${ADMIN_BASE_PATH}/users/${userId}/rebate-details`)
+  const res = await api.get(
+    `${ADMIN_BASE_PATH}/users/${userId}/rebate-details`,
+    { params }
+  )
   return res.data
 }

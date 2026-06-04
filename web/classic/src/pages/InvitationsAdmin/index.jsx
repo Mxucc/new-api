@@ -1099,88 +1099,395 @@ function RebateOrderRecordsPanel() {
   );
 
   return (
-    <Card title={t('返利记录')} className='w-full min-w-0 !rounded-2xl'>
-      <div
-        className='mb-4 rounded-xl p-3'
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 6,
-          border: '1px solid var(--semi-color-border)',
-          background: 'var(--semi-color-bg-2)',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.06)',
-        }}
-      >
-        <div className='flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between'>
-          <div>
-            <div className='font-medium'>{t('操作')}</div>
-            <Text type='secondary'>
-              {selectedRecords.length
-                ? `${t('已选择')} ${selectedRecords.length} ${t('条')}`
-                : t('未选择记录')}
-            </Text>
-          </div>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Button
-              icon={<Edit size={14} />}
-              disabled={!selectedCanModify}
-              onClick={() => openDialog('edit', selectedRecords)}
-            >
-              {t('批量修改')}
-            </Button>
-            <Button
-              icon={<TimerOff size={14} />}
-              disabled={!selectedCanEnd}
-              onClick={() => openDialog('end', selectedRecords)}
-            >
-              {t('结束初始化')}
-            </Button>
-            <Button
-              icon={<TimerReset size={14} />}
-              disabled={!selectedCanExtend}
-              onClick={() => openDialog('extend', selectedRecords)}
-            >
-              {t('延长初始化')}
-            </Button>
-            <Button
-              icon={<LockOpen size={14} />}
-              disabled={!selectedCanReopen}
-              onClick={() => openDialog('reopen', selectedRecords)}
-            >
-              {t('开启返利')}
-            </Button>
-            <Button
-              icon={<Ban size={14} />}
-              type='danger'
-              disabled={!selectedCanClose}
-              onClick={() => openDialog('close', selectedRecords)}
-            >
-              {t('关闭返利')}
-            </Button>
-            <Select
-              value={orderType}
-              onChange={(value) => {
-                setOrderType(value);
-                setPage(1);
-              }}
-              style={{ width: 150 }}
-            >
-              <Select.Option value='all'>{t('全部订单')}</Select.Option>
-              <Select.Option value='topup'>{t('充值')}</Select.Option>
-              <Select.Option value='subscription'>{t('订阅')}</Select.Option>
-            </Select>
+    <div className='space-y-4'>
+      <Card title={t('返利记录')} className='w-full min-w-0 !rounded-2xl'>
+        <div
+          className='mb-4 rounded-xl p-3'
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 6,
+            border: '1px solid var(--semi-color-border)',
+            background: 'var(--semi-color-bg-2)',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.06)',
+          }}
+        >
+          <div className='flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between'>
+            <div>
+              <div className='font-medium'>{t('操作')}</div>
+              <Text type='secondary'>
+                {selectedRecords.length
+                  ? `${t('已选择')} ${selectedRecords.length} ${t('条')}`
+                  : t('未选择记录')}
+              </Text>
+            </div>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Button
+                icon={<Edit size={14} />}
+                disabled={!selectedCanModify}
+                onClick={() => openDialog('edit', selectedRecords)}
+              >
+                {t('批量修改')}
+              </Button>
+              <Button
+                icon={<TimerOff size={14} />}
+                disabled={!selectedCanEnd}
+                onClick={() => openDialog('end', selectedRecords)}
+              >
+                {t('结束初始化')}
+              </Button>
+              <Button
+                icon={<TimerReset size={14} />}
+                disabled={!selectedCanExtend}
+                onClick={() => openDialog('extend', selectedRecords)}
+              >
+                {t('延长初始化')}
+              </Button>
+              <Button
+                icon={<LockOpen size={14} />}
+                disabled={!selectedCanReopen}
+                onClick={() => openDialog('reopen', selectedRecords)}
+              >
+                {t('开启返利')}
+              </Button>
+              <Button
+                icon={<Ban size={14} />}
+                type='danger'
+                disabled={!selectedCanClose}
+                onClick={() => openDialog('close', selectedRecords)}
+              >
+                {t('关闭返利')}
+              </Button>
+              <Select
+                value={orderType}
+                onChange={(value) => {
+                  setOrderType(value);
+                  setPage(1);
+                }}
+                style={{ width: 150 }}
+              >
+                <Select.Option value='all'>{t('全部订单')}</Select.Option>
+                <Select.Option value='topup'>{t('充值')}</Select.Option>
+                <Select.Option value='subscription'>{t('订阅')}</Select.Option>
+              </Select>
+            </div>
           </div>
         </div>
-      </div>
 
+        <Table
+          columns={columns}
+          dataSource={data.items}
+          loading={loading}
+          rowKey={rowKey}
+          pagination={false}
+          empty={<Empty description={t('暂无返利记录')} />}
+          scroll={{ x: 1780 }}
+        />
+        {data.total > 0 && (
+          <div className='mt-4 flex flex-wrap items-center justify-between gap-3'>
+            <Text type='secondary'>
+              {formatPageTotal(t, page, pageSize, data.total)}
+            </Text>
+            <Pagination
+              currentPage={page}
+              pageSize={pageSize}
+              total={data.total}
+              showSizeChanger
+              pageSizeOpts={[10, 20, 50, 100]}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
+          </div>
+        )}
+
+        <Modal
+          visible={Boolean(dialog)}
+          onCancel={() => setDialog(null)}
+          footer={null}
+          width={540}
+        >
+          {dialog?.type === 'edit' && (
+            <Space vertical spacing='medium' className='w-full'>
+              <Title heading={5}>{t('修改返利记录')}</Title>
+              <Text type='secondary'>
+                {t('正在修改')} {dialog.records.length} {t('条返利记录')}
+              </Text>
+              <div>
+                <Text strong>{t('返利金额')}</Text>
+                <InputNumber
+                  className='mt-2 w-full'
+                  min={0}
+                  step={0.01}
+                  precision={2}
+                  value={editAmount}
+                  onChange={setEditAmount}
+                  placeholder='0.00'
+                />
+              </div>
+              <div>
+                <Text strong>{t('返利比例')} (%)</Text>
+                <InputNumber
+                  className='mt-2 w-full'
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  precision={2}
+                  value={editRatio}
+                  onChange={setEditRatio}
+                  placeholder='5.00'
+                />
+              </div>
+              <Space className='justify-end'>
+                <Button onClick={() => setDialog(null)}>{t('取消')}</Button>
+                <Button type='primary' loading={mutating} onClick={submitEdit}>
+                  {t('保存')}
+                </Button>
+              </Space>
+            </Space>
+          )}
+
+          {dialog?.type === 'close' && (
+            <ConfirmBatchAction
+              title={t('关闭返利')}
+              description={t('关闭后邀请者无法看到这些订单返利记录。')}
+              count={dialog.records.length}
+              loading={mutating}
+              okText={t('关闭')}
+              okType='danger'
+              onCancel={() => setDialog(null)}
+              onOk={() => {
+                const ids = currentDialogIds();
+                if (!ids.length) return;
+                runBatch(
+                  invitationAdminApi.closeRebateOrderRecords,
+                  { recordIds: ids },
+                  t('返利记录已关闭'),
+                  t('关闭返利记录失败'),
+                );
+              }}
+            />
+          )}
+
+          {dialog?.type === 'reopen' && (
+            <ConfirmBatchAction
+              title={t('开启返利')}
+              description={t('开启后邀请者可以再次看到这些订单返利记录。')}
+              count={dialog.records.length}
+              loading={mutating}
+              okText={t('开启')}
+              onCancel={() => setDialog(null)}
+              onOk={() => {
+                const ids = currentDialogIds();
+                if (!ids.length) return;
+                runBatch(
+                  invitationAdminApi.reopenRebateOrderRecords,
+                  { recordIds: ids },
+                  t('返利记录已开启'),
+                  t('开启返利记录失败'),
+                );
+              }}
+            />
+          )}
+
+          {dialog?.type === 'end' && (
+            <ConfirmBatchAction
+              title={t('结束初始化')}
+              description={t(
+                '提前结束初始化后，订单会按当前返利设定进入展示状态。',
+              )}
+              count={dialog.records.length}
+              loading={mutating}
+              okText={t('结束初始化')}
+              onCancel={() => setDialog(null)}
+              onOk={() => {
+                const ids = currentDialogIds();
+                if (!ids.length) return;
+                runBatch(
+                  invitationAdminApi.endRebateOrderInitialization,
+                  { recordIds: ids },
+                  t('初始化已结束'),
+                  t('结束初始化失败'),
+                );
+              }}
+            />
+          )}
+
+          {dialog?.type === 'extend' && (
+            <Space vertical spacing='medium' className='w-full'>
+              <Title heading={5}>{t('延长初始化')}</Title>
+              <Text type='secondary'>
+                {t('正在延长')} {dialog.records.length} {t('条返利记录')}
+              </Text>
+              <div>
+                <Text strong>{t('初始化结束时间')}</Text>
+                <Input
+                  className='mt-2'
+                  type='datetime-local'
+                  value={extendUntil}
+                  onChange={setExtendUntil}
+                />
+              </div>
+              <Space className='justify-end'>
+                <Button onClick={() => setDialog(null)}>{t('取消')}</Button>
+                <Button
+                  type='primary'
+                  loading={mutating}
+                  onClick={submitExtend}
+                >
+                  {t('延长')}
+                </Button>
+              </Space>
+            </Space>
+          )}
+        </Modal>
+      </Card>
+      <SignupRewardRecordsPanel />
+    </div>
+  );
+}
+
+function SignupRewardRecordsPanel() {
+  const { t } = useTranslation();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [data, setData] = useState({ items: [], total: 0 });
+  const [loading, setLoading] = useState(false);
+  const [mutatingId, setMutatingId] = useState(null);
+
+  const loadRecords = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await invitationAdminApi.getRebateRecords({
+        page,
+        pageSize,
+        source: 'signup',
+      });
+      setData(extractData(response, { items: [], total: 0 }));
+    } catch (error) {
+      showError(invitationErrorMessage(error, t('加载邀请注册奖励记录失败')));
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, t]);
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
+
+  const revokeRecord = async (record) => {
+    setMutatingId(record.id);
+    try {
+      const response = await invitationAdminApi.revokeSignupRewardRecord(
+        record.id,
+      );
+      const result = extractData(response, null);
+      showSuccess(
+        result?.revoked ? t('邀请注册奖励已撤回') : t('邀请注册奖励不存在'),
+      );
+      await loadRecords();
+    } catch (error) {
+      showError(invitationErrorMessage(error, t('撤回邀请注册奖励失败')));
+    } finally {
+      setMutatingId(null);
+    }
+  };
+
+  const canRevokeRecord = (record) =>
+    isInvitationSignupReward(record.orderType) && record.status !== 'completed';
+
+  const columns = useMemo(
+    () => [
+      {
+        title: t('记录 ID'),
+        dataIndex: 'id',
+        width: 110,
+        render: (value) => <span className='font-mono'>#{value}</span>,
+      },
+      {
+        title: t('奖励类型'),
+        dataIndex: 'orderType',
+        width: 160,
+        render: (value) => orderTypeLabel(t, value),
+      },
+      {
+        title: t('奖励用户'),
+        dataIndex: 'inviterId',
+        width: 130,
+        render: (value) => <span className='font-mono'>#{value}</span>,
+      },
+      {
+        title: t('返利金额'),
+        dataIndex: 'rebateAmount',
+        width: 140,
+        render: (value) => formatRebateAmount(value),
+      },
+      {
+        title: t('状态'),
+        dataIndex: 'status',
+        width: 120,
+        render: (value) => {
+          const colorMap = {
+            pending: 'yellow',
+            requested: 'blue',
+            approved: 'green',
+            completed: 'grey',
+            rejected: 'red',
+          };
+          return (
+            <Tag color={colorMap[value] || 'grey'}>
+              {requestStatusLabel(t, value)}
+            </Tag>
+          );
+        },
+      },
+      {
+        title: t('创建时间'),
+        dataIndex: 'createdAt',
+        width: 190,
+        render: (value) => formatDateTime(value),
+      },
+      {
+        title: t('操作'),
+        dataIndex: 'actions',
+        fixed: 'right',
+        width: 170,
+        render: (_, record) => {
+          const canRevoke = canRevokeRecord(record);
+          return (
+            <Button
+              icon={<RotateCcw size={14} />}
+              theme='borderless'
+              disabled={!canRevoke || Boolean(mutatingId)}
+              loading={mutatingId === record.id}
+              title={
+                canRevoke
+                  ? t('撤回奖励')
+                  : t('已完成的奖励需要先撤回返利完成状态')
+              }
+              onClick={() => revokeRecord(record)}
+            >
+              {t('撤回奖励')}
+            </Button>
+          );
+        },
+      },
+    ],
+    [mutatingId, t],
+  );
+
+  return (
+    <Card title={t('邀请注册奖励记录')} className='w-full min-w-0 !rounded-2xl'>
       <Table
         columns={columns}
         dataSource={data.items}
         loading={loading}
-        rowKey={rowKey}
         pagination={false}
-        empty={<Empty description={t('暂无返利记录')} />}
-        scroll={{ x: 1780 }}
+        rowKey='id'
+        scroll={{ x: 1020 }}
+        empty={<Empty description={t('暂无邀请注册奖励记录')} />}
       />
       {data.total > 0 && (
         <div className='mt-4 flex flex-wrap items-center justify-between gap-3'>
@@ -1201,143 +1508,6 @@ function RebateOrderRecordsPanel() {
           />
         </div>
       )}
-
-      <Modal
-        visible={Boolean(dialog)}
-        onCancel={() => setDialog(null)}
-        footer={null}
-        width={540}
-      >
-        {dialog?.type === 'edit' && (
-          <Space vertical spacing='medium' className='w-full'>
-            <Title heading={5}>{t('修改返利记录')}</Title>
-            <Text type='secondary'>
-              {t('正在修改')} {dialog.records.length} {t('条返利记录')}
-            </Text>
-            <div>
-              <Text strong>{t('返利金额')}</Text>
-              <InputNumber
-                className='mt-2 w-full'
-                min={0}
-                step={0.01}
-                precision={2}
-                value={editAmount}
-                onChange={setEditAmount}
-                placeholder='0.00'
-              />
-            </div>
-            <div>
-              <Text strong>{t('返利比例')} (%)</Text>
-              <InputNumber
-                className='mt-2 w-full'
-                min={0}
-                max={100}
-                step={0.01}
-                precision={2}
-                value={editRatio}
-                onChange={setEditRatio}
-                placeholder='5.00'
-              />
-            </div>
-            <Space className='justify-end'>
-              <Button onClick={() => setDialog(null)}>{t('取消')}</Button>
-              <Button type='primary' loading={mutating} onClick={submitEdit}>
-                {t('保存')}
-              </Button>
-            </Space>
-          </Space>
-        )}
-
-        {dialog?.type === 'close' && (
-          <ConfirmBatchAction
-            title={t('关闭返利')}
-            description={t('关闭后邀请者无法看到这些订单返利记录。')}
-            count={dialog.records.length}
-            loading={mutating}
-            okText={t('关闭')}
-            okType='danger'
-            onCancel={() => setDialog(null)}
-            onOk={() => {
-              const ids = currentDialogIds();
-              if (!ids.length) return;
-              runBatch(
-                invitationAdminApi.closeRebateOrderRecords,
-                { recordIds: ids },
-                t('返利记录已关闭'),
-                t('关闭返利记录失败'),
-              );
-            }}
-          />
-        )}
-
-        {dialog?.type === 'reopen' && (
-          <ConfirmBatchAction
-            title={t('开启返利')}
-            description={t('开启后邀请者可以再次看到这些订单返利记录。')}
-            count={dialog.records.length}
-            loading={mutating}
-            okText={t('开启')}
-            onCancel={() => setDialog(null)}
-            onOk={() => {
-              const ids = currentDialogIds();
-              if (!ids.length) return;
-              runBatch(
-                invitationAdminApi.reopenRebateOrderRecords,
-                { recordIds: ids },
-                t('返利记录已开启'),
-                t('开启返利记录失败'),
-              );
-            }}
-          />
-        )}
-
-        {dialog?.type === 'end' && (
-          <ConfirmBatchAction
-            title={t('结束初始化')}
-            description={t(
-              '提前结束初始化后，订单会按当前返利设定进入展示状态。',
-            )}
-            count={dialog.records.length}
-            loading={mutating}
-            okText={t('结束初始化')}
-            onCancel={() => setDialog(null)}
-            onOk={() => {
-              const ids = currentDialogIds();
-              if (!ids.length) return;
-              runBatch(
-                invitationAdminApi.endRebateOrderInitialization,
-                { recordIds: ids },
-                t('初始化已结束'),
-                t('结束初始化失败'),
-              );
-            }}
-          />
-        )}
-
-        {dialog?.type === 'extend' && (
-          <Space vertical spacing='medium' className='w-full'>
-            <Title heading={5}>{t('延长初始化')}</Title>
-            <Text type='secondary'>
-              {t('正在延长')} {dialog.records.length} {t('条返利记录')}
-            </Text>
-            <div>
-              <Text strong>{t('初始化结束时间')}</Text>
-              <Input
-                className='mt-2'
-                type='datetime-local'
-                value={extendUntil}
-                onChange={setExtendUntil}
-              />
-            </div>
-            <Space className='justify-end'>
-              <Button onClick={() => setDialog(null)}>{t('取消')}</Button>
-              <Button type='primary' loading={mutating} onClick={submitExtend}>
-                {t('延长')}
-              </Button>
-            </Space>
-          </Space>
-        )}
-      </Modal>
     </Card>
   );
 }
@@ -1412,6 +1582,43 @@ function InvitationRegistrationsPanel() {
     }
   };
 
+  const revokeReward = async (type, record) => {
+    const key = `revoke-${type}:${record.id}`;
+    setMutatingKey(key);
+    try {
+      const operation =
+        type === 'inviter'
+          ? invitationAdminApi.revokeInvitationInviterReward
+          : invitationAdminApi.revokeInvitationInviteeReward;
+      const response = await operation(record.id);
+      const result = extractData(response, null);
+      showSuccess(
+        result?.revoked
+          ? type === 'inviter'
+            ? t('邀请者奖励已撤回')
+            : t('被邀请者奖励已撤回')
+          : type === 'inviter'
+            ? t('邀请者奖励不存在')
+            : t('被邀请者奖励不存在'),
+      );
+      await loadRegistrations();
+    } catch (error) {
+      showError(
+        invitationErrorMessage(
+          error,
+          type === 'inviter'
+            ? t('撤回邀请者奖励失败')
+            : t('撤回被邀请者奖励失败'),
+        ),
+      );
+    } finally {
+      setMutatingKey('');
+    }
+  };
+
+  const canRevokeReward = (generated, status) =>
+    generated && status !== 'completed';
+
   const columns = useMemo(
     () => [
       {
@@ -1470,28 +1677,64 @@ function InvitationRegistrationsPanel() {
         title: t('操作'),
         dataIndex: 'actions',
         fixed: 'right',
-        width: 260,
+        width: 320,
         align: 'center',
         render: (_, record) => (
           <Space>
-            <Button
-              icon={<Gift size={14} />}
-              theme='borderless'
-              disabled={Boolean(mutatingKey) || record.inviterRewardGenerated}
-              loading={mutatingKey === `inviter:${record.id}`}
-              onClick={() => generateReward('inviter', record)}
-            >
-              {t('生成邀请者奖励')}
-            </Button>
-            <Button
-              icon={<UserRoundPlus size={14} />}
-              theme='borderless'
-              disabled={Boolean(mutatingKey) || record.inviteeRewardGenerated}
-              loading={mutatingKey === `invitee:${record.id}`}
-              onClick={() => generateReward('invitee', record)}
-            >
-              {t('生成被邀请者奖励')}
-            </Button>
+            {record.inviterRewardGenerated ? (
+              <Button
+                icon={<RotateCcw size={14} />}
+                theme='borderless'
+                disabled={
+                  Boolean(mutatingKey) ||
+                  !canRevokeReward(
+                    record.inviterRewardGenerated,
+                    record.inviterRewardStatus,
+                  )
+                }
+                loading={mutatingKey === `revoke-inviter:${record.id}`}
+                onClick={() => revokeReward('inviter', record)}
+              >
+                {t('撤回邀请者奖励')}
+              </Button>
+            ) : (
+              <Button
+                icon={<Gift size={14} />}
+                theme='borderless'
+                disabled={Boolean(mutatingKey)}
+                loading={mutatingKey === `inviter:${record.id}`}
+                onClick={() => generateReward('inviter', record)}
+              >
+                {t('生成邀请者奖励')}
+              </Button>
+            )}
+            {record.inviteeRewardGenerated ? (
+              <Button
+                icon={<RotateCcw size={14} />}
+                theme='borderless'
+                disabled={
+                  Boolean(mutatingKey) ||
+                  !canRevokeReward(
+                    record.inviteeRewardGenerated,
+                    record.inviteeRewardStatus,
+                  )
+                }
+                loading={mutatingKey === `revoke-invitee:${record.id}`}
+                onClick={() => revokeReward('invitee', record)}
+              >
+                {t('撤回被邀请者奖励')}
+              </Button>
+            ) : (
+              <Button
+                icon={<UserRoundPlus size={14} />}
+                theme='borderless'
+                disabled={Boolean(mutatingKey)}
+                loading={mutatingKey === `invitee:${record.id}`}
+                onClick={() => generateReward('invitee', record)}
+              >
+                {t('生成被邀请者奖励')}
+              </Button>
+            )}
           </Space>
         ),
       },
@@ -1628,8 +1871,12 @@ function RebateRequestsPanel() {
         response = await invitationAdminApi.resetRebateRequestReview(
           dialog.request.id,
         );
-      } else {
+      } else if (dialog.type === 'complete') {
         response = await invitationAdminApi.completeRebateRequest(
+          dialog.request.id,
+        );
+      } else {
+        response = await invitationAdminApi.undoCompleteRebateRequest(
           dialog.request.id,
         );
       }
@@ -1727,7 +1974,13 @@ function RebateRequestsPanel() {
                 onClick={() => openAction(record, 'complete')}
               />
             )}
-            {record.status === 'completed' && '-'}
+            {record.status === 'completed' && (
+              <Button
+                icon={<RotateCcw size={15} />}
+                theme='borderless'
+                onClick={() => openAction(record, 'undoComplete')}
+              />
+            )}
           </Space>
         ),
       },
@@ -1740,6 +1993,7 @@ function RebateRequestsPanel() {
     reject: t('拒绝返利申请'),
     reset: t('撤回审核'),
     complete: t('标记处理完成'),
+    undoComplete: t('撤回完成状态'),
   }[dialog?.type];
 
   return (
@@ -1819,20 +2073,27 @@ function RebateRequestsPanel() {
               />
             </div>
           )}
-          {dialog?.type !== 'complete' && dialog?.type !== 'reset' && (
-            <div>
-              <Text strong>{t('备注')}</Text>
-              <TextArea
-                className='mt-2'
-                value={note}
-                onChange={setNote}
-                autosize
-              />
-            </div>
-          )}
+          {dialog?.type !== 'complete' &&
+            dialog?.type !== 'reset' &&
+            dialog?.type !== 'undoComplete' && (
+              <div>
+                <Text strong>{t('备注')}</Text>
+                <TextArea
+                  className='mt-2'
+                  value={note}
+                  onChange={setNote}
+                  autosize
+                />
+              </div>
+            )}
           {dialog?.type === 'reset' && (
             <Text type='secondary'>
               {t('撤回后申请会回到待审核状态，并清空当前审核备注。')}
+            </Text>
+          )}
+          {dialog?.type === 'undoComplete' && (
+            <Text type='secondary'>
+              {t('撤回后申请会回到已通过状态，关联返利记录也会回到已通过。')}
             </Text>
           )}
         </Space>
@@ -1872,7 +2133,10 @@ function RebateStatsPanel() {
     }
     setUserLoading(true);
     try {
-      const response = await invitationAdminApi.getUserRebateDetails(userId);
+      const response = await invitationAdminApi.getUserRebateDetails(userId, {
+        page: 1,
+        pageSize: 1000,
+      });
       setUserRecords(extractData(response, { items: [], total: 0 }));
     } catch (error) {
       showError(invitationErrorMessage(error, t('加载用户返利详情失败')));

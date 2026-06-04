@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Gift, UserRoundPlus } from 'lucide-react'
+import { Gift, RotateCcw, UserRoundPlus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -42,6 +42,8 @@ import {
   generateAdminInvitationInviteeReward,
   generateAdminInvitationInviterReward,
   getAdminInvitationRegistrations,
+  revokeAdminInvitationInviteeReward,
+  revokeAdminInvitationInviterReward,
 } from '../../api'
 import { getInvitationErrorMessage } from '../../lib/error'
 import { formatRebateAmount } from '../../lib/format'
@@ -70,6 +72,7 @@ function rewardStatusLabel(
     approved: t('Approved'),
     completed: t('Completed'),
     rejected: t('Rejected'),
+    closed: t('Closed'),
   }
   return status ? (labels[status] ?? status) : t('Not generated')
 }
@@ -88,6 +91,10 @@ function rewardBadge(
 
 function groupNameLabel(group: string): string {
   return group === '__all__' ? 'All Groups' : group || '-'
+}
+
+function canRevokeReward(generated: boolean, status?: string | null): boolean {
+  return generated && status !== 'completed'
 }
 
 export function InvitationRegistrationsTab() {
@@ -150,11 +157,48 @@ export function InvitationRegistrationsTab() {
     },
   })
 
+  const revokeInviterRewardMutation = useMutation({
+    mutationFn: revokeAdminInvitationInviterReward,
+    onSuccess: (response) => {
+      toast.success(
+        response.data?.revoked
+          ? t('Inviter reward revoked')
+          : t('Inviter reward already revoked')
+      )
+      invalidateList()
+    },
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to revoke inviter reward'))
+      )
+    },
+  })
+
+  const revokeInviteeRewardMutation = useMutation({
+    mutationFn: revokeAdminInvitationInviteeReward,
+    onSuccess: (response) => {
+      toast.success(
+        response.data?.revoked
+          ? t('Invitee reward revoked')
+          : t('Invitee reward already revoked')
+      )
+      invalidateList()
+    },
+    onError: (error: unknown) => {
+      toast.error(
+        getInvitationErrorMessage(error, t('Failed to revoke invitee reward'))
+      )
+    },
+  })
+
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const items = data?.items ?? []
   const mutating =
-    inviterRewardMutation.isPending || inviteeRewardMutation.isPending
+    inviterRewardMutation.isPending ||
+    inviteeRewardMutation.isPending ||
+    revokeInviterRewardMutation.isPending ||
+    revokeInviteeRewardMutation.isPending
 
   const renderRewardSummary = (
     generated: boolean,
@@ -250,36 +294,76 @@ export function InvitationRegistrationsTab() {
                         </TableCell>
                         <TableCell className={actionCellClass}>
                           <div className='flex flex-col gap-2 xl:flex-row'>
-                            <Button
-                              type='button'
-                              variant='outline'
-                              size='sm'
-                              className='justify-start whitespace-nowrap'
-                              disabled={
-                                mutating || record.inviterRewardGenerated
-                              }
-                              onClick={() =>
-                                inviterRewardMutation.mutate(record.id)
-                              }
-                            >
-                              <Gift className='size-4' />
-                              {t('Generate Inviter Reward')}
-                            </Button>
-                            <Button
-                              type='button'
-                              variant='outline'
-                              size='sm'
-                              className='justify-start whitespace-nowrap'
-                              disabled={
-                                mutating || record.inviteeRewardGenerated
-                              }
-                              onClick={() =>
-                                inviteeRewardMutation.mutate(record.id)
-                              }
-                            >
-                              <UserRoundPlus className='size-4' />
-                              {t('Generate Invitee Reward')}
-                            </Button>
+                            {record.inviterRewardGenerated ? (
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                className='justify-start whitespace-nowrap'
+                                disabled={
+                                  mutating ||
+                                  !canRevokeReward(
+                                    record.inviterRewardGenerated,
+                                    record.inviterRewardStatus
+                                  )
+                                }
+                                onClick={() =>
+                                  revokeInviterRewardMutation.mutate(record.id)
+                                }
+                              >
+                                <RotateCcw className='size-4' />
+                                {t('Revoke Inviter Reward')}
+                              </Button>
+                            ) : (
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                className='justify-start whitespace-nowrap'
+                                disabled={mutating}
+                                onClick={() =>
+                                  inviterRewardMutation.mutate(record.id)
+                                }
+                              >
+                                <Gift className='size-4' />
+                                {t('Generate Inviter Reward')}
+                              </Button>
+                            )}
+                            {record.inviteeRewardGenerated ? (
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                className='justify-start whitespace-nowrap'
+                                disabled={
+                                  mutating ||
+                                  !canRevokeReward(
+                                    record.inviteeRewardGenerated,
+                                    record.inviteeRewardStatus
+                                  )
+                                }
+                                onClick={() =>
+                                  revokeInviteeRewardMutation.mutate(record.id)
+                                }
+                              >
+                                <RotateCcw className='size-4' />
+                                {t('Revoke Invitee Reward')}
+                              </Button>
+                            ) : (
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                className='justify-start whitespace-nowrap'
+                                disabled={mutating}
+                                onClick={() =>
+                                  inviteeRewardMutation.mutate(record.id)
+                                }
+                              >
+                                <UserRoundPlus className='size-4' />
+                                {t('Generate Invitee Reward')}
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
