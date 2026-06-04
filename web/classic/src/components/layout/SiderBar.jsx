@@ -73,18 +73,26 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const [openedKeys, setOpenedKeys] = useState([]);
   const location = useLocation();
   const [routerMapState, setRouterMapState] = useState(routerMap);
-  const [invitationMenuVisible, setInvitationMenuVisible] = useState(false);
+  const [invitationUserMenuVisible, setInvitationUserMenuVisible] =
+    useState(false);
+  const [invitationAdminMenuVisible, setInvitationAdminMenuVisible] =
+    useState(false);
 
   const loadInvitationMenuStatus = useCallback(async () => {
     try {
       const response = await invitationApi.getStatus();
-      return Boolean(
-        response?.success &&
-          response?.data?.available &&
-          response?.data?.userInvitationRebateEnabled,
-      );
+      const available = Boolean(response?.success && response?.data?.available);
+      return {
+        userVisible: Boolean(
+          available && response?.data?.userInvitationRebateEnabled,
+        ),
+        adminVisible: available,
+      };
     } catch (error) {
-      return false;
+      return {
+        userVisible: false,
+        adminVisible: false,
+      };
     }
   }, []);
 
@@ -94,7 +102,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     const updateInvitationMenuStatus = async () => {
       const visible = await loadInvitationMenuStatus();
       if (active) {
-        setInvitationMenuVisible(visible);
+        setInvitationUserMenuVisible(visible.userVisible);
+        setInvitationAdminMenuVisible(visible.adminVisible);
       }
     };
 
@@ -188,7 +197,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
-      if (item.itemKey === 'invitations' && !invitationMenuVisible) {
+      if (item.itemKey === 'invitations' && !invitationUserMenuVisible) {
         return false;
       }
 
@@ -197,7 +206,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     });
 
     return filteredItems;
-  }, [t, isModuleVisible, invitationMenuVisible]);
+  }, [t, isModuleVisible, invitationUserMenuVisible]);
 
   const adminItems = useMemo(() => {
     const items = [
@@ -253,12 +262,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
+      if (item.itemKey === 'invitationsAdmin' && !invitationAdminMenuVisible) {
+        return false;
+      }
+
       const configVisible = isModuleVisible('admin', item.itemKey);
       return configVisible;
     });
 
     return filteredItems;
-  }, [isAdmin(), isRoot(), t, isModuleVisible]);
+  }, [isAdmin(), isRoot(), t, isModuleVisible, invitationAdminMenuVisible]);
 
   const chatMenuItems = useMemo(() => {
     const items = [
