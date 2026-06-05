@@ -148,6 +148,8 @@ const Home = () => {
     return () => clearInterval(timer);
   }, [endpointItems.length]);
 
+  const isCustomHomePageUrl = homePageContent.startsWith('https://');
+
   return (
     <div className='classic-page-fill classic-home-page w-full overflow-x-hidden'>
       <NoticeModal
@@ -335,11 +337,14 @@ const Home = () => {
           </div>
         </div>
       ) : (
-        <div className='classic-page-fill overflow-x-hidden w-full'>
-          {homePageContent.startsWith('https://') ? (
+        <div
+          className={`classic-page-fill overflow-x-hidden w-full ${isCustomHomePageUrl ? 'pt-16' : ''}`}
+        >
+          {isCustomHomePageUrl ? (
             <iframe
               src={homePageContent}
-              className='w-full h-full border-none'
+              className='w-full h-[calc(100dvh-4rem)] min-h-[calc(100vh-4rem)] border-none'
+              title={t('首页内容')}
             />
           ) : (
             <div
