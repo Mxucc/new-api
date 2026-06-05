@@ -21,6 +21,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
+import { PublicEmbeddedFrame } from '@/components/public-embedded-frame'
 import { CTA, Features, Hero, HowItWorks, Stats } from './components'
 import { useHomePageContent } from './hooks'
 
@@ -45,11 +46,13 @@ export function Home() {
       <PublicLayout showMainContainer={false}>
         <main className='overflow-x-hidden'>
           {isUrl ? (
-            <iframe
-              src={content}
-              className='h-screen w-full border-none'
-              title={t('Custom Home Page')}
-            />
+            <div className='mx-auto w-full max-w-6xl px-6 pt-20 pb-8 md:pt-24'>
+              <PublicEmbeddedFrame
+                src={content}
+                className='h-[calc(100dvh-6rem)] min-h-[calc(100vh-6rem)]'
+                title={t('Custom Home Page')}
+              />
+            </div>
           ) : (
             <div className='container mx-auto py-8'>
               <Markdown className='custom-home-content'>{content}</Markdown>

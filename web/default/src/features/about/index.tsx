@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { Markdown } from '@/components/ui/markdown'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
+import { PublicEmbeddedFrame } from '@/components/public-embedded-frame'
 import { getAboutContent } from './api'
 
 function isValidUrl(value: string) {
@@ -158,9 +159,9 @@ export function About() {
   if (isUrl) {
     return (
       <PublicLayout showMainContainer={false}>
-        <iframe
+        <PublicEmbeddedFrame
           src={rawContent}
-          className='h-[calc(100vh-3.5rem)] w-full border-0'
+          className='h-[calc(100vh-3.5rem)]'
           title={t('About')}
         />
       </PublicLayout>
