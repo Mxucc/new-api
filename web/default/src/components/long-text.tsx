@@ -46,7 +46,6 @@ export function LongText({
 
   useEffect(() => {
     if (checkOverflow(ref.current)) {
-
       setIsOverflown(true)
       return
     }

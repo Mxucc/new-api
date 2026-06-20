@@ -188,11 +188,11 @@ function CommonLogsCard<TData>({
 
   return (
     <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-start justify-between gap-3'>
+      <div className='flex min-w-0 items-center justify-between gap-3'>
         <CompactCell cell={modelCell} className='flex-1' />
         <CompactCell
           cell={quotaCell}
-          className='shrink-0 text-right [&_span]:!h-6 [&_span]:!px-2 [&_span]:!text-sm [&_span]:!leading-none'
+          className='shrink-0 text-right [&_.flex-col]:items-end'
         />
       </div>
 
@@ -209,7 +209,7 @@ function CommonLogsCard<TData>({
         <SummaryField
           label={t('Channel')}
           cell={cells.get('channel')}
-          primaryOnly
+          valueClassName='[&_.flex-col]:max-w-none'
         />
         <SummaryField label={t('User')} cell={cells.get('user')} primaryOnly />
         <SummaryField
