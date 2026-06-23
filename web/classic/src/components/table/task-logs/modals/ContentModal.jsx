@@ -17,12 +17,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
 import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
+import { authHeader } from '../../../../helpers';
 
 const { Text } = Typography;
+
+const isProtectedVideoProxyUrl = (url) => {
+  if (typeof url !== 'string' || !url) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(url, window.location.origin);
+    const apiBase = import.meta.env.VITE_REACT_APP_SERVER_URL;
+    const allowedOrigins = new Set([window.location.origin]);
+
+    if (apiBase) {
+      allowedOrigins.add(new URL(apiBase, window.location.origin).origin);
+    }
+
+    return (
+      allowedOrigins.has(parsed.origin) &&
+      /^\/v1\/videos\/[^/]+\/content$/.test(parsed.pathname)
+    );
+  } catch (e) {
+    return false;
+  }
+};
 
 const ContentModal = ({
   isModalOpen,
@@ -33,13 +57,76 @@ const ContentModal = ({
   const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [videoSrc, setVideoSrc] = useState('');
+  const objectUrlRef = useRef('');
+
+  const revokeObjectUrl = useCallback(() => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = '';
+    }
+  }, []);
 
   useEffect(() => {
-    if (isModalOpen && isVideo) {
+    revokeObjectUrl();
+
+    if (!isModalOpen || !isVideo) {
+      setVideoSrc('');
       setVideoError(false);
-      setIsLoading(true);
+      setIsLoading(false);
+      return;
     }
-  }, [isModalOpen, isVideo]);
+
+    setVideoError(false);
+    setIsLoading(true);
+
+    if (!isProtectedVideoProxyUrl(modalContent)) {
+      setVideoSrc(modalContent);
+      return;
+    }
+
+    const controller = new AbortController();
+    let active = true;
+
+    fetch(modalContent, {
+      headers: authHeader(),
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load video: ${response.status}`);
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        if (!active) {
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        objectUrlRef.current = url;
+        setVideoSrc(url);
+      })
+      .catch((error) => {
+        if (error.name === 'AbortError') {
+          return;
+        }
+        console.error(error);
+        setVideoError(true);
+        setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+      revokeObjectUrl();
+    };
+  }, [isModalOpen, isVideo, modalContent, revokeObjectUrl]);
+
+  useEffect(() => {
+    return () => {
+      revokeObjectUrl();
+    };
+  }, [revokeObjectUrl]);
 
   const handleVideoError = () => {
     setVideoError(true);
@@ -134,20 +221,22 @@ const ContentModal = ({
             <Spin size='large' />
           </div>
         )}
-        <video
-          src={modalContent}
-          controls
-          style={{
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain',
-          }}
-          onError={handleVideoError}
-          onLoadedData={handleVideoLoaded}
-          onLoadStart={() => setIsLoading(true)}
-        />
+        {videoSrc && (
+          <video
+            src={videoSrc}
+            controls
+            style={{
+              width: '100%',
+              height: '100%',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+            }}
+            onError={handleVideoError}
+            onLoadedData={handleVideoLoaded}
+            onLoadStart={() => setIsLoading(true)}
+          />
+        )}
       </div>
     );
   };
