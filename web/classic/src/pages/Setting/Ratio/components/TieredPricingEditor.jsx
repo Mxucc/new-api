@@ -971,11 +971,31 @@ function evalExprLocally(exprStr, p, c, extraTokenValues) {
       matchedTier = name;
       return value;
     };
+    const headerFn = () => '';
+    const paramFn = () => null;
+    const hasFn = (source, substr) => {
+      if (source == null || substr == null) return false;
+      return String(source).includes(String(substr));
+    };
     const cacheReadTokens = extraTokenValues.cacheReadTokens || 0;
     const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0;
     const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0;
     const len = p + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens;
-    const env = { p, c, len, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
+    const env = {
+      p,
+      c,
+      len,
+      nil: null,
+      tier: tierFn,
+      header: headerFn,
+      param: paramFn,
+      has: hasFn,
+      max: Math.max,
+      min: Math.min,
+      abs: Math.abs,
+      ceil: Math.ceil,
+      floor: Math.floor,
+    };
     for (const field of EXTRA_ESTIMATOR_FIELDS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0;
     }
