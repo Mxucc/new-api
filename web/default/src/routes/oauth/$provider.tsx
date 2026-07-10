@@ -16,19 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useRef, useState } from 'react'
-import type { AxiosRequestConfig } from 'axios'
-import { z } from 'zod'
 import {
   createFileRoute,
   useNavigate,
   useParams,
   useSearch,
 } from '@tanstack/react-router'
+import type { AxiosRequestConfig } from 'axios'
 import i18next from 'i18next'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { useAuthStore, type AuthUser } from '@/stores/auth-store'
-import { api, getSelf } from '@/lib/api'
+import { z } from 'zod'
+
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import {
@@ -37,6 +36,8 @@ import {
   getSafeAuthRedirectTarget,
   takeRememberedAuthRedirect,
 } from '@/features/auth/lib/redirect'
+import { api, getSelf } from '@/lib/api'
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean

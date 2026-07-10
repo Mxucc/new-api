@@ -16,12 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useState } from 'react'
 import { ArrowUpDown, Check, Filter, Grid2X2, Table2 } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
+import { Button } from '@/components/design-system/button'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,11 +45,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  sideDrawerContentClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
+import { cn } from '@/lib/utils'
+
 import {
   VIEW_MODES,
   getSortLabels,
@@ -170,14 +172,13 @@ export function PricingToolbar(props: PricingToolbarProps) {
           <Button
             type='button'
             variant='outline'
-            size='sm'
             onClick={() => setMobileFiltersOpen(true)}
             className='gap-1.5 xl:hidden'
           >
             <Filter className='size-4' />
             {t('Filter')}
             {props.activeFilterCount > 0 && (
-              <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
+              <Badge className='ml-0.5 size-5 justify-center p-0 text-xs'>
                 {props.activeFilterCount}
               </Badge>
             )}
@@ -220,14 +221,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger
-              render={
-                <Button
-                  type='button'
-                  variant='outline'
-                  size='sm'
-                  className='h-8 gap-1.5 px-3 text-xs'
-                />
-              }
+              render={<Button type='button' variant='outline' />}
             >
               <ArrowUpDown className='size-3.5' />
               <span>{sortLabels[props.sortBy as SortOption] || t('Sort')}</span>

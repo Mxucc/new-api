@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { getAuthRedirectSearch } from '../lib/redirect'
+
 import { AuthLayout } from '../auth-layout'
+import { getAuthRedirectSearch } from '../lib/redirect'
 import { OtpForm } from './components/otp-form'
 
 export function Otp() {

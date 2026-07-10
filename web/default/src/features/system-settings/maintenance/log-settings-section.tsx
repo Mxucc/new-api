@@ -16,16 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
-import dayjs from '@/lib/dayjs'
-import { formatTimestampToDate } from '@/lib/format'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import * as z from 'zod'
+
+import { DateTimePicker } from '@/components/datetime-picker'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,8 +34,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+} from '@/components/design-system/alert-dialog'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/design-system/select'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Form,
   FormControl,
@@ -46,20 +54,14 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { DateTimePicker } from '@/components/datetime-picker'
+import { api } from '@/lib/api'
+import dayjs from '@/lib/dayjs'
+import { formatTimestampToDate } from '@/lib/format'
+
 import {
   getCurrentLogCleanupTask,
   getSystemTask,
@@ -157,9 +159,7 @@ export function LogSettingsSection({
     null
   )
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-  const [serverLogInfo, setServerLogInfo] = useState<ServerLogInfo | null>(
-    null
-  )
+  const [serverLogInfo, setServerLogInfo] = useState<ServerLogInfo | null>(null)
   const [serverLogCleanupMode, setServerLogCleanupMode] = useState('by_count')
   const [serverLogCleanupValue, setServerLogCleanupValue] = useState(10)
   const [serverLogCleanupLoading, setServerLogCleanupLoading] = useState(false)
@@ -220,14 +220,15 @@ export function LogSettingsSection({
   )
   const logCleanupProcessed = logCleanupState?.processed ?? 0
   const logCleanupTotal = logCleanupState?.total ?? 0
+  const logCleanupTaskId = logCleanupTask?.task_id
 
   useEffect(() => {
-    if (!logCleanupTask || !isActiveLogCleanupTask(logCleanupTask)) return
+    if (!logCleanupTaskId || !logCleanupActive) return
 
     let cancelled = false
     const interval = window.setInterval(async () => {
       try {
-        const res = await getSystemTask(logCleanupTask.task_id)
+        const res = await getSystemTask(logCleanupTaskId)
         if (cancelled || !res.success || !res.data) return
 
         setLogCleanupTask(res.data)
@@ -253,7 +254,7 @@ export function LogSettingsSection({
       cancelled = true
       window.clearInterval(interval)
     }
-  }, [logCleanupTask?.task_id, logCleanupTask?.status, t])
+  }, [logCleanupActive, logCleanupTaskId, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
     if (values.LogConsumeEnabled === defaultEnabled) return
@@ -526,7 +527,6 @@ export function LogSettingsSection({
                       <Button
                         type='button'
                         variant='destructive'
-                        size='sm'
                         disabled={serverLogCleanupLoading}
                       />
                     }
@@ -558,7 +558,10 @@ export function LogSettingsSection({
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-                      <AlertDialogAction onClick={cleanupServerLogFiles}>
+                      <AlertDialogAction
+                        variant='destructive'
+                        onClick={cleanupServerLogFiles}
+                      >
                         {t('Confirm Cleanup')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
@@ -598,6 +601,7 @@ export function LogSettingsSection({
               {t('Cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
+              variant='destructive'
               onClick={handleCleanLogs}
               disabled={isStartingLogCleanup}
             >

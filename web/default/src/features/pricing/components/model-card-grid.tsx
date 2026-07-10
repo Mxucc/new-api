@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
@@ -34,6 +36,7 @@ export interface ModelCardGridProps {
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
+  selectedGroup?: string
 }
 
 export function ModelCardGrid(props: ModelCardGridProps) {
@@ -79,6 +82,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             priceRate={props.priceRate}
             usdExchangeRate={props.usdExchangeRate}
             showRechargePrice={props.showRechargePrice}
+            selectedGroup={props.selectedGroup}
             perf={perfMap.get(model.model_name || '')}
             onClick={() => props.onModelClick(model.model_name || '')}
           />
@@ -97,7 +101,6 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             <Button
               type='button'
               variant='outline'
-              size='sm'
               onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={currentPage <= 1}
               className='gap-1.5'
@@ -108,7 +111,6 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             <Button
               type='button'
               variant='outline'
-              size='sm'
               onClick={() =>
                 setPage((current) => Math.min(totalPages, current + 1))
               }

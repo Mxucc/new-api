@@ -16,13 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Edit, Trash2, Save } from 'lucide-react'
+import { Plus, Trash2, Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import * as z from 'zod'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,8 +35,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+} from '@/components/design-system/alert-dialog'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
@@ -44,9 +49,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { StaticDataTable } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
+
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -239,13 +242,12 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
-            <Button onClick={handleAdd} size='sm'>
+            <Button onClick={handleAdd}>
               <Plus className='mr-2 h-4 w-4' />
               {t('Add Group')}
             </Button>
             <Button
               onClick={handleBatchDelete}
-              size='sm'
               variant='destructive'
               disabled={selectedIds.length === 0}
             >
@@ -255,7 +257,6 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             </Button>
             <Button
               onClick={handleSaveAll}
-              size='sm'
               variant='secondary'
               disabled={!hasChanges || updateOption.isPending}
             >
@@ -319,24 +320,14 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'w-32',
               cell: (group) => (
-                <div className='flex gap-2'>
-                  <Button
-                    onClick={() => handleEdit(group)}
-                    size='sm'
-                    variant='ghost'
-                  >
-                    <Edit className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    onClick={() => handleDelete(group)}
-                    size='sm'
-                    variant='ghost'
-                  >
-                    <Trash2 className='h-4 w-4' />
-                  </Button>
-                </div>
+                <StaticRowActions
+                  editLabel={t('Edit')}
+                  deleteLabel={t('Delete')}
+                  menuLabel={t('Open menu')}
+                  onEdit={() => handleEdit(group)}
+                  onDelete={() => handleDelete(group)}
+                />
               ),
             },
           ]}
@@ -445,13 +436,16 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
-                ? 'This Uptime Kuma group will be removed from the list.'
-                : `${selectedIds.length} Uptime Kuma groups will be removed from the list.`}
+                ? t('This Uptime Kuma group will be removed from the list.')
+                : t(
+                    '{{count}} Uptime Kuma groups will be removed from the list.',
+                    { count: selectedIds.length }
+                  )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>
+            <AlertDialogAction variant='destructive' onClick={confirmDelete}>
               {t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>

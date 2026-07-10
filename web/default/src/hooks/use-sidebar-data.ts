@@ -28,6 +28,7 @@ import {
   ListTodo,
   MessageSquare,
   Radio,
+  ServerCog,
   Settings,
   Ticket,
   User,
@@ -35,8 +36,10 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { type SidebarData } from '@/components/layout/types'
+
+import type { SidebarData } from '@/components/layout/types'
 import { useInvitationFeatureStatus } from '@/features/invitations/hooks/use-invitation-feature-status'
+import { ROLE } from '@/lib/roles'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -162,6 +165,12 @@ export function useSidebarData(): SidebarData {
                 },
               ]
             : []),
+          {
+            title: t('System Info'),
+            url: '/system-info',
+            icon: ServerCog,
+            requiredRole: ROLE.SUPER_ADMIN,
+          },
           {
             title: t('System Settings'),
             url: '/system-settings/site',

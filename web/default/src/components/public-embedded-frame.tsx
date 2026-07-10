@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { useTheme } from '@/context/theme-provider'
+import { cn } from '@/lib/utils'
 
 type PublicEmbeddedFrameProps = {
   src: string
@@ -105,6 +106,7 @@ export function PublicEmbeddedFrame(props: PublicEmbeddedFrameProps) {
       className={cn('w-full border-none', props.className)}
       title={props.title}
       allow='clipboard-read; clipboard-write'
+      sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts'
       loading='eager'
       onLoad={postUiState}
     />

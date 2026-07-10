@@ -749,9 +749,9 @@ const TopUp = () => {
       const status = statusResponse?.data;
       const enabled = Boolean(
         statusResponse?.success &&
-          status?.available &&
-          status.userInvitationRebateEnabled &&
-          (status.orderRebateEnabled || status.invitationSignupRewardEnabled),
+        status?.available &&
+        status.userInvitationRebateEnabled &&
+        (status.orderRebateEnabled || status.invitationSignupRewardEnabled),
       );
 
       if (!enabled) {

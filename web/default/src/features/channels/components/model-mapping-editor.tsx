@@ -16,15 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Code, Plus, Table, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/design-system/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 type ModelMappingEditorProps = {
   value: string
@@ -56,7 +62,7 @@ function getDuplicateSources(rows: MappingRow[]): string[] {
     }
   }
 
-  return Array.from(duplicates)
+  return [...duplicates]
 }
 
 export function ModelMappingEditor(props: ModelMappingEditorProps) {
@@ -75,56 +81,59 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
     return `mapping-${nextRowIdRef.current}`
   }, [])
 
-  const parseJsonToRows = useCallback((json: string): boolean => {
-    try {
-      if (!json.trim()) {
-        setRows([])
-        setJsonError(null)
-        return true
-      }
-      const parsed = JSON.parse(json)
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        setJsonError(t('Model mapping must be a valid JSON object'))
-        return false
-      }
-      const entries = Object.entries(parsed)
-      const invalidValue = entries.find(([, to]) => typeof to !== 'string')
-      if (invalidValue) {
-        setJsonError(t('Model mapping values must be strings'))
-        return false
-      }
-      setRows((previousRows) => {
-        const remainingRows = [...previousRows]
-        return entries.map(([from, to], index) => {
-          const toString = String(to)
-          const existingIndex = remainingRows.findIndex(
-            (row) =>
-              row.from === from ||
-              (row.from === from && row.to === toString) ||
-              previousRows[index]?.id === row.id
-          )
-          if (existingIndex >= 0) {
-            const [existing] = remainingRows.splice(existingIndex, 1)
+  const parseJsonToRows = useCallback(
+    (json: string): boolean => {
+      try {
+        if (!json.trim()) {
+          setRows([])
+          setJsonError(null)
+          return true
+        }
+        const parsed = JSON.parse(json)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          setJsonError(t('Model mapping must be a valid JSON object'))
+          return false
+        }
+        const entries = Object.entries(parsed)
+        const invalidValue = entries.find(([, to]) => typeof to !== 'string')
+        if (invalidValue) {
+          setJsonError(t('Model mapping values must be strings'))
+          return false
+        }
+        setRows((previousRows) => {
+          const remainingRows = [...previousRows]
+          return entries.map(([from, to], index) => {
+            const toString = String(to)
+            const existingIndex = remainingRows.findIndex(
+              (row) =>
+                row.from === from ||
+                (row.from === from && row.to === toString) ||
+                previousRows[index]?.id === row.id
+            )
+            if (existingIndex >= 0) {
+              const [existing] = remainingRows.splice(existingIndex, 1)
+              return {
+                id: existing.id,
+                from,
+                to: toString,
+              }
+            }
             return {
-              id: existing.id,
+              id: createRowId(),
               from,
               to: toString,
             }
-          }
-          return {
-            id: createRowId(),
-            from,
-            to: toString,
-          }
+          })
         })
-      })
-      setJsonError(null)
-      return true
-    } catch (_error) {
-      setJsonError(t('Model mapping must be valid JSON format'))
-      return false
-    }
-  }, [createRowId, t])
+        setJsonError(null)
+        return true
+      } catch {
+        setJsonError(t('Model mapping must be valid JSON format'))
+        return false
+      }
+    },
+    [createRowId, t]
+  )
 
   // Parse JSON to rows when value changes externally
   useEffect(() => {
@@ -235,8 +244,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
           <Button
             type='button'
             variant='link'
-            size='sm'
-            className='h-auto p-0'
+            className='h-auto p-0 sm:h-auto'
             onClick={handleFillTemplate}
             disabled={props.disabled}
           >
@@ -266,7 +274,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
               <div className='grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium'>
                 <div>{t('Original Model')}</div>
                 <div>{t('Replacement Model')}</div>
-                <div className='w-10'></div>
+                <div className='w-10' />
               </div>
               {rows.map((row) => (
                 <div
@@ -297,7 +305,6 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
                     size='icon'
                     onClick={() => handleDeleteRow(row.id)}
                     disabled={props.disabled}
-                    className='h-10 w-10'
                     aria-label={t('Delete mapping')}
                   >
                     <Trash2 className='h-4 w-4' aria-hidden='true' />
@@ -315,7 +322,6 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
           <Button
             type='button'
             variant='outline'
-            size='sm'
             onClick={handleAddRow}
             disabled={props.disabled}
             className='w-full'

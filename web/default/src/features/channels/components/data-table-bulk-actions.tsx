@@ -16,21 +16,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
 import { Power, PowerOff, Tag, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+
+import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
 import { Label } from '@/components/ui/label'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
+import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
+
 import {
   handleBatchDelete,
   handleBatchDisable,
@@ -51,6 +60,12 @@ export function DataTableBulkActions<TData>({
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [tagValue, setTagValue] = useState('')
+  const currentUser = useAuthStore((s) => s.auth.user)
+  const canEditSensitive = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+  )
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const selectedIds = selectedRows.reduce<number[]>((ids, row) => {
@@ -76,6 +91,7 @@ export function DataTableBulkActions<TData>({
   }
 
   const handleDeleteAll = () => {
+    if (!canEditSensitive) return
     handleBatchDelete(selectedIds, queryClient, () => {
       setShowDeleteConfirm(false)
       handleClearSelection()
@@ -100,7 +116,6 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={handleEnableAll}
-                className='size-8'
                 aria-label={t('Enable selected channels')}
                 title={t('Enable selected channels')}
               />
@@ -121,7 +136,6 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={handleDisableAll}
-                className='size-8'
                 aria-label={t('Disable selected channels')}
                 title={t('Disable selected channels')}
               />
@@ -142,7 +156,6 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={() => setShowTagDialog(true)}
-                className='size-8'
                 aria-label={t('Set tag for selected channels')}
                 title={t('Set tag for selected channels')}
               />
@@ -164,10 +177,20 @@ export function DataTableBulkActions<TData>({
               <Button
                 variant='destructive'
                 size='icon'
-                onClick={() => setShowDeleteConfirm(true)}
-                className='size-8'
+                onClick={() => {
+                  if (!canEditSensitive) return
+                  setShowDeleteConfirm(true)
+                }}
+                aria-disabled={!canEditSensitive}
+                className={cn(
+                  !canEditSensitive && 'cursor-not-allowed opacity-50'
+                )}
                 aria-label={t('Delete selected channels')}
-                title={t('Delete selected channels')}
+                title={
+                  canEditSensitive
+                    ? t('Delete selected channels')
+                    : t('No permission to perform this action')
+                }
               />
             }
           >
@@ -175,7 +198,11 @@ export function DataTableBulkActions<TData>({
             <span className='sr-only'>{t('Delete selected channels')}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Delete selected channels')}</p>
+            <p>
+              {canEditSensitive
+                ? t('Delete selected channels')
+                : t('No permission to perform this action')}
+            </p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>
@@ -243,7 +270,11 @@ export function DataTableBulkActions<TData>({
             >
               {t('Cancel')}
             </Button>
-            <Button variant='destructive' onClick={handleDeleteAll}>
+            <Button
+              variant='destructive'
+              onClick={handleDeleteAll}
+              disabled={!canEditSensitive}
+            >
               {t('Delete')}
             </Button>
           </>

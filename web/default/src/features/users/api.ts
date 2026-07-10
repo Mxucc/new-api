@@ -16,7 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { PermissionCatalog } from '@/lib/admin-permissions'
 import { api } from '@/lib/api'
+
 import type {
   User,
   GetUsersParams,
@@ -38,7 +40,7 @@ import type {
 export async function getUsers(
   params: GetUsersParams = {}
 ): Promise<GetUsersResponse> {
-  const { p = 1, page_size = 10 } = params
+  const { p = 1, page_size = 20 } = params
   const res = await api.get(`/api/user/?p=${p}&page_size=${page_size}`)
   return res.data
 }
@@ -55,7 +57,7 @@ export async function searchUsers(
     role = '',
     status = '',
     p = 1,
-    page_size = 10,
+    page_size = 20,
   } = params
   const queryParams = new URLSearchParams()
   queryParams.set('keyword', keyword)
@@ -147,6 +149,18 @@ export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
 export async function getGroups(): Promise<ApiResponse<string[]>> {
   const res = await api.get('/api/group/')
   return res.data
+}
+
+/**
+ * Get the permission catalog (resources, actions, and role baselines).
+ * Source of truth lives in the backend authz package.
+ */
+export async function getPermissionCatalog(): Promise<PermissionCatalog> {
+  const res = await api.get('/api/authz/catalog')
+  return {
+    resources: res.data?.data?.resources ?? [],
+    roles: res.data?.data?.roles ?? [],
+  }
 }
 
 // ============================================================================

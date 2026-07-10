@@ -16,12 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo } from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { StaticDataTable } from '@/components/data-table'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { Button } from '@/components/design-system/button'
 import { StatusBadge } from '@/components/status-badge'
+
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isObjectRecord } from '../utils/json-validators'
 import {
@@ -52,9 +55,9 @@ export function AmountDiscountVisualEditor({
 
     return Object.entries(parsed)
       .map(([amount, rate]) => ({
-        amount: parseInt(amount, 10),
+        amount: Number.parseInt(amount, 10),
         discountRate:
-          typeof rate === 'number' ? rate : parseFloat(String(rate)),
+          typeof rate === 'number' ? rate : Number.parseFloat(String(rate)),
       }))
       .filter((item) => !isNaN(item.amount) && !isNaN(item.discountRate))
       .sort((a, b) => a.amount - b.amount)
@@ -123,7 +126,6 @@ export function AmountDiscountVisualEditor({
             e.stopPropagation()
             handleAdd()
           }}
-          size='sm'
           className='w-full sm:w-auto'
         >
           <Plus className='h-4 w-4 sm:mr-2' />
@@ -167,8 +169,6 @@ export function AmountDiscountVisualEditor({
                 cell: (discount) => (
                   <StatusBadge
                     variant={discount.discountRate < 1 ? 'info' : 'neutral'}
-                    className='font-mono'
-                    copyable={false}
                   >
                     {formatPercentage(discount.discountRate)} {t('off')}
                   </StatusBadge>
@@ -180,32 +180,13 @@ export function AmountDiscountVisualEditor({
                 className: 'text-right',
                 cellClassName: 'text-right',
                 cell: (discount) => (
-                  <div className='flex justify-end gap-2'>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleEdit(discount)
-                      }}
-                    >
-                      <Pencil className='h-4 w-4' />
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleDelete(discount.amount)
-                      }}
-                    >
-                      <Trash2 className='h-4 w-4' />
-                    </Button>
-                  </div>
+                  <StaticRowActions
+                    editLabel={t('Edit')}
+                    deleteLabel={t('Delete')}
+                    menuLabel={t('Open menu')}
+                    onEdit={() => handleEdit(discount)}
+                    onDelete={() => handleDelete(discount.amount)}
+                  />
                 ),
               },
             ]}
@@ -222,8 +203,6 @@ export function AmountDiscountVisualEditor({
                     </div>
                     <StatusBadge
                       variant={discount.discountRate < 1 ? 'info' : 'neutral'}
-                      className='font-mono'
-                      copyable={false}
                     >
                       {formatPercentage(discount.discountRate)} {t('off')}
                     </StatusBadge>
@@ -232,7 +211,6 @@ export function AmountDiscountVisualEditor({
                     <Button
                       type='button'
                       variant='ghost'
-                      size='sm'
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
@@ -244,7 +222,6 @@ export function AmountDiscountVisualEditor({
                     <Button
                       type='button'
                       variant='ghost'
-                      size='sm'
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()

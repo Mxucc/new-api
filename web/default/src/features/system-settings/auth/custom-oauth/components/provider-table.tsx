@@ -16,13 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Plus } from 'lucide-react'
 import { useState } from 'react'
-import { Pencil, Trash2, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { BadgeCell, StaticDataTable } from '@/components/data-table'
+import { BadgeCell } from '@/components/data-table/core/badge-cell'
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { Button } from '@/components/design-system/button'
 import { StatusBadge } from '@/components/status-badge'
+
 import { useDeleteProvider } from '../hooks/use-custom-oauth-mutations'
 import type { CustomOAuthProvider } from '../types'
 
@@ -51,7 +55,7 @@ export function ProviderTable(props: ProviderTableProps) {
         <p className='text-muted-foreground text-sm'>
           {t('Manage custom OAuth providers for user authentication')}
         </p>
-        <Button size='sm' onClick={props.onCreate}>
+        <Button onClick={props.onCreate}>
           <Plus className='mr-1.5 h-4 w-4' />
           {t('Add Provider')}
         </Button>
@@ -84,11 +88,7 @@ export function ProviderTable(props: ProviderTableProps) {
             header: t('Slug'),
             cell: (provider) => (
               <BadgeCell>
-                <StatusBadge
-                  label={provider.slug}
-                  variant='neutral'
-                  copyable={false}
-                />
+                <StatusBadge variant='neutral'>{provider.slug}</StatusBadge>
               </BadgeCell>
             ),
           },
@@ -97,11 +97,9 @@ export function ProviderTable(props: ProviderTableProps) {
             header: t('Status'),
             cell: (provider) => (
               <BadgeCell>
-                <StatusBadge
-                  label={provider.enabled ? t('Enabled') : t('Disabled')}
-                  variant={provider.enabled ? 'success' : 'neutral'}
-                  copyable={false}
-                />
+                <StatusBadge variant={provider.enabled ? 'success' : 'neutral'}>
+                  {provider.enabled ? t('Enabled') : t('Disabled')}
+                </StatusBadge>
               </BadgeCell>
             ),
           },
@@ -118,22 +116,13 @@ export function ProviderTable(props: ProviderTableProps) {
             className: 'text-right',
             cellClassName: 'text-right',
             cell: (provider) => (
-              <div className='flex justify-end gap-1'>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={() => props.onEdit(provider)}
-                >
-                  <Pencil className='h-4 w-4' />
-                </Button>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={() => setDeleteTarget(provider)}
-                >
-                  <Trash2 className='text-destructive h-4 w-4' />
-                </Button>
-              </div>
+              <StaticRowActions
+                editLabel={t('Edit')}
+                deleteLabel={t('Delete')}
+                menuLabel={t('Open menu')}
+                onEdit={() => props.onEdit(provider)}
+                onDelete={() => setDeleteTarget(provider)}
+              />
             ),
           },
         ]}

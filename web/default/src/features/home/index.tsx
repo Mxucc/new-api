@@ -17,11 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { Markdown } from '@/components/ui/markdown'
+
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
 import { PublicEmbeddedFrame } from '@/components/public-embedded-frame'
+import { RichContent } from '@/components/rich-content'
+import { isLikelyHtml } from '@/lib/content-format'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { CTA, Features, Hero, HowItWorks, Stats } from './components'
 import { useHomePageContent } from './hooks'
 
@@ -42,23 +45,44 @@ export function Home() {
   }
 
   if (content) {
+    if (isUrl) {
+      return (
+        <PublicLayout showMainContainer={false}>
+          <div className='mx-auto w-full max-w-6xl px-6 pt-20 pb-8 md:pt-24'>
+            <PublicEmbeddedFrame
+              src={content}
+              className='h-[calc(100dvh-6rem)] min-h-[calc(100vh-6rem)]'
+              title={t('Custom Home Page')}
+            />
+          </div>
+        </PublicLayout>
+      )
+    }
+
+    const contentIsHtml = isLikelyHtml(content)
+
+    if (contentIsHtml) {
+      return (
+        <PublicLayout showMainContainer={false}>
+          <RichContent
+            mode='html'
+            htmlVariant='isolated'
+            content={content}
+            className='custom-home-content'
+          />
+        </PublicLayout>
+      )
+    }
+
     return (
-      <PublicLayout showMainContainer={false}>
-        <main className='overflow-x-hidden'>
-          {isUrl ? (
-            <div className='mx-auto w-full max-w-6xl px-6 pt-20 pb-8 md:pt-24'>
-              <PublicEmbeddedFrame
-                src={content}
-                className='h-[calc(100dvh-6rem)] min-h-[calc(100vh-6rem)]'
-                title={t('Custom Home Page')}
-              />
-            </div>
-          ) : (
-            <div className='container mx-auto py-8'>
-              <Markdown className='custom-home-content'>{content}</Markdown>
-            </div>
-          )}
-        </main>
+      <PublicLayout>
+        <div className='mx-auto max-w-6xl px-4 py-8'>
+          <RichContent
+            mode='markdown'
+            content={content}
+            className='custom-home-content'
+          />
+        </div>
       </PublicLayout>
     )
   }

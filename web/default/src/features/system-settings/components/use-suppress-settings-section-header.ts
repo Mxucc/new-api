@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useContext } from 'react'
+
 import { SettingsPageContext } from './settings-page-context-value'
 
 export function useSuppressSettingsSectionHeader() {
