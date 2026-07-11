@@ -48,10 +48,10 @@ export function Home() {
     if (isUrl) {
       return (
         <PublicLayout showMainContainer={false}>
-          <div className='mx-auto w-full max-w-6xl px-6 pt-20 pb-8 md:pt-24'>
+          <div className='w-full pt-16'>
             <PublicEmbeddedFrame
               src={content}
-              className='h-[calc(100dvh-6rem)] min-h-[calc(100vh-6rem)]'
+              className='block h-[calc(100dvh-4rem)] min-h-[calc(100vh-4rem)]'
               title={t('Custom Home Page')}
             />
           </div>
