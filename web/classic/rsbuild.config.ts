@@ -10,6 +10,13 @@ const semiUiDir = path.resolve(
   path.dirname(require.resolve('@douyinfe/semi-ui')),
   '../..',
 )
+// Hoisted workspace packages otherwise bind Classic consumers to Default's newer majors.
+const semiDateFnsDir = path.dirname(
+  require.resolve('date-fns/package.json', { paths: [semiUiDir] }),
+)
+const classicVChartDir = path.dirname(
+  require.resolve('@visactor/vchart/package.json', { paths: [__dirname] }),
+)
 
 export default defineConfig(({ envMode }) => {
   const env = loadEnv({ mode: envMode, prefixes: ['VITE_'] })
@@ -43,6 +50,8 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        'date-fns': semiDateFnsDir,
+        '@visactor/vchart': classicVChartDir,
         '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
           semiUiDir,
           'dist/css/semi.css',
