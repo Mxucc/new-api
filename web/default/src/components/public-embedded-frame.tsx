@@ -22,6 +22,8 @@ import { useTranslation } from 'react-i18next'
 import { useTheme } from '@/context/theme-provider'
 import { cn } from '@/lib/utils'
 
+import { getPublicEmbeddedFrameSandbox } from './public-embedded-frame-policy'
+
 type PublicEmbeddedFrameProps = {
   src: string
   title: string
@@ -106,7 +108,7 @@ export function PublicEmbeddedFrame(props: PublicEmbeddedFrameProps) {
       className={cn('w-full border-none', props.className)}
       title={props.title}
       allow='clipboard-read; clipboard-write'
-      sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts'
+      sandbox={getPublicEmbeddedFrameSandbox(src)}
       loading='eager'
       onLoad={postUiState}
     />
