@@ -18,17 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useMemo } from 'react';
+import {
+  createDefaultHeaderNavModules,
+  getHeaderNavModuleAccess,
+} from '../../helpers/headerNavModules';
 
 export const useNavigation = (t, docsLink, headerNavModules) => {
   const mainNavLinks = useMemo(() => {
     // 默认配置，如果没有传入配置则显示所有模块
-    const defaultModules = {
-      home: true,
-      console: true,
-      pricing: true,
-      docs: true,
-      about: true,
-    };
+    const defaultModules = createDefaultHeaderNavModules();
 
     // 使用传入的配置或默认配置
     const modules = headerNavModules || defaultModules;
@@ -48,6 +46,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         text: t('模型广场'),
         itemKey: 'pricing',
         to: '/pricing',
+      },
+      {
+        text: t('排行榜'),
+        itemKey: 'rankings',
+        to: '/rankings',
       },
       ...(docsLink
         ? [
@@ -71,11 +74,8 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       if (link.itemKey === 'docs') {
         return docsLink && modules.docs;
       }
-      if (link.itemKey === 'pricing') {
-        // 支持新的pricing配置格式
-        return typeof modules.pricing === 'object'
-          ? modules.pricing.enabled
-          : modules.pricing;
+      if (link.itemKey === 'pricing' || link.itemKey === 'rankings') {
+        return getHeaderNavModuleAccess(modules, link.itemKey).enabled;
       }
       return modules[link.itemKey] === true;
     });

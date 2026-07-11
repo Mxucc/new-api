@@ -424,7 +424,147 @@ const RateLimitGroupSection = ({
   );
 };
 
-const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
+const formatCreditTime = (value) => {
+  if (!value) return '-';
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return String(value);
+  return new Date(timestamp).toLocaleString();
+};
+
+const ResetCreditsSection = ({
+  t,
+  payload,
+  fallbackAvailableCount,
+  loading,
+  resetting,
+  error,
+  successMessage,
+  onRefresh,
+  onReset,
+}) => {
+  const tt = typeof t === 'function' ? t : (v) => v;
+  const credits = Array.isArray(payload?.credits) ? payload.credits : [];
+  const availableCount = Number(
+    payload?.available_count ?? fallbackAvailableCount ?? 0,
+  );
+  const canReset = Number.isFinite(availableCount) && availableCount > 0;
+
+  return (
+    <section className='space-y-3 rounded-lg bg-semi-color-fill-0 p-3'>
+      <SectionHeading
+        title={tt('重置额度')}
+        description={tt('查看可用重置额度，并刷新当前 Codex 用量窗口。')}
+      >
+        <Button
+          size='small'
+          type='tertiary'
+          theme='outline'
+          loading={loading}
+          onClick={onRefresh}
+        >
+          {tt('刷新详情')}
+        </Button>
+        <Button
+          size='small'
+          type='danger'
+          theme='outline'
+          loading={resetting}
+          disabled={!canReset || loading}
+          onClick={onReset}
+        >
+          {tt('使用重置额度')}
+        </Button>
+      </SectionHeading>
+
+      <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
+        <InfoField
+          t={tt}
+          label={tt('可用重置额度')}
+          value={Number.isFinite(availableCount) ? availableCount : '-'}
+          monospace
+        />
+        <InfoField
+          t={tt}
+          label={tt('累计获得额度')}
+          value={payload?.total_earned_count ?? '-'}
+          monospace
+        />
+      </div>
+
+      {error ? (
+        <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>
+          {error}
+        </div>
+      ) : null}
+      {successMessage ? (
+        <div className='rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700'>
+          {successMessage}
+        </div>
+      ) : null}
+
+      {credits.length > 0 ? (
+        <div className='divide-y divide-semi-color-border rounded-lg bg-semi-color-bg-0 px-3'>
+          {credits.map((credit, index) => {
+            const status = normalizePlanType(credit?.status);
+            return (
+              <div
+                key={credit?.id || `${credit?.reset_type || 'credit'}-${index}`}
+                className='flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between'
+              >
+                <div className='min-w-0'>
+                  <div className='truncate text-sm font-medium'>
+                    {getDisplayText(credit?.title) ||
+                      `${tt('重置额度')} ${index + 1}`}
+                  </div>
+                  <div className='mt-0.5 text-xs text-semi-color-text-2'>
+                    {getDisplayText(credit?.description) ||
+                      getDisplayText(credit?.reset_type) ||
+                      '-'}
+                  </div>
+                </div>
+                <div className='flex shrink-0 flex-wrap items-center gap-2'>
+                  <Tag color={status === 'available' ? 'green' : 'grey'}>
+                    {status ? tt(status) : tt('未知状态')}
+                  </Tag>
+                  <Tooltip
+                    content={`${tt('获得时间')}: ${formatCreditTime(
+                      credit?.granted_at,
+                    )}\n${tt('过期时间')}: ${formatCreditTime(
+                      credit?.expires_at,
+                    )}`}
+                  >
+                    <Text type='tertiary' size='small'>
+                      {formatCreditTime(credit?.expires_at)}
+                    </Text>
+                  </Tooltip>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : !loading ? (
+        <div className='rounded-lg border border-dashed border-semi-color-border px-3 py-6 text-center text-sm text-semi-color-text-2'>
+          {tt('暂无重置额度详情')}
+        </div>
+      ) : null}
+    </section>
+  );
+};
+
+const CodexUsageView = ({
+  t,
+  record,
+  payload,
+  onCopy,
+  onRefresh,
+  resetCreditsPayload,
+  resetCreditsLoading,
+  resetting,
+  resetError,
+  resetSuccessMessage,
+  onRefreshResetCredits,
+  onResetUsage,
+}) => {
   const tt = typeof t === 'function' ? t : (v) => v;
   const [showRawJson, setShowRawJson] = useState(false);
   const data = payload?.data ?? null;
@@ -564,6 +704,18 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
         </div>
       ) : null}
 
+      <ResetCreditsSection
+        t={tt}
+        payload={resetCreditsPayload}
+        fallbackAvailableCount={resetCredits}
+        loading={resetCreditsLoading}
+        resetting={resetting}
+        error={resetError}
+        successMessage={resetSuccessMessage}
+        onRefresh={onRefreshResetCredits}
+        onReset={onResetUsage}
+      />
+
       <Collapse
         activeKey={showRawJson ? ['raw-json'] : []}
         onChange={(activeKey) => {
@@ -597,6 +749,11 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
   const tt = typeof t === 'function' ? t : (v) => v;
   const [loading, setLoading] = useState(!initialPayload);
   const [payload, setPayload] = useState(initialPayload ?? null);
+  const [resetCreditsPayload, setResetCreditsPayload] = useState(null);
+  const [resetCreditsLoading, setResetCreditsLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetSuccessMessage, setResetSuccessMessage] = useState('');
   const hasShownErrorRef = useRef(false);
   const mountedRef = useRef(true);
   const recordId = record?.id;
@@ -630,6 +787,79 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
     }
   }, [recordId, tt]);
 
+  const fetchResetCredits = useCallback(async () => {
+    if (!recordId) {
+      if (mountedRef.current) setResetCreditsPayload(null);
+      return;
+    }
+
+    if (mountedRef.current) {
+      setResetCreditsLoading(true);
+      setResetError('');
+    }
+    try {
+      const res = await API.get(
+        `/api/channel/${recordId}/codex/usage/reset-credits`,
+        { skipErrorHandler: true },
+      );
+      if (!mountedRef.current) return;
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.message || tt('获取重置额度详情失败'));
+      }
+      setResetCreditsPayload(res.data.data || {});
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setResetError(
+        error?.response?.data?.message ||
+          error?.message ||
+          tt('获取重置额度详情失败'),
+      );
+    } finally {
+      if (mountedRef.current) setResetCreditsLoading(false);
+    }
+  }, [recordId, tt]);
+
+  const performReset = useCallback(async () => {
+    if (!recordId) return;
+    if (mountedRef.current) {
+      setResetting(true);
+      setResetError('');
+      setResetSuccessMessage('');
+    }
+    try {
+      const res = await API.post(
+        `/api/channel/${recordId}/codex/usage/reset`,
+        {},
+        { skipErrorHandler: true },
+      );
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.message || tt('重置用量失败'));
+      }
+      if (mountedRef.current) {
+        setResetSuccessMessage(tt('Codex 用量窗口已重置'));
+      }
+      await Promise.all([fetchUsage(), fetchResetCredits()]);
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setResetError(
+        error?.response?.data?.message || error?.message || tt('重置用量失败'),
+      );
+    } finally {
+      if (mountedRef.current) setResetting(false);
+    }
+  }, [fetchResetCredits, fetchUsage, recordId, tt]);
+
+  const confirmReset = useCallback(() => {
+    Modal.confirm({
+      title: tt('确认重置 Codex 用量窗口'),
+      content: tt('此操作将消耗一个可用重置额度，是否继续？'),
+      okText: tt('确认重置'),
+      cancelText: tt('取消'),
+      okType: 'danger',
+      onOk: performReset,
+    });
+  }, [performReset, tt]);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -641,6 +871,10 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
     if (initialPayload) return;
     fetchUsage().catch(() => {});
   }, [fetchUsage, initialPayload]);
+
+  useEffect(() => {
+    fetchResetCredits().catch(() => {});
+  }, [fetchResetCredits]);
 
   if (loading) {
     return (
@@ -683,6 +917,13 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
         payload={payload}
         onCopy={onCopy}
         onRefresh={fetchUsage}
+        resetCreditsPayload={resetCreditsPayload}
+        resetCreditsLoading={resetCreditsLoading}
+        resetting={resetting}
+        resetError={resetError}
+        resetSuccessMessage={resetSuccessMessage}
+        onRefreshResetCredits={fetchResetCredits}
+        onResetUsage={confirmReset}
       />
     </>
   );

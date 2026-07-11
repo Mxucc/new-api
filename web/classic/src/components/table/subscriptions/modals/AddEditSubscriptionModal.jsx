@@ -75,6 +75,9 @@ const AddEditSubscriptionModal = ({
   const [loading, setLoading] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
   const [groupLoading, setGroupLoading] = useState(false);
+  const [pancakeProducts, setPancakeProducts] = useState([]);
+  const [pancakeProductsLoading, setPancakeProductsLoading] = useState(false);
+  const [creatingPancakeProduct, setCreatingPancakeProduct] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const isEdit = editingPlan?.plan?.id !== undefined;
@@ -93,10 +96,14 @@ const AddEditSubscriptionModal = ({
     enabled: true,
     sort_order: 0,
     max_purchase_per_user: 0,
+    allow_balance_pay: true,
+    allow_wallet_overflow: true,
     total_amount: 0,
     upgrade_group: '',
+    downgrade_group: '',
     stripe_price_id: '',
     creem_product_id: '',
+    waffo_pancake_product_id: '',
   });
 
   const buildFormValues = () => {
@@ -117,12 +124,16 @@ const AddEditSubscriptionModal = ({
       enabled: p.enabled !== false,
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
+      allow_balance_pay: p.allow_balance_pay !== false,
+      allow_wallet_overflow: p.allow_wallet_overflow !== false,
       total_amount: Number(
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
+      downgrade_group: p.downgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
+      waffo_pancake_product_id: p.waffo_pancake_product_id || '',
     };
   };
 
@@ -140,6 +151,74 @@ const AddEditSubscriptionModal = ({
       .catch(() => setGroupOptions([]))
       .finally(() => setGroupLoading(false));
   }, [visible]);
+
+  const loadPancakeProducts = async () => {
+    setPancakeProductsLoading(true);
+    try {
+      const res = await API.get(
+        '/api/option/waffo-pancake/subscription-product-options',
+        { skipErrorHandler: true },
+      );
+      if (
+        res.data?.message === 'success' &&
+        Array.isArray(res.data?.data?.products)
+      ) {
+        setPancakeProducts(res.data.data.products);
+      } else {
+        setPancakeProducts([]);
+      }
+    } catch (error) {
+      setPancakeProducts([]);
+    } finally {
+      setPancakeProductsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (visible) loadPancakeProducts();
+  }, [visible]);
+
+  const createPancakeProduct = async () => {
+    const values = formApiRef.current?.getValues() || {};
+    const title = String(values.title || '').trim();
+    const price = Number(values.price_amount || 0);
+    if (!title) {
+      showError(t('套餐标题不能为空'));
+      return;
+    }
+    if (price <= 0) {
+      showError(t('套餐价格必须大于 0'));
+      return;
+    }
+    setCreatingPancakeProduct(true);
+    try {
+      const res = await API.post(
+        '/api/option/waffo-pancake/subscription-product',
+        { name: title, amount: price.toFixed(2) },
+        { skipErrorHandler: true },
+      );
+      const productId = res.data?.data?.product_id;
+      if (res.data?.message === 'success' && productId) {
+        formApiRef.current?.setValue('waffo_pancake_product_id', productId);
+        showSuccess(t('Waffo Pancake 商品创建成功'));
+        await loadPancakeProducts();
+      } else {
+        showError(
+          (typeof res.data?.data === 'string' && res.data.data) ||
+            res.data?.message ||
+            t('Waffo Pancake 商品创建失败'),
+        );
+      }
+    } catch (error) {
+      showError(
+        error?.response?.data?.message ||
+          error?.message ||
+          t('Waffo Pancake 商品创建失败'),
+      );
+    } finally {
+      setCreatingPancakeProduct(false);
+    }
+  };
 
   const submit = async (values) => {
     if (!values.title || values.title.trim() === '') {
@@ -164,6 +243,7 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          downgrade_group: values.downgrade_group || '',
         },
       };
       if (editingPlan?.plan?.id) {
@@ -343,6 +423,28 @@ const AddEditSubscriptionModal = ({
                     </Col>
 
                     <Col span={12}>
+                      <Form.Select
+                        field='downgrade_group'
+                        label={t('降级分组')}
+                        showClear
+                        loading={groupLoading}
+                        placeholder={t('恢复购买前分组')}
+                        extraText={t(
+                          '套餐失效后切换到指定分组；留空则恢复购买前分组。',
+                        )}
+                      >
+                        <Select.Option value=''>
+                          {t('恢复购买前分组')}
+                        </Select.Option>
+                        {(groupOptions || []).map((g) => (
+                          <Select.Option key={g} value={g}>
+                            {g}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+
+                    <Col span={12}>
                       <Form.Input
                         field='currency'
                         label={t('币种')}
@@ -375,6 +477,20 @@ const AddEditSubscriptionModal = ({
                       <Form.Switch
                         field='enabled'
                         label={t('启用状态')}
+                        size='large'
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Switch
+                        field='allow_balance_pay'
+                        label={t('允许余额兑换')}
+                        size='large'
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Switch
+                        field='allow_wallet_overflow'
+                        label={t('订阅额度用尽后允许使用钱包')}
                         size='large'
                       />
                     </Col>
@@ -516,7 +632,7 @@ const AddEditSubscriptionModal = ({
                         {t('第三方支付配置')}
                       </Text>
                       <div className='text-xs text-gray-600'>
-                        {t('Stripe/Creem 商品ID（可选）')}
+                        {t('Stripe、Creem 与 Waffo Pancake 商品配置（可选）')}
                       </div>
                     </div>
                   </div>
@@ -538,6 +654,31 @@ const AddEditSubscriptionModal = ({
                         placeholder='prod_...'
                         showClear
                       />
+                    </Col>
+
+                    <Col span={24}>
+                      <Form.Select
+                        field='waffo_pancake_product_id'
+                        label='Waffo Pancake ProductId'
+                        placeholder={t('选择或输入商品 ID')}
+                        optionList={pancakeProducts.map((product) => ({
+                          value: product.id,
+                          label: `${product.name || product.id} (${product.status || '-'})`,
+                        }))}
+                        loading={pancakeProductsLoading}
+                        allowAdditions
+                        filter
+                        showClear
+                      />
+                      <Button
+                        size='small'
+                        type='tertiary'
+                        theme='outline'
+                        loading={creatingPancakeProduct}
+                        onClick={createPancakeProduct}
+                      >
+                        {t('按当前套餐名称和价格创建 Waffo Pancake 商品')}
+                      </Button>
                     </Col>
                   </Row>
                 </Card>

@@ -50,7 +50,13 @@ import {
 
 const { Text } = Typography;
 
-const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
+const MultiKeyManageModal = ({
+  visible,
+  onCancel,
+  channel,
+  onRefresh,
+  canEditSensitive = false,
+}) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [keyStatusList, setKeyStatusList] = useState([]);
@@ -223,6 +229,10 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
 
   // Delete all disabled keys
   const handleDeleteDisabledKeys = async () => {
+    if (!canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
     setOperationLoading((prev) => ({ ...prev, delete_disabled: true }));
 
     try {
@@ -249,6 +259,10 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
 
   // Delete a specific key
   const handleDeleteKey = async (keyIndex) => {
+    if (!canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
     const operationId = `delete_${keyIndex}`;
     setOperationLoading((prev) => ({ ...prev, [operationId]: true }));
 
@@ -443,6 +457,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               type='danger'
               size='small'
               loading={operationLoading[`delete_${record.index}`]}
+              disabled={!canEditSensitive}
             >
               {t('删除')}
             </Button>
@@ -683,6 +698,12 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                             size='small'
                             type='warning'
                             loading={operationLoading.delete_disabled}
+                            disabled={!canEditSensitive}
+                            title={
+                              canEditSensitive
+                                ? undefined
+                                : t('无权限执行此操作')
+                            }
                           >
                             {t('删除自动禁用密钥')}
                           </Button>

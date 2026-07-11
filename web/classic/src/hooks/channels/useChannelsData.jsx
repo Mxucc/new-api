@@ -39,10 +39,21 @@ import { useChannelUpstreamUpdates } from './useChannelUpstreamUpdates';
 import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
+import { useUserPermissions } from '../common/useUserPermissions';
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+} from '../../helpers/adminPermissions';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
+  const { loading: permissionsLoading, hasAdminPermission } =
+    useUserPermissions();
+  const canEditSensitive = hasAdminPermission(
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE,
+  );
 
   // Basic states
   const [channels, setChannels] = useState([]);
@@ -441,6 +452,10 @@ export const useChannelsData = () => {
 
   // Channel management
   const manageChannel = async (id, action, record, value) => {
+    if (action === 'delete' && !canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
     let data = { id };
     let res;
     switch (action) {
@@ -575,6 +590,10 @@ export const useChannelsData = () => {
 
   // Copy channel
   const copySelectedChannel = async (record) => {
+    if (!canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
     try {
       const res = await API.post(`/api/channel/copy/${record.id}`);
       if (res?.data?.success) {
@@ -694,6 +713,10 @@ export const useChannelsData = () => {
   };
 
   const batchDeleteChannels = async () => {
+    if (!canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
     if (selectedChannels.length === 0) {
       showError(t('请先选择要删除的通道！'));
       return;
@@ -731,6 +754,10 @@ export const useChannelsData = () => {
   };
 
   const deleteAllDisabledChannels = async () => {
+    if (!canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
     const res = await API.delete(`/api/channel/disabled`);
     const { success, message, data } = res.data;
     if (success) {
@@ -1148,6 +1175,8 @@ export const useChannelsData = () => {
     statusFilter,
     compactMode,
     globalPassThroughEnabled,
+    canEditSensitive,
+    permissionsLoading,
 
     // UI states
     showEdit,

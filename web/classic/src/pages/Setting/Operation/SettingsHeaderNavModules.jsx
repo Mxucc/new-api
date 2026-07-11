@@ -30,6 +30,11 @@ import {
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../context/Status';
+import {
+  createDefaultHeaderNavModules,
+  HEADER_NAV_ACCESS_MODULES,
+  parseHeaderNavModules,
+} from '../../../helpers/headerNavModules';
 
 const { Text } = Typography;
 
@@ -39,23 +44,15 @@ export default function SettingsHeaderNavModules(props) {
   const [statusState, statusDispatch] = useContext(StatusContext);
 
   // 顶栏模块管理状态
-  const [headerNavModules, setHeaderNavModules] = useState({
-    home: true,
-    console: true,
-    pricing: {
-      enabled: true,
-      requireAuth: false, // 默认不需要登录鉴权
-    },
-    docs: true,
-    about: true,
-  });
+  const [headerNavModules, setHeaderNavModules] = useState(
+    createDefaultHeaderNavModules,
+  );
 
   // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
     return (checked) => {
       const newModules = { ...headerNavModules };
-      if (moduleKey === 'pricing') {
-        // 对于pricing模块，只更新enabled属性
+      if (HEADER_NAV_ACCESS_MODULES.has(moduleKey)) {
         newModules[moduleKey] = {
           ...newModules[moduleKey],
           enabled: checked,
@@ -68,10 +65,10 @@ export default function SettingsHeaderNavModules(props) {
   }
 
   // 处理模型广场权限控制变更
-  function handlePricingAuthChange(checked) {
+  function handleModuleAuthChange(moduleKey, checked) {
     const newModules = { ...headerNavModules };
-    newModules.pricing = {
-      ...newModules.pricing,
+    newModules[moduleKey] = {
+      ...newModules[moduleKey],
       requireAuth: checked,
     };
     setHeaderNavModules(newModules);
@@ -79,17 +76,7 @@ export default function SettingsHeaderNavModules(props) {
 
   // 重置顶栏模块为默认配置
   function resetHeaderNavModules() {
-    const defaultModules = {
-      home: true,
-      console: true,
-      pricing: {
-        enabled: true,
-        requireAuth: false,
-      },
-      docs: true,
-      about: true,
-    };
-    setHeaderNavModules(defaultModules);
+    setHeaderNavModules(createDefaultHeaderNavModules());
     showSuccess(t('已重置为默认配置'));
   }
 
@@ -132,30 +119,11 @@ export default function SettingsHeaderNavModules(props) {
     // 从 props.options 中获取配置
     if (props.options && props.options.HeaderNavModules) {
       try {
-        const modules = JSON.parse(props.options.HeaderNavModules);
-
-        // 处理向后兼容性：如果pricing是boolean，转换为对象格式
-        if (typeof modules.pricing === 'boolean') {
-          modules.pricing = {
-            enabled: modules.pricing,
-            requireAuth: false, // 默认不需要登录鉴权
-          };
-        }
-
-        setHeaderNavModules(modules);
+        setHeaderNavModules(
+          parseHeaderNavModules(props.options.HeaderNavModules),
+        );
       } catch (error) {
-        // 使用默认配置
-        const defaultModules = {
-          home: true,
-          console: true,
-          pricing: {
-            enabled: true,
-            requireAuth: false,
-          },
-          docs: true,
-          about: true,
-        };
-        setHeaderNavModules(defaultModules);
+        setHeaderNavModules(createDefaultHeaderNavModules());
       }
     }
   }, [props.options]);
@@ -176,7 +144,15 @@ export default function SettingsHeaderNavModules(props) {
       key: 'pricing',
       title: t('模型广场'),
       description: t('模型定价，需要登录访问'),
-      hasSubConfig: true, // 标识该模块有子配置
+      authDescription: t('开启后未登录用户无法访问模型广场'),
+      hasSubConfig: true,
+    },
+    {
+      key: 'rankings',
+      title: t('排行榜'),
+      description: t('模型与供应商实时用量排行'),
+      authDescription: t('开启后未登录用户无法访问排行榜'),
+      hasSubConfig: true,
     },
     {
       key: 'docs',
@@ -245,7 +221,7 @@ export default function SettingsHeaderNavModules(props) {
                   <div style={{ marginLeft: '16px' }}>
                     <Switch
                       checked={
-                        module.key === 'pricing'
+                        HEADER_NAV_ACCESS_MODULES.has(module.key)
                           ? headerNavModules[module.key]?.enabled
                           : headerNavModules[module.key]
                       }
@@ -255,11 +231,9 @@ export default function SettingsHeaderNavModules(props) {
                   </div>
                 </div>
 
-                {/* 为模型广场添加权限控制子开关 */}
-                {module.key === 'pricing' &&
-                  (module.key === 'pricing'
-                    ? headerNavModules[module.key]?.enabled
-                    : headerNavModules[module.key]) && (
+                {/* Public modules can optionally require authentication. */}
+                {module.hasSubConfig &&
+                  headerNavModules[module.key]?.enabled && (
                     <div
                       style={{
                         borderTop: '1px solid var(--semi-color-border)',
@@ -295,15 +269,17 @@ export default function SettingsHeaderNavModules(props) {
                               display: 'block',
                             }}
                           >
-                            {t('开启后未登录用户无法访问模型广场')}
+                            {module.authDescription}
                           </Text>
                         </div>
                         <div style={{ marginLeft: '16px' }}>
                           <Switch
                             checked={
-                              headerNavModules.pricing?.requireAuth || false
+                              headerNavModules[module.key]?.requireAuth || false
                             }
-                            onChange={handlePricingAuthChange}
+                            onChange={(checked) =>
+                              handleModuleAuthChange(module.key, checked)
+                            }
                             size='default'
                           />
                         </div>

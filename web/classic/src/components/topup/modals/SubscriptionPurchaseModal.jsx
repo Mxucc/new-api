@@ -28,7 +28,7 @@ import {
   Divider,
   Tooltip,
 } from '@douyinfe/semi-ui';
-import { Crown, CalendarClock, Package } from 'lucide-react';
+import { Crown, CalendarClock, Package, Wallet } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../helpers';
@@ -37,6 +37,7 @@ import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
 } from '../../../helpers/subscriptionFormat';
+import { getQuotaPerUnit } from '../../../helpers/quota';
 
 const { Text } = Typography;
 
@@ -52,10 +53,14 @@ const SubscriptionPurchaseModal = ({
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
+  enableWaffoPancakeTopUp = false,
+  userQuota = 0,
   purchaseLimitInfo = null,
   onPayStripe,
   onPayCreem,
   onPayEpay,
+  onPayWaffoPancake,
+  onPayBalance,
 }) => {
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
@@ -68,8 +73,17 @@ const SubscriptionPurchaseModal = ({
   // 只有当管理员开启支付网关 AND 套餐配置了对应的支付ID时才显示
   const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
   const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
+  const hasWaffoPancake =
+    enableWaffoPancakeTopUp && !!plan?.waffo_pancake_product_id;
   const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay;
+  const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay;
+  const allowBalancePay = plan?.allow_balance_pay !== false;
+  const balanceCost = Math.max(
+    0,
+    Math.ceil(Number(plan?.price_amount || 0) * getQuotaPerUnit()),
+  );
+  const availableQuota = Math.max(0, Number(userQuota || 0));
+  const insufficientBalance = availableQuota < balanceCost;
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
@@ -179,6 +193,48 @@ const SubscriptionPurchaseModal = ({
             />
           )}
 
+          <div className='rounded-lg border border-semi-color-border p-3'>
+            <div className='mb-3 flex items-center gap-2'>
+              <Wallet size={16} />
+              <Text strong>{t('余额兑换')}</Text>
+            </div>
+            <div className='mb-2 flex items-center justify-between text-xs'>
+              <Text type='tertiary'>{t('所需额度')}</Text>
+              <Text>{renderQuota(balanceCost)}</Text>
+            </div>
+            <div className='mb-3 flex items-center justify-between text-xs'>
+              <Text type='tertiary'>{t('可用额度')}</Text>
+              <Text>{renderQuota(availableQuota)}</Text>
+            </div>
+            {!allowBalancePay ? (
+              <Banner
+                type='warning'
+                closeIcon={null}
+                description={t('该套餐不允许余额兑换')}
+                className='mb-3'
+              />
+            ) : insufficientBalance ? (
+              <Banner
+                type='warning'
+                closeIcon={null}
+                description={t('余额不足')}
+                className='mb-3'
+              />
+            ) : null}
+            <Button
+              block
+              theme='outline'
+              type='primary'
+              onClick={onPayBalance}
+              loading={paying}
+              disabled={
+                purchaseLimitReached || !allowBalancePay || insufficientBalance
+              }
+            >
+              {t('使用余额购买')}
+            </Button>
+          </div>
+
           {hasAnyPayment ? (
             <div className='space-y-3'>
               <Text size='small' type='tertiary'>
@@ -186,7 +242,7 @@ const SubscriptionPurchaseModal = ({
               </Text>
 
               {/* Stripe / Creem */}
-              {(hasStripe || hasCreem) && (
+              {(hasStripe || hasCreem || hasWaffoPancake) && (
                 <div className='flex gap-2'>
                   {hasStripe && (
                     <Button
@@ -210,6 +266,18 @@ const SubscriptionPurchaseModal = ({
                       disabled={purchaseLimitReached}
                     >
                       Creem
+                    </Button>
+                  )}
+                  {hasWaffoPancake && (
+                    <Button
+                      theme='light'
+                      className='flex-1'
+                      icon={<IconCreditCard />}
+                      onClick={onPayWaffoPancake}
+                      loading={paying}
+                      disabled={purchaseLimitReached}
+                    >
+                      Waffo Pancake
                     </Button>
                   )}
                 </div>

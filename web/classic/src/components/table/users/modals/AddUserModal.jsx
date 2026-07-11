@@ -35,6 +35,13 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconSave, IconClose, IconUserAdd } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
+import AdminPermissionEditor from '../AdminPermissionEditor';
+import { useAdminPermissionCatalog } from '../../../../hooks/common/useAdminPermissionCatalog';
+import {
+  getStoredUser,
+  isRootUser,
+  normalizeAdminPermissions,
+} from '../../../../helpers/adminPermissions';
 
 const { Text, Title } = Typography;
 
@@ -42,22 +49,42 @@ const AddUserModal = (props) => {
   const { t } = useTranslation();
   const formApiRef = useRef(null);
   const [loading, setLoading] = useState(false);
+  const [adminPermissions, setAdminPermissions] = useState({});
   const isMobile = useIsMobile();
+  const canEditAdminPermissions = isRootUser(getStoredUser());
+  const {
+    catalog: permissionCatalog,
+    loading: permissionCatalogLoading,
+    error: permissionCatalogError,
+  } = useAdminPermissionCatalog(props.visible && canEditAdminPermissions);
 
   const getInitValues = () => ({
     username: '',
     display_name: '',
     password: '',
     remark: '',
+    role: 1,
   });
 
   const submit = async (values) => {
     setLoading(true);
-    const res = await API.post(`/api/user/`, values);
+    const payload = { ...values };
+    if (
+      canEditAdminPermissions &&
+      Number(values.role) >= 10 &&
+      permissionCatalog.resources.length > 0
+    ) {
+      payload.admin_permissions = normalizeAdminPermissions(
+        adminPermissions,
+        permissionCatalog,
+      );
+    }
+    const res = await API.post(`/api/user/`, payload);
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('用户账户创建成功！'));
       formApiRef.current?.setValues(getInitValues());
+      setAdminPermissions({});
       props.refresh();
       props.handleClose();
     } else {
@@ -67,6 +94,8 @@ const AddUserModal = (props) => {
   };
 
   const handleCancel = () => {
+    formApiRef.current?.setValues(getInitValues());
+    setAdminPermissions({});
     props.handleClose();
   };
 
@@ -123,59 +152,101 @@ const AddUserModal = (props) => {
               formApiRef.current?.scrollToError();
             }}
           >
-            <div className='p-2'>
-              <Card className='!rounded-2xl shadow-sm border-0'>
-                <div className='flex items-center mb-2'>
-                  <Avatar size='small' color='blue' className='mr-2 shadow-md'>
-                    <IconUserAdd size={16} />
-                  </Avatar>
-                  <div>
-                    <Text className='text-lg font-medium'>{t('用户信息')}</Text>
-                    <div className='text-xs text-gray-600'>
-                      {t('创建新用户账户')}
+            {({ values }) => (
+              <div className='p-2 space-y-3'>
+                <Card className='!rounded-2xl shadow-sm border-0'>
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='blue'
+                      className='mr-2 shadow-md'
+                    >
+                      <IconUserAdd size={16} />
+                    </Avatar>
+                    <div>
+                      <Text className='text-lg font-medium'>
+                        {t('用户信息')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('创建新用户账户')}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <Row gutter={12}>
-                  <Col span={24}>
-                    <Form.Input
-                      field='username'
-                      label={t('用户名')}
-                      placeholder={t('请输入用户名')}
-                      rules={[{ required: true, message: t('请输入用户名') }]}
-                      showClear
+                  <Row gutter={12}>
+                    <Col span={24}>
+                      <Form.Select
+                        field='role'
+                        label={t('角色')}
+                        optionList={[
+                          { value: 1, label: t('普通用户') },
+                          { value: 10, label: t('管理员') },
+                        ]}
+                        extraText={t(
+                          '可创建普通用户或管理员，不能创建超级管理员',
+                        )}
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <Form.Input
+                        field='username'
+                        label={t('用户名')}
+                        placeholder={t('请输入用户名')}
+                        rules={[{ required: true, message: t('请输入用户名') }]}
+                        showClear
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <Form.Input
+                        field='display_name'
+                        label={t('显示名称')}
+                        placeholder={t('请输入显示名称')}
+                        showClear
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <Form.Input
+                        field='password'
+                        label={t('密码')}
+                        type='password'
+                        placeholder={t('请输入密码')}
+                        rules={[{ required: true, message: t('请输入密码') }]}
+                        showClear
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <Form.Input
+                        field='remark'
+                        label={t('备注')}
+                        placeholder={t('请输入备注（仅管理员可见）')}
+                        showClear
+                      />
+                    </Col>
+                  </Row>
+                </Card>
+
+                {canEditAdminPermissions && Number(values.role) >= 10 && (
+                  <Card className='!rounded-2xl shadow-sm border-0'>
+                    <div className='mb-3'>
+                      <Text className='text-lg font-medium'>
+                        {t('管理员权限')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('为新管理员配置细粒度操作权限')}
+                      </div>
+                    </div>
+                    <AdminPermissionEditor
+                      catalog={permissionCatalog}
+                      value={adminPermissions}
+                      onChange={setAdminPermissions}
+                      loading={permissionCatalogLoading}
+                      error={permissionCatalogError}
+                      t={t}
                     />
-                  </Col>
-                  <Col span={24}>
-                    <Form.Input
-                      field='display_name'
-                      label={t('显示名称')}
-                      placeholder={t('请输入显示名称')}
-                      showClear
-                    />
-                  </Col>
-                  <Col span={24}>
-                    <Form.Input
-                      field='password'
-                      label={t('密码')}
-                      type='password'
-                      placeholder={t('请输入密码')}
-                      rules={[{ required: true, message: t('请输入密码') }]}
-                      showClear
-                    />
-                  </Col>
-                  <Col span={24}>
-                    <Form.Input
-                      field='remark'
-                      label={t('备注')}
-                      placeholder={t('请输入备注（仅管理员可见）')}
-                      showClear
-                    />
-                  </Col>
-                </Row>
-              </Card>
-            </div>
+                  </Card>
+                )}
+              </div>
+            )}
           </Form>
         </Spin>
       </SideSheet>

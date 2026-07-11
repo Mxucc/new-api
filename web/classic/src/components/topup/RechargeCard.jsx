@@ -97,6 +97,7 @@ const RechargeCard = ({
   activeSubscriptions = [],
   allSubscriptions = [],
   reloadSubscriptionSelf,
+  reloadUser,
   enableRedemption = true,
 }) => {
   const onlineFormApiRef = useRef(null);
@@ -685,11 +686,14 @@ const RechargeCard = ({
                 enableOnlineTopUp={enableOnlineTopUp}
                 enableStripeTopUp={enableStripeTopUp}
                 enableCreemTopUp={enableCreemTopUp}
+                enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
+                userQuota={userState?.user?.quota || 0}
                 billingPreference={billingPreference}
                 onChangeBillingPreference={onChangeBillingPreference}
                 activeSubscriptions={activeSubscriptions}
                 allSubscriptions={allSubscriptions}
                 reloadSubscriptionSelf={reloadSubscriptionSelf}
+                reloadUser={reloadUser}
                 withCard={false}
               />
             </div>

@@ -55,6 +55,7 @@ const routerMap = {
   deployment: '/console/deployment',
   playground: '/console/playground',
   personal: '/console/personal',
+  systemInfo: '/console/system-info',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -251,6 +252,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         itemKey: 'user',
         to: '/user',
         className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('系统信息'),
+        itemKey: 'systemInfo',
+        to: '/system-info',
+        className: isRoot() ? '' : 'tableHiddle',
       },
       {
         text: t('系统设置'),

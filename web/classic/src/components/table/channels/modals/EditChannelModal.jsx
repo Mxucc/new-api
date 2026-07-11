@@ -103,6 +103,17 @@ const REGION_EXAMPLE = {
 };
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8;
 const ADVANCED_SETTINGS_EXPANDED_KEY = 'channel-advanced-settings-expanded';
+const SENSITIVE_UPDATE_FIELDS = [
+  'type',
+  'key',
+  'base_url',
+  'openai_organization',
+  'param_override',
+  'header_override',
+  'setting',
+  'settings',
+  'other',
+];
 
 const PARAM_OVERRIDE_LEGACY_TEMPLATE = {
   temperature: 0,
@@ -1851,6 +1862,12 @@ const EditChannelModal = (props) => {
     delete localInputs.upstream_model_update_last_detected_models;
     delete localInputs.upstream_model_update_ignored_models;
 
+    if (isEdit && !props.canEditSensitive) {
+      SENSITIVE_UPDATE_FIELDS.forEach((field) => {
+        delete localInputs[field];
+      });
+    }
+
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
     localInputs.models = localInputs.models.join(',');
@@ -1865,7 +1882,8 @@ const EditChannelModal = (props) => {
       res = await API.put(`/api/channel/`, {
         ...localInputs,
         id: parseInt(channelId),
-        key_mode: isMultiKeyChannel ? keyMode : undefined, // 只在多key模式下传递
+        key_mode:
+          props.canEditSensitive && isMultiKeyChannel ? keyMode : undefined,
       });
     } else {
       res = await API.post(`/api/channel/`, {
@@ -2561,6 +2579,15 @@ const EditChannelModal = (props) => {
                         </div>
                       </div>
                     }
+                  />
+                )}
+                {isEdit && !props.canEditSensitive && (
+                  <Banner
+                    type='warning'
+                    closeIcon={null}
+                    description={t(
+                      '当前账户无权修改渠道类型、密钥、API 地址和高级覆盖设置；提交时这些字段将保持原值。',
+                    )}
                   />
                 )}
                 {/* Core Configuration Card - Always Visible */}

@@ -57,6 +57,13 @@ import {
   IconEdit,
 } from '@douyinfe/semi-icons';
 import UserBindingManagementModal from './UserBindingManagementModal';
+import AdminPermissionEditor from '../AdminPermissionEditor';
+import { useAdminPermissionCatalog } from '../../../../hooks/common/useAdminPermissionCatalog';
+import {
+  getStoredUser,
+  isRootUser,
+  normalizeAdminPermissions,
+} from '../../../../helpers/adminPermissions';
 
 const { Text, Title } = Typography;
 
@@ -76,6 +83,13 @@ const EditUserModal = (props) => {
   const [showAdjustQuotaRaw, setShowAdjustQuotaRaw] = useState(false);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const [inputs, setInputs] = useState(null);
+  const [adminPermissions, setAdminPermissions] = useState({});
+  const canEditAdminPermissions = isRootUser(getStoredUser());
+  const {
+    catalog: permissionCatalog,
+    loading: permissionCatalogLoading,
+    error: permissionCatalogError,
+  } = useAdminPermissionCatalog(props.visible && canEditAdminPermissions);
 
   const isEdit = Boolean(userId);
 
@@ -117,6 +131,7 @@ const EditUserModal = (props) => {
       data.quota_amount = Number(
         quotaToDisplayAmount(data.quota || 0).toFixed(6),
       );
+      setAdminPermissions(data.admin_permissions || {});
       setInputs({ ...getInitValues(), ...data });
     } else {
       showError(message);
@@ -153,6 +168,16 @@ const EditUserModal = (props) => {
     if (userId) {
       payload.id = parseInt(userId);
     }
+    if (
+      canEditAdminPermissions &&
+      Number(inputs?.role) >= 10 &&
+      permissionCatalog.resources.length > 0
+    ) {
+      payload.admin_permissions = normalizeAdminPermissions(
+        adminPermissions,
+        permissionCatalog,
+      );
+    }
     const url = userId ? `/api/user/` : `/api/user/self`;
     const res = await API.put(url, payload);
     const { success, message } = res.data;
@@ -170,7 +195,11 @@ const EditUserModal = (props) => {
   const adjustQuota = async () => {
     const quotaVal = parseInt(adjustQuotaLocal) || 0;
     if (quotaVal <= 0 && adjustMode !== 'override') return;
-    if (adjustMode === 'override' && (adjustQuotaLocal === '' || adjustQuotaLocal == null)) return;
+    if (
+      adjustMode === 'override' &&
+      (adjustQuotaLocal === '' || adjustQuotaLocal == null)
+    )
+      return;
     setAdjustLoading(true);
     try {
       const res = await API.post('/api/user/manage', {
@@ -401,7 +430,10 @@ const EditUserModal = (props) => {
                             ? `▾ ${t('收起原生额度输入')}`
                             : `▸ ${t('使用原生额度输入')}`}
                         </div>
-                        <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                        <div
+                          style={{ display: showQuotaInput ? 'block' : 'none' }}
+                          className='mt-2'
+                        >
                           <Form.InputNumber
                             field='quota'
                             label={t('额度')}
@@ -411,6 +443,22 @@ const EditUserModal = (props) => {
                           />
                         </div>
                       </Col>
+
+                      {canEditAdminPermissions &&
+                        Number(inputs?.role) >= 10 && (
+                          <Col span={24}>
+                            <Form.Slot label={t('管理员权限')}>
+                              <AdminPermissionEditor
+                                catalog={permissionCatalog}
+                                value={adminPermissions}
+                                onChange={setAdminPermissions}
+                                loading={permissionCatalogLoading}
+                                error={permissionCatalogError}
+                                t={t}
+                              />
+                            </Form.Slot>
+                          </Col>
+                        )}
                     </Row>
                   </Card>
                 )}
@@ -539,7 +587,10 @@ const EditUserModal = (props) => {
             ? `▾ ${t('收起原生额度输入')}`
             : `▸ ${t('使用原生额度输入')}`}
         </div>
-        <div style={{ display: showAdjustQuotaRaw ? 'block' : 'none' }} className='mt-2'>
+        <div
+          style={{ display: showAdjustQuotaRaw ? 'block' : 'none' }}
+          className='mt-2'
+        >
           <div className='mb-1'>
             <Text size='small'>{t('额度')}</Text>
           </div>

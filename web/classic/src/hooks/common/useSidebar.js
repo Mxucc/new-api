@@ -54,6 +54,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     invitationsAdmin: true,
     user: true,
     subscription: true,
+    systemInfo: true,
     setting: true,
   },
 };

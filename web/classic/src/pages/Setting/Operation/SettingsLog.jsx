@@ -27,6 +27,9 @@ import {
   DatePicker,
   Typography,
   Modal,
+  Progress,
+  Tag,
+  Banner,
 } from '@douyinfe/semi-ui';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
@@ -44,12 +47,81 @@ export default function SettingsLog(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [loadingCleanHistoryLog, setLoadingCleanHistoryLog] = useState(false);
+  const [cleanupTask, setCleanupTask] = useState(null);
+  const cleanupNotificationRef = useRef('');
   const [inputs, setInputs] = useState({
     LogConsumeEnabled: false,
     historyTimestamp: dayjs().subtract(1, 'month').toDate(),
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
+  const cleanupActive =
+    cleanupTask?.status === 'pending' || cleanupTask?.status === 'running';
+  const cleanupProgress = Math.min(
+    100,
+    Math.max(0, Number(cleanupTask?.state?.progress) || 0),
+  );
+  const cleanupProcessed = Number(cleanupTask?.state?.processed) || 0;
+  const cleanupTotal = Number(cleanupTask?.state?.total) || 0;
+
+  useEffect(() => {
+    let active = true;
+    API.get('/api/system-task/current', {
+      params: { type: 'log_cleanup' },
+      skipErrorHandler: true,
+    })
+      .then((res) => {
+        if (active && res.data?.success && res.data?.data) {
+          setCleanupTask(res.data.data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!cleanupTask?.task_id || !cleanupActive) return undefined;
+    let active = true;
+    const interval = window.setInterval(async () => {
+      try {
+        const res = await API.get(`/api/system-task/${cleanupTask.task_id}`, {
+          skipErrorHandler: true,
+        });
+        if (!active || !res.data?.success || !res.data?.data) return;
+        const nextTask = res.data.data;
+        setCleanupTask(nextTask);
+        if (
+          nextTask.status === 'succeeded' &&
+          cleanupNotificationRef.current !== nextTask.task_id
+        ) {
+          cleanupNotificationRef.current = nextTask.task_id;
+          const count =
+            Number(nextTask.result?.deleted_count) ||
+            Number(nextTask.state?.processed) ||
+            0;
+          showSuccess(
+            count > 0
+              ? t('{{count}} 条日志已清理！', { count })
+              : t('没有匹配所选时间的日志'),
+          );
+        } else if (
+          nextTask.status === 'failed' &&
+          cleanupNotificationRef.current !== nextTask.task_id
+        ) {
+          cleanupNotificationRef.current = nextTask.task_id;
+          showError(nextTask.error || t('日志清理失败'));
+        }
+      } catch (error) {
+        // Keep polling while the backend task remains active.
+      }
+    }, 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [cleanupActive, cleanupTask?.task_id, t]);
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow).filter(
@@ -160,18 +232,26 @@ export default function SettingsLog(props) {
       onOk: async () => {
         try {
           setLoadingCleanHistoryLog(true);
-          const res = await API.delete(
-            `/api/log/?target_timestamp=${Date.parse(inputs.historyTimestamp) / 1000}`,
+          const targetTimestamp = Math.floor(
+            new Date(inputs.historyTimestamp).getTime() / 1000,
           );
+          const res = await API.post('/api/system-task/log-cleanup', null, {
+            params: { target_timestamp: targetTimestamp },
+            skipErrorHandler: true,
+          });
           const { success, message, data } = res.data;
-          if (success) {
-            showSuccess(`${data} ${t('条日志已清理！')}`);
-            return;
-          } else {
-            throw new Error(t('日志清理失败：') + message);
+          if (!success || !data) {
+            throw new Error(message || t('日志清理失败'));
           }
+          cleanupNotificationRef.current = '';
+          setCleanupTask(data);
+          showSuccess(t('日志清理任务已启动'));
         } catch (error) {
-          showError(error.message);
+          showError(
+            error?.response?.data?.message ||
+              error?.message ||
+              t('日志清理失败'),
+          );
         } finally {
           setLoadingCleanHistoryLog(false);
         }
@@ -241,9 +321,47 @@ export default function SettingsLog(props) {
                     size='default'
                     type='danger'
                     onClick={onCleanHistoryLog}
+                    disabled={cleanupActive}
                   >
-                    {t('清除历史日志')}
+                    {cleanupActive ? t('清理中...') : t('清除历史日志')}
                   </Button>
+                  {cleanupTask && (
+                    <div className='mt-3 rounded-md border border-semi-color-border p-3'>
+                      <div className='mb-2 flex items-center justify-between gap-3'>
+                        <Text strong>{t('日志清理进度')}</Text>
+                        <Tag
+                          color={
+                            cleanupTask.status === 'succeeded'
+                              ? 'green'
+                              : cleanupTask.status === 'failed'
+                                ? 'red'
+                                : 'blue'
+                          }
+                        >
+                          {t(cleanupTask.status)}
+                        </Tag>
+                      </div>
+                      <Progress
+                        percent={cleanupProgress}
+                        showInfo={false}
+                        size='small'
+                      />
+                      <Text type='tertiary' size='small' className='mt-2 block'>
+                        {t('已处理 {{processed}} / {{total}} 条日志', {
+                          processed: cleanupProcessed,
+                          total: cleanupTotal,
+                        })}
+                      </Text>
+                      {cleanupTask.status === 'failed' && cleanupTask.error ? (
+                        <Banner
+                          type='danger'
+                          closeIcon={null}
+                          description={cleanupTask.error}
+                          className='mt-2'
+                        />
+                      ) : null}
+                    </div>
+                  )}
                 </Spin>
               </Col>
             </Row>

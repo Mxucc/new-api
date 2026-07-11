@@ -18,10 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { lazy, Suspense, useContext, useMemo } from 'react';
-import { Route, Routes, useLocation, useParams } from 'react-router-dom';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
-import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
+import { AuthRedirect, PrivateRoute, AdminRoute, RootRoute } from './helpers';
 import RegisterForm from './components/auth/RegisterForm';
 import LoginForm from './components/auth/LoginForm';
 import NotFound from './pages/NotFound';
@@ -51,12 +57,18 @@ import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
+import {
+  getHeaderNavModuleAccess,
+  parseHeaderNavModules,
+} from './helpers/headerNavModules';
 
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const Rankings = lazy(() => import('./pages/Rankings'));
+const SystemInfo = lazy(() => import('./pages/SystemInfo'));
 
 function DynamicOAuth2Callback() {
   const { provider } = useParams();
@@ -68,26 +80,12 @@ function App() {
   const [statusState] = useContext(StatusContext);
 
   // 获取模型广场权限配置
-  const pricingRequireAuth = useMemo(() => {
-    const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
-    if (headerNavModulesConfig) {
-      try {
-        const modules = JSON.parse(headerNavModulesConfig);
-
-        // 处理向后兼容性：如果pricing是boolean，默认不需要登录
-        if (typeof modules.pricing === 'boolean') {
-          return false; // 默认不需要登录鉴权
-        }
-
-        // 如果是对象格式，使用requireAuth配置
-        return modules.pricing?.requireAuth === true;
-      } catch (error) {
-        console.error('解析顶栏模块配置失败:', error);
-        return false; // 默认不需要登录
-      }
-    }
-    return false; // 默认不需要登录
+  const headerNavModules = useMemo(() => {
+    return parseHeaderNavModules(statusState?.status?.HeaderNavModules);
   }, [statusState?.status?.HeaderNavModules]);
+  const pricingAccess = getHeaderNavModuleAccess(headerNavModules, 'pricing');
+  const rankingsAccess = getHeaderNavModuleAccess(headerNavModules, 'rankings');
+  const rankingsRedirectTarget = `${location.pathname}${location.search}${location.hash}`;
 
   return (
     <SetupCheck>
@@ -268,6 +266,16 @@ function App() {
           }
         />
         <Route
+          path='/console/system-info'
+          element={
+            <RootRoute>
+              <Suspense fallback={<Loading />} key={location.pathname}>
+                <SystemInfo />
+              </Suspense>
+            </RootRoute>
+          }
+        />
+        <Route
           path='/console/personal'
           element={
             <PrivateRoute>
@@ -338,7 +346,7 @@ function App() {
         <Route
           path='/pricing'
           element={
-            pricingRequireAuth ? (
+            pricingAccess.requireAuth ? (
               <PrivateRoute>
                 <Suspense
                   fallback={<Loading></Loading>}
@@ -350,6 +358,25 @@ function App() {
             ) : (
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <Pricing />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path='/rankings'
+          element={
+            statusState?.status === undefined ? (
+              <Loading />
+            ) : !rankingsAccess.enabled ? (
+              <Navigate to='/' replace />
+            ) : rankingsAccess.requireAuth && !localStorage.getItem('user') ? (
+              <Navigate
+                to={`/login?redirect=${encodeURIComponent(rankingsRedirectTarget)}`}
+                replace
+              />
+            ) : (
+              <Suspense fallback={<Loading />} key={location.pathname}>
+                <Rankings />
               </Suspense>
             )
           }

@@ -18,6 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect } from 'react';
 import { API } from '../../helpers';
+import {
+  getStoredUser,
+  hasAdminPermission as checkAdminPermission,
+} from '../../helpers/adminPermissions';
 
 /**
  * 用户权限钩子 - 从后端获取用户权限，替代前端角色判断
@@ -37,10 +41,8 @@ export const useUserPermissions = () => {
       if (res.data.success) {
         const userPermissions = res.data.data.permissions;
         setPermissions(userPermissions);
-        console.log('用户权限加载成功:', userPermissions);
       } else {
         setError(res.data.message || '获取权限失败');
-        console.error('获取权限失败:', res.data.message);
       }
     } catch (error) {
       setError('网络错误，请重试');
@@ -103,6 +105,15 @@ export const useUserPermissions = () => {
     );
   };
 
+  const hasAdminPermission = (resource, action) => {
+    const storedUser = getStoredUser();
+    return checkAdminPermission(
+      storedUser ? { ...storedUser, permissions } : null,
+      resource,
+      action,
+    );
+  };
+
   return {
     permissions,
     loading,
@@ -113,6 +124,7 @@ export const useUserPermissions = () => {
     isSidebarModuleAllowed,
     getAllowedSidebarSections,
     getAllowedSidebarModules,
+    hasAdminPermission,
   };
 };
 
