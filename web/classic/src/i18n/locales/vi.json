@@ -4365,6 +4365,16 @@
     "View channel lists and details without secrets.": "View channel lists and details without secrets.",
     "View channel secrets": "View channel secrets",
     "Waffo Pancake 商品创建成功": "Waffo Pancake product created",
-    "Waffo Pancake 商品创建失败": "Failed to create Waffo Pancake product"
+    "Waffo Pancake 商品创建失败": "Failed to create Waffo Pancake product",
+    "模型性能指标": "Chỉ số hiệu suất mô hình",
+    "最近 24 小时的性能指标": "Chỉ số hiệu suất trong 24 giờ qua",
+    "基于全站真实请求统计，并非主动可用性探测。": "Dựa trên các yêu cầu thực tế trên toàn hệ thống, không phải phép kiểm tra tính khả dụng chủ động.",
+    "有近期数据的模型": "Mô hình có dữ liệu gần đây",
+    "所有模型": "Tất cả mô hình",
+    "暂无近期数据": "Không có dữ liệu gần đây",
+    "无法加载性能数据": "Không thể tải dữ liệu hiệu năng",
+    "平均延迟": "Độ trễ trung bình",
+    "吞吐量": "Thông lượng",
+    "暂无性能数据": "Không có dữ liệu hiệu suất"
   }
 }

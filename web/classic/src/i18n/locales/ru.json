@@ -3854,6 +3854,16 @@
     "View channel lists and details without secrets.": "View channel lists and details without secrets.",
     "View channel secrets": "View channel secrets",
     "Waffo Pancake 商品创建成功": "Waffo Pancake product created",
-    "Waffo Pancake 商品创建失败": "Failed to create Waffo Pancake product"
+    "Waffo Pancake 商品创建失败": "Failed to create Waffo Pancake product",
+    "模型性能指标": "Показатели производительности моделей",
+    "最近 24 小时的性能指标": "Показатели производительности за последние 24 часа",
+    "基于全站真实请求统计，并非主动可用性探测。": "Основано на реальных запросах по всему сайту, а не на активных проверках доступности.",
+    "有近期数据的模型": "Модели с недавними данными",
+    "所有模型": "Все модели",
+    "暂无近期数据": "Нет недавних данных",
+    "无法加载性能数据": "Не удалось загрузить данные о производительности",
+    "平均延迟": "Средняя задержка",
+    "吞吐量": "Пропускная способность",
+    "暂无性能数据": "Нет доступных данных о производительности"
   }
 }

@@ -3982,6 +3982,16 @@
     "View channel lists and details without secrets.": "View channel lists and details without secrets.",
     "View channel secrets": "View channel secrets",
     "Waffo Pancake 商品创建成功": "Waffo Pancake product created",
-    "Waffo Pancake 商品创建失败": "Failed to create Waffo Pancake product"
+    "Waffo Pancake 商品创建失败": "Failed to create Waffo Pancake product",
+    "模型性能指标": "Model performance metrics",
+    "最近 24 小时的性能指标": "Performance metrics for the last 24 hours",
+    "基于全站真实请求统计，并非主动可用性探测。": "Based on site-wide real requests, not active availability probes.",
+    "有近期数据的模型": "Models with recent data",
+    "所有模型": "All models",
+    "暂无近期数据": "No recent data",
+    "无法加载性能数据": "Unable to load performance data",
+    "平均延迟": "Average latency",
+    "吞吐量": "Throughput",
+    "暂无性能数据": "No performance data available"
   }
 }

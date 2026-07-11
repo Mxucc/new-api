@@ -18,40 +18,84 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { Radio, RadioGroup } from '@douyinfe/semi-ui';
+import { Activity, Boxes } from 'lucide-react';
 import PricingTopSection from '../header/PricingTopSection';
 import PricingView from './PricingView';
+import ModelStatusView from '../../view/status/ModelStatusView';
 
-const PricingContent = ({ isMobile, sidebarProps, ...props }) => {
+const PricingContent = ({
+  isMobile,
+  sidebarProps,
+  activeSection = 'models',
+  onSectionChange,
+  ...props
+}) => {
+  const isStatusSection = activeSection === 'status';
+
   return (
     <div
       className={isMobile ? 'pricing-content-mobile' : 'pricing-scroll-hide'}
     >
-      {/* 固定的顶部区域（分类介绍 + 搜索和操作） */}
       <div className='pricing-search-header'>
-        <PricingTopSection
-          {...props}
-          isMobile={isMobile}
-          sidebarProps={sidebarProps}
-          showWithRecharge={sidebarProps.showWithRecharge}
-          setShowWithRecharge={sidebarProps.setShowWithRecharge}
-          currency={sidebarProps.currency}
-          setCurrency={sidebarProps.setCurrency}
-          showRatio={sidebarProps.showRatio}
-          setShowRatio={sidebarProps.setShowRatio}
-          viewMode={sidebarProps.viewMode}
-          setViewMode={sidebarProps.setViewMode}
-          tokenUnit={sidebarProps.tokenUnit}
-          setTokenUnit={sidebarProps.setTokenUnit}
-        />
+        <div className={`flex justify-center ${isStatusSection ? '' : 'mb-2'}`}>
+          <RadioGroup
+            type='button'
+            value={activeSection}
+            aria-label={props.t('模型广场')}
+            onChange={(event) => onSectionChange?.(event.target.value)}
+          >
+            <Radio value='models'>
+              <span className='flex items-center gap-1.5'>
+                <Boxes size={14} />
+                {props.t('模型')}
+              </span>
+            </Radio>
+            <Radio value='status'>
+              <span className='flex items-center gap-1.5'>
+                <Activity size={14} />
+                {props.t('状态')}
+              </span>
+            </Radio>
+          </RadioGroup>
+        </div>
+
+        {!isStatusSection && (
+          <PricingTopSection
+            {...props}
+            isMobile={isMobile}
+            sidebarProps={sidebarProps}
+            showWithRecharge={sidebarProps.showWithRecharge}
+            setShowWithRecharge={sidebarProps.setShowWithRecharge}
+            currency={sidebarProps.currency}
+            setCurrency={sidebarProps.setCurrency}
+            showRatio={sidebarProps.showRatio}
+            setShowRatio={sidebarProps.setShowRatio}
+            viewMode={sidebarProps.viewMode}
+            setViewMode={sidebarProps.setViewMode}
+            tokenUnit={sidebarProps.tokenUnit}
+            setTokenUnit={sidebarProps.setTokenUnit}
+          />
+        )}
       </div>
 
-      {/* 可滚动的内容区域 */}
       <div
         className={
           isMobile ? 'pricing-view-container-mobile' : 'pricing-view-container'
         }
       >
-        <PricingView {...props} viewMode={sidebarProps.viewMode} />
+        {isStatusSection ? (
+          <ModelStatusView
+            models={props.models}
+            searchValue={props.searchValue}
+            onSearchChange={props.handleChange}
+            onCompositionStart={props.handleCompositionStart}
+            onCompositionEnd={props.handleCompositionEnd}
+            openModelDetail={props.openModelDetail}
+          />
+        ) : (
+          <PricingView {...props} viewMode={sidebarProps.viewMode} />
+        )}
       </div>
     </div>
   );
