@@ -16,9 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { Activity, Boxes } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Tabs, TabsList, TabsTrigger } from '@/components/design-system/tabs'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 
@@ -31,6 +34,7 @@ import {
   PricingToolbar,
   ModelCardGrid,
   ModelDetailsDrawer,
+  ModelStatusView,
 } from './components'
 import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
 import { useFilters } from './hooks/use-filters'
@@ -38,9 +42,12 @@ import { usePricingData } from './hooks/use-pricing-data'
 
 export function Pricing() {
   const { t } = useTranslation()
+  const search = useSearch({ from: '/pricing/' })
+  const navigate = useNavigate()
   const [selectedModelName, setSelectedModelName] = useState<string | null>(
     null
   )
+  const activeSection = search.section === 'status' ? 'status' : 'models'
 
   const {
     models,
@@ -86,6 +93,19 @@ export function Pricing() {
   const handleModelClick = useCallback((modelName: string) => {
     setSelectedModelName(modelName)
   }, [])
+
+  const handleSectionChange = useCallback(
+    (section: string) => {
+      void navigate({
+        to: '/pricing',
+        search: (previous) => ({
+          ...previous,
+          section: section === 'status' ? 'status' : undefined,
+        }),
+      })
+    },
+    [navigate]
+  )
 
   const selectedModel = useMemo(
     () =>
@@ -200,42 +220,36 @@ export function Pricing() {
               )}
               className='mx-auto mt-4 max-w-2xl sm:mt-6'
             />
+            <Tabs
+              value={activeSection}
+              onValueChange={handleSectionChange}
+              className='mx-auto mt-3 w-fit'
+            >
+              <TabsList aria-label={t('Model Square')}>
+                <TabsTrigger value='models' className='gap-1.5'>
+                  <Boxes className='size-3.5' />
+                  {t('Models')}
+                </TabsTrigger>
+                <TabsTrigger value='status' className='gap-1.5'>
+                  <Activity className='size-3.5' />
+                  {t('Status')}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </header>
 
-          <div className='grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]'>
-            <PricingSidebar
-              quotaTypeFilter={quotaTypeFilter}
-              endpointTypeFilter={endpointTypeFilter}
-              vendorFilter={vendorFilter}
-              groupFilter={groupFilter}
-              tagFilter={tagFilter}
-              onQuotaTypeChange={setQuotaTypeFilter}
-              onEndpointTypeChange={setEndpointTypeFilter}
-              onVendorChange={setVendorFilter}
-              onGroupChange={setGroupFilter}
-              onTagChange={setTagFilter}
-              vendors={vendors || []}
-              groups={availableGroups}
-              groupRatios={groupRatio}
-              tags={availableTags}
-              models={models || []}
-              hasActiveFilters={hasActiveFilters}
-              onClearFilters={clearFilters}
-              className='hover-scrollbar sticky top-4 hidden max-h-[calc(100dvh-2rem)] self-start overflow-y-auto xl:block'
-            />
-
-            <main className='min-w-0 space-y-4'>
-              <PricingToolbar
-                filteredCount={filteredModels.length}
-                totalCount={models?.length}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                tokenUnit={tokenUnit}
-                onTokenUnitChange={setTokenUnit}
-                showRechargePrice={showRechargePrice}
-                onRechargePriceChange={setShowRechargePrice}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
+          {activeSection === 'status' ? (
+            <main className='mx-auto max-w-6xl'>
+              <ModelStatusView
+                models={models || []}
+                searchQuery={searchInput}
+                onClearSearch={clearSearch}
+                onModelClick={handleModelClick}
+              />
+            </main>
+          ) : (
+            <div className='grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]'>
+              <PricingSidebar
                 quotaTypeFilter={quotaTypeFilter}
                 endpointTypeFilter={endpointTypeFilter}
                 vendorFilter={vendorFilter}
@@ -252,13 +266,46 @@ export function Pricing() {
                 tags={availableTags}
                 models={models || []}
                 hasActiveFilters={hasActiveFilters}
-                activeFilterCount={activeFilterCount}
                 onClearFilters={clearFilters}
+                className='hover-scrollbar sticky top-4 hidden max-h-[calc(100dvh-2rem)] self-start overflow-y-auto xl:block'
               />
 
-              {renderPricingContent()}
-            </main>
-          </div>
+              <main className='min-w-0 space-y-4'>
+                <PricingToolbar
+                  filteredCount={filteredModels.length}
+                  totalCount={models?.length}
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
+                  tokenUnit={tokenUnit}
+                  onTokenUnitChange={setTokenUnit}
+                  showRechargePrice={showRechargePrice}
+                  onRechargePriceChange={setShowRechargePrice}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  quotaTypeFilter={quotaTypeFilter}
+                  endpointTypeFilter={endpointTypeFilter}
+                  vendorFilter={vendorFilter}
+                  groupFilter={groupFilter}
+                  tagFilter={tagFilter}
+                  onQuotaTypeChange={setQuotaTypeFilter}
+                  onEndpointTypeChange={setEndpointTypeFilter}
+                  onVendorChange={setVendorFilter}
+                  onGroupChange={setGroupFilter}
+                  onTagChange={setTagFilter}
+                  vendors={vendors || []}
+                  groups={availableGroups}
+                  groupRatios={groupRatio}
+                  tags={availableTags}
+                  models={models || []}
+                  hasActiveFilters={hasActiveFilters}
+                  activeFilterCount={activeFilterCount}
+                  onClearFilters={clearFilters}
+                />
+
+                {renderPricingContent()}
+              </main>
+            </div>
+          )}
 
           {selectedModel && (
             <ModelDetailsDrawer

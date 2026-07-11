@@ -33,6 +33,7 @@ const pricingSearchSchema = z.object({
   tag: z.string().optional(),
   tokenUnit: z.enum(['M', 'K']).optional(),
   view: z.enum(['card', 'table']).optional().catch(undefined),
+  section: z.enum(['models', 'status']).optional().catch(undefined),
   rechargePrice: z.boolean().optional(),
 })
 
