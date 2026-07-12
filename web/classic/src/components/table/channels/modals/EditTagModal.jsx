@@ -58,7 +58,13 @@ const MODEL_MAPPING_EXAMPLE = {
 
 const EditTagModal = (props) => {
   const { t } = useTranslation();
-  const { visible, tag, handleClose, refresh } = props;
+  const {
+    visible,
+    tag,
+    handleClose,
+    refresh,
+    canEditSensitive = false,
+  } = props;
   const [loading, setLoading] = useState(false);
   const [originModelOptions, setOriginModelOptions] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
@@ -214,6 +220,7 @@ const EditTagModal = (props) => {
       data.models = formVals.models.join(',');
     }
     if (
+      canEditSensitive &&
       formVals.param_override !== undefined &&
       formVals.param_override !== null
     ) {
@@ -231,6 +238,7 @@ const EditTagModal = (props) => {
       data.param_override = trimmedParamOverride;
     }
     if (
+      canEditSensitive &&
       formVals.header_override !== undefined &&
       formVals.header_override !== null
     ) {
@@ -295,7 +303,9 @@ const EditTagModal = (props) => {
       if (!tag) return;
       setLoading(true);
       try {
-        const res = await API.get(`/api/channel/tag/models?tag=${tag}`);
+        const res = await API.get('/api/channel/tag/models', {
+          params: { tag },
+        });
         if (res?.data?.success) {
           const models = res.data.data ? res.data.data.split(',') : [];
           handleInputChange('models', models);
@@ -560,7 +570,10 @@ const EditTagModal = (props) => {
                 </div>
               </Card>
 
-              <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+              <Card
+                className='!rounded-2xl shadow-sm border-0 mb-6'
+                style={{ display: canEditSensitive ? undefined : 'none' }}
+              >
                 {/* Header: Advanced Settings */}
                 <div className='flex items-center mb-2'>
                   <Avatar

@@ -43,6 +43,8 @@ import { useUserPermissions } from '../common/useUserPermissions';
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
+  getStoredUser,
+  isRootUser,
 } from '../../helpers/adminPermissions';
 
 export const useChannelsData = () => {
@@ -54,6 +56,7 @@ export const useChannelsData = () => {
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
     ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE,
   );
+  const canRevealChannelKey = isRootUser(getStoredUser());
 
   // Basic states
   const [channels, setChannels] = useState([]);
@@ -355,11 +358,15 @@ export const useChannelsData = () => {
 
     const reqId = ++requestCounter.current;
     setLoading(true);
-    const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
-    const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
-    const res = await API.get(
-      `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
-    );
+    const params = {
+      p: page,
+      page_size: pageSize,
+      id_sort: idSort,
+      tag_mode: enableTagMode,
+    };
+    if (typeKey !== 'all') params.type = typeKey;
+    if (statusF !== 'all') params.status = statusF;
+    const res = await API.get('/api/channel/', { params });
 
     if (res === undefined || reqId !== requestCounter.current) {
       return;
@@ -407,11 +414,18 @@ export const useChannelsData = () => {
         return;
       }
 
-      const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
-      const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
-      const res = await API.get(
-        `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
-      );
+      const params = {
+        keyword: searchKeyword,
+        group: searchGroup,
+        model: searchModel,
+        id_sort: sortFlag,
+        tag_mode: enableTagMode,
+        p: page,
+        page_size: pageSz,
+      };
+      if (typeKey !== 'all') params.type = typeKey;
+      if (statusF !== 'all') params.status = statusF;
+      const res = await API.get('/api/channel/search', { params });
       const { success, message, data } = res.data;
       if (success) {
         const { items = [], total = 0, type_counts = {} } = data;
@@ -456,19 +470,23 @@ export const useChannelsData = () => {
       showError(t('无权限执行此操作'));
       return;
     }
-    let data = { id };
+    const data = { id };
     let res;
     switch (action) {
       case 'delete':
-        res = await API.delete(`/api/channel/${id}/`);
+        res = await API.delete(`/api/channel/${id}`);
         break;
       case 'enable':
         data.status = 1;
-        res = await API.put('/api/channel/', data);
+        res = await API.post(`/api/channel/${id}/status`, {
+          status: data.status,
+        });
         break;
       case 'disable':
         data.status = 2;
-        res = await API.put('/api/channel/', data);
+        res = await API.post(`/api/channel/${id}/status`, {
+          status: data.status,
+        });
         break;
       case 'priority':
         if (value === '') return;
@@ -481,21 +499,22 @@ export const useChannelsData = () => {
         if (data.weight < 0) data.weight = 0;
         res = await API.put('/api/channel/', data);
         break;
-      case 'enable_all':
-        data.channel_info = record.channel_info;
-        data.channel_info.multi_key_status_list = {};
-        res = await API.put('/api/channel/', data);
-        break;
+      default:
+        return;
     }
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('操作成功完成！'));
-      let channel = res.data.data;
-      let newChannels = [...channels];
-      if (action !== 'delete') {
-        record.status = channel.status;
+      if (action === 'enable' || action === 'disable') {
+        await refresh();
+      } else if (action === 'priority' || action === 'weight') {
+        const channel = res.data.data;
+        record[action] = channel?.[action] ?? data[action];
+        if (channel?.status !== undefined) {
+          record.status = channel.status;
+        }
+        setChannels([...channels]);
       }
-      setChannels(newChannels);
     } else {
       showError(message);
     }
@@ -515,17 +534,7 @@ export const useChannelsData = () => {
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('操作成功完成！'));
-      let newChannels = [...channels];
-      for (let i = 0; i < newChannels.length; i++) {
-        if (newChannels[i].tag === tag) {
-          let status = action === 'enable' ? 1 : 2;
-          newChannels[i]?.children?.forEach((channel) => {
-            channel.status = status;
-          });
-          newChannels[i].status = status;
-        }
-      }
-      setChannels(newChannels);
+      await refresh();
     } else {
       showError(message);
     }
@@ -744,12 +753,20 @@ export const useChannelsData = () => {
 
   // Channel operations
   const testAllChannels = async () => {
-    const res = await API.get(`/api/channel/test`);
-    const { success, message } = res.data;
-    if (success) {
-      showInfo(t('已成功开始测试所有已启用通道，请刷新页面查看结果。'));
-    } else {
-      showError(message);
+    try {
+      const res = await API.get('/api/channel/test', {
+        skipErrorHandler: true,
+      });
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('后台任务已启动，请前往系统信息查看进度。'));
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(
+        error?.response?.data?.message || error?.message || t('操作失败'),
+      );
     }
   };
 
@@ -794,7 +811,7 @@ export const useChannelsData = () => {
       return;
     }
 
-    const res = await API.get(`/api/channel/update_balance/${record.id}/`);
+    const res = await API.get(`/api/channel/update_balance/${record.id}`);
     const { success, message, balance } = res.data;
     if (success) {
       updateChannelProperty(record.id, (channel) => {
@@ -825,6 +842,10 @@ export const useChannelsData = () => {
   };
 
   const checkOllamaVersion = async (record) => {
+    if (!canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
     try {
       const res = await API.get(`/api/channel/ollama/version/${record.id}`);
       const { success, message, data } = res.data;
@@ -903,14 +924,11 @@ export const useChannelsData = () => {
     setTestingModels((prev) => new Set([...prev, model]));
 
     try {
-      let url = `/api/channel/test/${record.id}?model=${model}`;
-      if (endpointType) {
-        url += `&endpoint_type=${endpointType}`;
-      }
-      if (stream) {
-        url += `&stream=true`;
-      }
-      const res = await API.get(url);
+      const params = {};
+      if (model) params.model = model;
+      if (endpointType) params.endpoint_type = endpointType;
+      if (stream) params.stream = true;
+      const res = await API.get(`/api/channel/test/${record.id}`, { params });
 
       // 检查是否在请求期间被停止
       if (shouldStopBatchTestingRef.current && isBatchTesting) {
@@ -1176,6 +1194,7 @@ export const useChannelsData = () => {
     compactMode,
     globalPassThroughEnabled,
     canEditSensitive,
+    canRevealChannelKey,
     permissionsLoading,
 
     // UI states

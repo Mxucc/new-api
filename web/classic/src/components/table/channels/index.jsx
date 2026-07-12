@@ -49,6 +49,7 @@ const ChannelsPage = () => {
         tag={channelsData.editingTag}
         handleClose={() => channelsData.setShowEditTag(false)}
         refresh={channelsData.refresh}
+        canEditSensitive={channelsData.canEditSensitive}
       />
       <EditChannelModal
         refresh={channelsData.refresh}
@@ -56,6 +57,7 @@ const ChannelsPage = () => {
         handleClose={channelsData.closeEdit}
         editingChannel={channelsData.editingChannel}
         canEditSensitive={channelsData.canEditSensitive}
+        canRevealChannelKey={channelsData.canRevealChannelKey}
       />
       <BatchTagModal {...channelsData} />
       <ModelTestModal {...channelsData} />

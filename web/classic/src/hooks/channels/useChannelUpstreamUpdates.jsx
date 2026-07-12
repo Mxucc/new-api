@@ -257,28 +257,13 @@ export const useChannelUpstreamUpdates = ({ t, refresh }) => {
         {},
         { skipErrorHandler: true },
       );
-      const { success, message, data } = res.data || {};
+      const { success, message } = res.data || {};
       if (!success) {
         showError(message || t('批量检测失败'));
         return;
       }
 
-      const channelCount = data?.processed_channels || 0;
-      const addCount = data?.detected_add_models || 0;
-      const removeCount = data?.detected_remove_models || 0;
-      const failedCount = (data?.failed_channel_ids || []).length;
-      showSuccess(
-        t(
-          '批量检测完成：渠道 {{channels}} 个，新增 {{add}} 个，删除 {{remove}} 个，失败 {{fails}} 个',
-          {
-            channels: channelCount,
-            add: addCount,
-            remove: removeCount,
-            fails: failedCount,
-          },
-        ),
-      );
-      await refresh();
+      showSuccess(t('后台任务已启动，请前往系统信息查看进度。'));
     } catch (error) {
       showError(
         error?.response?.data?.message || error?.message || t('批量检测失败'),

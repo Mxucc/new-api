@@ -774,7 +774,11 @@ export const getChannelsColumns = ({
               node: 'item',
               name: t('测活'),
               type: 'tertiary',
-              onClick: () => checkOllamaVersion(record),
+              disabled: !canEditSensitive,
+              onClick: () => {
+                if (!canEditSensitive) return;
+                checkOllamaVersion(record);
+              },
             });
           }
 

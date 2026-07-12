@@ -114,6 +114,29 @@ const SENSITIVE_UPDATE_FIELDS = [
   'settings',
   'other',
 ];
+const CHANNEL_UPDATE_FIELDS = [
+  'name',
+  'type',
+  'key',
+  'openai_organization',
+  'test_model',
+  'base_url',
+  'other',
+  'models',
+  'group',
+  'model_mapping',
+  'status_code_mapping',
+  'priority',
+  'weight',
+  'auto_ban',
+  'tag',
+  'remark',
+  'setting',
+  'param_override',
+  'header_override',
+  'settings',
+  'multi_key_mode',
+];
 
 const PARAM_OVERRIDE_LEGACY_TEMPLATE = {
   temperature: 0,
@@ -1078,7 +1101,10 @@ const EditChannelModal = (props) => {
       }
     } else {
       // 如果是新建模式，通过后端代理获取模型列表
-      if (!inputs?.['key']) {
+      if (!props.canEditSensitive) {
+        showError(t('无权限执行此操作'));
+        err = true;
+      } else if (!inputs?.['key']) {
         showError(t('请填写密钥'));
         err = true;
       } else {
@@ -1200,7 +1226,9 @@ const EditChannelModal = (props) => {
 
   const fetchModelGroups = async () => {
     try {
-      const res = await API.get('/api/prefill_group?type=model');
+      const res = await API.get('/api/prefill_group/', {
+        params: { type: 'model' },
+      });
       if (res?.data?.success) {
         setModelGroups(res.data.data || []);
       }
@@ -1211,6 +1239,11 @@ const EditChannelModal = (props) => {
 
   // 查看渠道密钥（透明验证）
   const handleShow2FAModal = async () => {
+    if (!isEdit || !props.canRevealChannelKey) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
+
     try {
       // 使用 withVerification 包装，会自动处理需要验证的情况
       const result = await withVerification(
@@ -1238,6 +1271,10 @@ const EditChannelModal = (props) => {
 
   const handleRefreshCodexCredential = async () => {
     if (!isEdit) return;
+    if (!props.canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
 
     setCodexCredentialRefreshing(true);
     try {
@@ -1879,12 +1916,16 @@ const EditChannelModal = (props) => {
     }
 
     if (isEdit) {
-      res = await API.put(`/api/channel/`, {
-        ...localInputs,
-        id: parseInt(channelId),
-        key_mode:
-          props.canEditSensitive && isMultiKeyChannel ? keyMode : undefined,
+      const updatePayload = { id: parseInt(channelId, 10) };
+      CHANNEL_UPDATE_FIELDS.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(localInputs, field)) {
+          updatePayload[field] = localInputs[field];
+        }
       });
+      if (props.canEditSensitive && isMultiKeyChannel) {
+        updatePayload.key_mode = keyMode;
+      }
+      res = await API.put(`/api/channel/`, updatePayload);
     } else {
       res = await API.post(`/api/channel/`, {
         mode: mode,
@@ -2817,7 +2858,7 @@ const EditChannelModal = (props) => {
                                     )}
                                   </Text>
                                 )}
-                              {isEdit && (
+                              {isEdit && props.canRevealChannelKey && (
                                 <Button
                                   size='small'
                                   type='primary'
@@ -2871,7 +2912,7 @@ const EditChannelModal = (props) => {
                                   </Text>
 
                                   <Space wrap spacing='tight'>
-                                    {isEdit && (
+                                    {isEdit && props.canEditSensitive && (
                                       <Button
                                         size='small'
                                         type='primary'
@@ -2892,7 +2933,7 @@ const EditChannelModal = (props) => {
                                     >
                                       {t('格式化')}
                                     </Button>
-                                    {isEdit && (
+                                    {isEdit && props.canRevealChannelKey && (
                                       <Button
                                         size='small'
                                         type='primary'
@@ -3015,7 +3056,7 @@ const EditChannelModal = (props) => {
                                           )}
                                         </Text>
                                       )}
-                                    {isEdit && (
+                                    {isEdit && props.canRevealChannelKey && (
                                       <Button
                                         size='small'
                                         type='primary'
@@ -3096,7 +3137,7 @@ const EditChannelModal = (props) => {
                                       )}
                                     </Text>
                                   )}
-                                {isEdit && (
+                                {isEdit && props.canRevealChannelKey && (
                                   <Button
                                     size='small'
                                     type='primary'
@@ -3928,6 +3969,7 @@ const EditChannelModal = (props) => {
         onCancel={() => setOllamaModalVisible(false)}
         channelId={channelId}
         channelInfo={inputs}
+        canEditSensitive={props.canEditSensitive}
         onModelsUpdate={(options = {}) => {
           // 当模型更新后，重新获取模型列表以更新表单
           fetchUpstreamModelList('models', { silent: !!options.silent });

@@ -166,6 +166,7 @@ const OllamaModelModal = ({
   channelInfo,
   onModelsUpdate,
   onApplyModels,
+  canEditSensitive = false,
 }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -215,41 +216,12 @@ const OllamaModelModal = ({
     const resolvedBaseUrl = resolveOllamaBaseUrl(channelInfo);
 
     setLoading(true);
-    let liveFetchSucceeded = false;
-    let fallbackSucceeded = false;
+    let fetchSucceeded = false;
     let lastError = '';
     let nextModels = [];
 
     try {
-      if (shouldTryLiveFetch && resolvedBaseUrl) {
-        try {
-          const payload = {
-            base_url: resolvedBaseUrl,
-            type: CHANNEL_TYPE_OLLAMA,
-            key: channelInfo?.key || '',
-          };
-
-          const res = await API.post('/api/channel/fetch_models', payload, {
-            skipErrorHandler: true,
-          });
-
-          if (res?.data?.success) {
-            nextModels = normalizeModels(res.data.data);
-            liveFetchSucceeded = true;
-          } else if (res?.data?.message) {
-            lastError = res.data.message;
-          }
-        } catch (error) {
-          const message = error?.response?.data?.message || error.message;
-          if (message) {
-            lastError = message;
-          }
-        }
-      } else if (shouldTryLiveFetch && !resolvedBaseUrl && !channelId) {
-        lastError = t('请先填写 Ollama API 地址');
-      }
-
-      if ((!liveFetchSucceeded || nextModels.length === 0) && channelId) {
+      if (channelId) {
         try {
           const res = await API.get(`/api/channel/fetch_models/${channelId}`, {
             skipErrorHandler: true,
@@ -257,8 +229,7 @@ const OllamaModelModal = ({
 
           if (res?.data?.success) {
             nextModels = normalizeModels(res.data.data);
-            fallbackSucceeded = true;
-            lastError = '';
+            fetchSucceeded = true;
           } else if (res?.data?.message) {
             lastError = res.data.message;
           }
@@ -268,9 +239,39 @@ const OllamaModelModal = ({
             lastError = message;
           }
         }
+      } else if (shouldTryLiveFetch) {
+        if (!canEditSensitive) {
+          lastError = t('无权限执行此操作');
+        } else if (!resolvedBaseUrl) {
+          lastError = t('请先填写 Ollama API 地址');
+        } else {
+          try {
+            const payload = {
+              base_url: resolvedBaseUrl,
+              type: CHANNEL_TYPE_OLLAMA,
+              key: channelInfo?.key || '',
+            };
+
+            const res = await API.post('/api/channel/fetch_models', payload, {
+              skipErrorHandler: true,
+            });
+
+            if (res?.data?.success) {
+              nextModels = normalizeModels(res.data.data);
+              fetchSucceeded = true;
+            } else if (res?.data?.message) {
+              lastError = res.data.message;
+            }
+          } catch (error) {
+            const message = error?.response?.data?.message || error.message;
+            if (message) {
+              lastError = message;
+            }
+          }
+        }
       }
 
-      if (!liveFetchSucceeded && !fallbackSucceeded && lastError) {
+      if (!fetchSucceeded && lastError) {
         showError(`${t('获取模型列表失败')}: ${lastError}`);
       }
 
@@ -298,6 +299,10 @@ const OllamaModelModal = ({
 
   // 拉取模型 (流式，支持进度)
   const pullModel = async () => {
+    if (!canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
     if (!pullModelName.trim()) {
       showError(t('请输入模型名称'));
       return;
@@ -449,6 +454,10 @@ const OllamaModelModal = ({
 
   // 删除模型
   const deleteModel = async (modelName) => {
+    if (!canEditSensitive) {
+      showError(t('无权限执行此操作'));
+      return;
+    }
     try {
       const res = await API.delete('/api/channel/ollama/delete', {
         data: {
@@ -508,6 +517,7 @@ const OllamaModelModal = ({
     channelInfo?.base_url,
     channelInfo?.other_info,
     channelInfo?.ollama_base_url,
+    canEditSensitive,
   ]);
 
   // 组件卸载时清理 EventSource
@@ -561,7 +571,7 @@ const OllamaModelModal = ({
                 value={pullModelName}
                 onChange={(value) => setPullModelName(value)}
                 onEnterPress={pullModel}
-                disabled={pullLoading}
+                disabled={pullLoading || !canEditSensitive}
                 showClear
               />
             </Col>
@@ -571,7 +581,7 @@ const OllamaModelModal = ({
                 type='primary'
                 onClick={pullModel}
                 loading={pullLoading}
-                disabled={!pullModelName.trim()}
+                disabled={!canEditSensitive || !pullModelName.trim()}
                 icon={<IconDownload />}
                 block
               >
@@ -760,6 +770,7 @@ const OllamaModelModal = ({
                             type='danger'
                             size='small'
                             icon={<IconDelete />}
+                            disabled={!canEditSensitive}
                           />
                         </Popconfirm>
                       </div>
