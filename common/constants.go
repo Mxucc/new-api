@@ -4,7 +4,9 @@ import (
 	"crypto/tls"
 	//"os"
 	//"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +18,39 @@ var SystemName = "New API"
 var Footer = ""
 var Logo = ""
 var TopUpLink = ""
+
+var themeValue atomic.Value
+
+func init() {
+	themeValue.Store("default")
+}
+
+func GetTheme() string {
+	return themeValue.Load().(string)
+}
+
+func SetTheme(theme string) {
+	if theme == "default" || theme == "classic" {
+		themeValue.Store(theme)
+	}
+}
+
+// ThemeAwarePath preserves Classic console URLs while sending the known
+// equivalent locations to the current frontend.
+func ThemeAwarePath(suffix string) string {
+	if GetTheme() != "default" {
+		return suffix
+	}
+	switch {
+	case strings.HasPrefix(suffix, "/console/topup"):
+		return strings.Replace(suffix, "/console/topup", "/wallet", 1)
+	case strings.HasPrefix(suffix, "/console/log"):
+		return strings.Replace(suffix, "/console/log", "/usage-logs", 1)
+	case strings.HasPrefix(suffix, "/console/personal"):
+		return strings.Replace(suffix, "/console/personal", "/profile", 1)
+	}
+	return suffix
+}
 
 // var ChatLink = ""
 // var ChatLink2 = ""

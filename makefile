@@ -1,6 +1,8 @@
 WEB_DIR = ./web
+WEB_CLASSIC_DIR = ./web/classic
 API_DIR = .
 DEV_WEB_PORT ?= 5173
+DEV_WEB_CLASSIC_PORT ?= 5174
 DEV_COMPOSE_FILE = docker-compose.dev.yml
 DEV_POSTGRES_SERVICE = postgres
 DEV_API_SERVICE = new-api
@@ -8,7 +10,7 @@ DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
 
-.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test
+.PHONY: all build-web build-web-classic build-all-web start-api dev dev-api dev-api-rebuild dev-web dev-web-classic reset-setup test
 
 all: build-all-web start-api
 
@@ -17,7 +19,12 @@ build-web:
 	@cd $(WEB_DIR) && bun install --frozen-lockfile
 	@cd $(WEB_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$$(cat ../VERSION) bun run build
 
-build-all-web: build-web
+build-web-classic:
+	@echo "Building classic web frontend..."
+	@cd $(WEB_CLASSIC_DIR) && bun install --frozen-lockfile
+	@cd $(WEB_CLASSIC_DIR) && VITE_REACT_APP_VERSION=$$(cat ../../VERSION) bun run build
+
+build-all-web: build-web build-web-classic
 
 start-api:
 	@echo "Starting api dev server..."
@@ -36,6 +43,11 @@ dev-web:
 	@echo "Web frontend: http://localhost:$(DEV_WEB_PORT)"
 	@cd $(WEB_DIR) && bun install
 	@cd $(WEB_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_WEB_PORT)
+
+dev-web-classic:
+	@echo "Classic web frontend: http://localhost:$(DEV_WEB_CLASSIC_PORT)"
+	@cd $(WEB_CLASSIC_DIR) && bun install
+	@cd $(WEB_CLASSIC_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_WEB_CLASSIC_PORT)
 
 dev: dev-api dev-web
 

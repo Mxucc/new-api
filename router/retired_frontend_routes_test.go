@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRetiredFrontendAPIRoutes(t *testing.T) {
+func TestDeprecatedAPIRoutesRemainUnavailable(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	SetApiRouter(engine)

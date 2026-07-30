@@ -107,6 +107,7 @@ export type SystemTaskListResponse = {
 }
 
 export type SiteSettings = {
+  'theme.frontend': 'default' | 'classic'
   Notice: string
   SystemName: string
   Logo: string

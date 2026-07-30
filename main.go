@@ -45,6 +45,12 @@ var buildFS embed.FS
 //go:embed web/dist/index.html
 var indexPage []byte
 
+//go:embed web/classic/dist
+var classicBuildFS embed.FS
+
+//go:embed web/classic/dist/index.html
+var classicIndexPage []byte
+
 func main() {
 	startTime := time.Now()
 	kitutil.SetLogging(common.SysLog, func(message string) {
@@ -196,8 +202,10 @@ func main() {
 
 	// 设置路由
 	router.SetRouter(server, router.WebAssets{
-		BuildFS:   buildFS,
-		IndexPage: indexPage,
+		BuildFS:          buildFS,
+		IndexPage:        indexPage,
+		ClassicBuildFS:   classicBuildFS,
+		ClassicIndexPage: classicIndexPage,
 	})
 	var port = os.Getenv("PORT")
 	if port == "" {
@@ -318,8 +326,8 @@ func InitResources() error {
 
 	// Initialize options, should after model.InitDB()
 	if common.IsMasterNode {
-		if err := model.MigrateRetiredFrontendOptions(); err != nil {
-			common.SysError("failed to migrate retired frontend options: " + err.Error())
+		if err := model.MigrateFrontendOptions(); err != nil {
+			common.SysError("failed to migrate frontend options: " + err.Error())
 		}
 	}
 	model.InitOptionMap()

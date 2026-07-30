@@ -13,14 +13,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// WebAssets holds the embedded dashboard frontend assets.
+// WebAssets holds the embedded dashboard frontend assets for both supported themes.
 type WebAssets struct {
-	BuildFS   embed.FS
-	IndexPage []byte
+	BuildFS          embed.FS
+	IndexPage        []byte
+	ClassicBuildFS   embed.FS
+	ClassicIndexPage []byte
 }
 
 func SetWebRouter(router *gin.Engine, assets WebAssets) {
-	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
+	defaultFS := common.EmbedFolder(assets.BuildFS, "web/dist")
+	classicFS := common.EmbedFolder(assets.ClassicBuildFS, "web/classic/dist")
+	frontendFS := common.NewThemeAwareFS(defaultFS, classicFS)
 
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
@@ -33,6 +37,10 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 			return
 		}
 		c.Header("Cache-Control", "no-cache")
+		if common.GetTheme() == "classic" {
+			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.ClassicIndexPage)
+			return
+		}
 		c.Data(http.StatusOK, "text/html; charset=utf-8", assets.IndexPage)
 	})
 }

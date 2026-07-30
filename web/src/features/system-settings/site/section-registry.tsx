@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemInfoSection } from '../general/system-info-section'
+import { FrontendSection } from './frontend-section'
 import {
   parseHeaderNavModules,
   parseSidebarModulesAdmin,
@@ -30,6 +31,13 @@ import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
 const SITE_SECTIONS = [
+  {
+    id: 'frontend',
+    titleKey: 'Frontend',
+    build: (settings: SiteSettings) => (
+      <FrontendSection defaultValue={settings['theme.frontend']} />
+    ),
+  },
   {
     id: 'system-info',
     titleKey: 'System Information',

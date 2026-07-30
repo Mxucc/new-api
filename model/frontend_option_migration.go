@@ -10,21 +10,22 @@ import (
 	"gorm.io/gorm"
 )
 
-const retiredThemeOptionKey = "theme.frontend"
+const frontendThemeOptionKey = "theme.frontend"
 
 type legacyOptionTransform func(string) (string, error)
 
-// MigrateRetiredFrontendOptions normalizes options that belonged to the
-// removed dashboard frontend. Each legacy console setting is migrated in its
-// own transaction so one malformed value cannot block the other settings.
-func MigrateRetiredFrontendOptions() error {
+// MigrateFrontendOptions ensures the active frontend option is valid and
+// migrates the console settings that moved into structured configuration.
+// Each console setting is migrated in its own transaction so one malformed
+// value cannot block the other settings.
+func MigrateFrontendOptions() error {
 	if DB == nil {
 		return errors.New("database is not initialized")
 	}
 
 	var migrationErrors []error
-	if err := normalizeRetiredThemeOption(); err != nil {
-		migrationErrors = append(migrationErrors, fmt.Errorf("normalize %s: %w", retiredThemeOptionKey, err))
+	if err := normalizeFrontendThemeOption(); err != nil {
+		migrationErrors = append(migrationErrors, fmt.Errorf("normalize %s: %w", frontendThemeOptionKey, err))
 	}
 
 	migrations := []struct {
@@ -47,17 +48,17 @@ func MigrateRetiredFrontendOptions() error {
 	return errors.Join(migrationErrors...)
 }
 
-func normalizeRetiredThemeOption() error {
+func normalizeFrontendThemeOption() error {
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var option Option
-		err := tx.Where(&Option{Key: retiredThemeOptionKey}).First(&option).Error
+		err := tx.Where(&Option{Key: frontendThemeOptionKey}).First(&option).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return tx.Create(&Option{Key: retiredThemeOptionKey, Value: "default"}).Error
+			return tx.Create(&Option{Key: frontendThemeOptionKey, Value: "default"}).Error
 		}
 		if err != nil {
 			return err
 		}
-		if option.Value == "default" {
+		if option.Value == "default" || option.Value == "classic" {
 			return nil
 		}
 		return tx.Model(&option).Update("value", "default").Error
