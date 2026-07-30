@@ -38,6 +38,7 @@ import { useTranslation } from 'react-i18next';
 // 导入子组件
 import UserInfoHeader from './personal/components/UserInfoHeader';
 import AccountManagement from './personal/cards/AccountManagement';
+import LoginSessionsCard from './personal/cards/LoginSessionsCard';
 import NotificationSettings from './personal/cards/NotificationSettings';
 import PreferencesSettings from './personal/cards/PreferencesSettings';
 import CheckinCalendar from './personal/cards/CheckinCalendar';
@@ -388,13 +389,19 @@ const PersonalSetting = () => {
 
     if (success) {
       showSuccess(t('账户已删除！'));
-      await API.get('/api/user/logout');
+      await API.post('/api/user/auth/logout');
       userDispatch({ type: 'logout' });
       localStorage.removeItem('user');
       navigate('/login');
     } else {
       showError(message);
     }
+  };
+
+  const handleCurrentSessionRevoked = () => {
+    userDispatch({ type: 'logout' });
+    localStorage.removeItem('user');
+    navigate('/login');
   };
 
   const bindWeChat = async () => {
@@ -581,6 +588,10 @@ const PersonalSetting = () => {
                 passkeyDeleteLoading={passkeyDeleteLoading}
                 onPasskeyRegister={handleRegisterPasskey}
                 onPasskeyDelete={handleRemovePasskey}
+              />
+              <LoginSessionsCard
+                t={t}
+                onCurrentSessionRevoked={handleCurrentSessionRevoked}
               />
 
               {/* 偏好设置（语言等） */}

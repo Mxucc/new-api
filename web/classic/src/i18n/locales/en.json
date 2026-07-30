@@ -3995,6 +3995,12 @@
     "吞吐量": "Throughput",
     "暂无性能数据": "No performance data available",
     "OIDC Display Name": "OIDC Display Name",
-    "e.g. Company SSO": "e.g. Company SSO"
+    "e.g. Company SSO": "e.g. Company SSO",
+    "登录会话": "Login sessions",
+    "管理当前登录的设备。": "Manage devices currently signed in to your account.",
+    "注销其他登录会话": "Sign out other sessions",
+    "当前设备": "Current device",
+    "登录方式": "Login method",
+    "最近活跃": "Last active"
   }
 }

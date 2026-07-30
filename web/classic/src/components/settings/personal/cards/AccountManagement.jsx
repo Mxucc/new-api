@@ -99,6 +99,9 @@ const AccountManagement = ({
   const isBound = (accountId) => Boolean(accountId);
   const [showTelegramBindModal, setShowTelegramBindModal] =
     React.useState(false);
+  const [telegramBindCallbackUrl, setTelegramBindCallbackUrl] =
+    React.useState('');
+  const [telegramBindLoading, setTelegramBindLoading] = React.useState(false);
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
   const [customOAuthLoading, setCustomOAuthLoading] = React.useState({});
 
@@ -112,7 +115,9 @@ const AccountManagement = ({
         showError(res.data.message || t('获取绑定信息失败'));
       }
     } catch (error) {
-      showError(error.response?.data?.message || error.message || t('获取绑定信息失败'));
+      showError(
+        error.response?.data?.message || error.message || t('获取绑定信息失败'),
+      );
     }
   };
 
@@ -126,7 +131,9 @@ const AccountManagement = ({
       onOk: async () => {
         setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: true }));
         try {
-          const res = await API.delete(`/api/user/oauth/bindings/${providerId}`);
+          const res = await API.delete(
+            `/api/user/oauth/bindings/${providerId}`,
+          );
           if (res.data.success) {
             showSuccess(t('解绑成功'));
             await loadCustomOAuthBindings();
@@ -134,7 +141,9 @@ const AccountManagement = ({
             showError(res.data.message);
           }
         } catch (error) {
-          showError(error.response?.data?.message || error.message || t('操作失败'));
+          showError(
+            error.response?.data?.message || error.message || t('操作失败'),
+          );
         } finally {
           setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: false }));
         }
@@ -144,19 +153,48 @@ const AccountManagement = ({
 
   // Handle bind custom OAuth
   const handleBindCustomOAuth = (provider) => {
-    onCustomOAuthClicked(provider);
+    onCustomOAuthClicked(provider, { intent: 'bind' });
+  };
+
+  const openTelegramBindModal = async () => {
+    setShowTelegramBindModal(true);
+    setTelegramBindCallbackUrl('');
+    setTelegramBindLoading(true);
+    try {
+      const res = await API.post('/api/oauth/telegram/bind/start');
+      if (
+        res.data?.success &&
+        typeof res.data?.data?.callback_url === 'string'
+      ) {
+        setTelegramBindCallbackUrl(res.data.data.callback_url);
+      } else {
+        showError(res.data?.message || t('操作失败'));
+        setShowTelegramBindModal(false);
+      }
+    } catch (error) {
+      showError(
+        error.response?.data?.message || error.message || t('操作失败'),
+      );
+      setShowTelegramBindModal(false);
+    } finally {
+      setTelegramBindLoading(false);
+    }
   };
 
   // Check if custom OAuth provider is bound
   const isCustomOAuthBound = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.some((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.some(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   // Get binding info for a provider
   const getCustomOAuthBinding = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.find((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.find(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   React.useEffect(() => {
@@ -304,7 +342,9 @@ const AccountManagement = ({
                       theme='outline'
                       size='small'
                       onClick={() =>
-                        onGitHubOAuthClicked(status.github_client_id)
+                        onGitHubOAuthClicked(status.github_client_id, {
+                          intent: 'bind',
+                        })
                       }
                       disabled={
                         isBound(userState.user?.github_id) ||
@@ -345,7 +385,9 @@ const AccountManagement = ({
                       theme='outline'
                       size='small'
                       onClick={() =>
-                        onDiscordOAuthClicked(status.discord_client_id)
+                        onDiscordOAuthClicked(status.discord_client_id, {
+                          intent: 'bind',
+                        })
                       }
                       disabled={
                         isBound(userState.user?.discord_id) ||
@@ -389,6 +431,8 @@ const AccountManagement = ({
                         onOIDCClicked(
                           status.oidc_authorization_endpoint,
                           status.oidc_client_id,
+                          false,
+                          { intent: 'bind' },
                         )
                       }
                       disabled={
@@ -439,7 +483,7 @@ const AccountManagement = ({
                           type='primary'
                           theme='outline'
                           size='small'
-                          onClick={() => setShowTelegramBindModal(true)}
+                          onClick={openTelegramBindModal}
                         >
                           {t('绑定')}
                         </Button>
@@ -468,10 +512,12 @@ const AccountManagement = ({
                 </div>
                 <div className='flex justify-center'>
                   <div className='scale-90'>
-                    <TelegramLoginButton
-                      dataAuthUrl='/api/oauth/telegram/bind'
-                      botName={status.telegram_bot_name}
-                    />
+                    {telegramBindLoading ? null : telegramBindCallbackUrl ? (
+                      <TelegramLoginButton
+                        dataAuthUrl={telegramBindCallbackUrl}
+                        botName={status.telegram_bot_name}
+                      />
+                    ) : null}
                   </div>
                 </div>
               </Modal>
@@ -504,7 +550,9 @@ const AccountManagement = ({
                       theme='outline'
                       size='small'
                       onClick={() =>
-                        onLinuxDOOAuthClicked(status.linuxdo_client_id)
+                        onLinuxDOOAuthClicked(status.linuxdo_client_id, {
+                          intent: 'bind',
+                        })
                       }
                       disabled={
                         isBound(userState.user?.linux_do_id) ||
@@ -554,7 +602,10 @@ const AccountManagement = ({
                               size='small'
                               loading={customOAuthLoading[provider.id]}
                               onClick={() =>
-                                handleUnbindCustomOAuth(provider.id, provider.name)
+                                handleUnbindCustomOAuth(
+                                  provider.id,
+                                  provider.name,
+                                )
                               }
                             >
                               {t('解绑')}

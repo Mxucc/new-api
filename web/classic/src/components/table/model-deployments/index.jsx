@@ -45,11 +45,8 @@ const DeploymentsPage = () => {
     refresh,
 
     // Actions state
-    selectedKeys,
-    setSelectedKeys,
     setEditingDeployment,
     setShowEdit,
-    batchDeleteDeployments,
 
     // Filters state
     formInitValues,
@@ -105,11 +102,8 @@ const DeploymentsPage = () => {
         actionsArea={
           <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
             <DeploymentsActions
-              selectedKeys={selectedKeys}
-              setSelectedKeys={setSelectedKeys}
               setEditingDeployment={setEditingDeployment}
               setShowEdit={setShowEdit}
-              batchDeleteDeployments={batchDeleteDeployments}
               batchOperationsEnabled={batchOperationsEnabled}
               compactMode={compactMode}
               setCompactMode={setCompactMode}

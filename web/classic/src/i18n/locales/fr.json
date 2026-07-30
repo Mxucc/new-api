@@ -3847,6 +3847,12 @@
     "吞吐量": "Débit",
     "暂无性能数据": "Aucune donnée de performance disponible",
     "OIDC Display Name": "Nom d'affichage OIDC",
-    "e.g. Company SSO": "ex. SSO de l'entreprise"
+    "e.g. Company SSO": "ex. SSO de l'entreprise",
+    "登录会话": "Sessions de connexion",
+    "管理当前登录的设备。": "Gérez les appareils actuellement connectés à votre compte.",
+    "注销其他登录会话": "Déconnecter les autres sessions",
+    "当前设备": "Appareil actuel",
+    "登录方式": "Méthode de connexion",
+    "最近活跃": "Dernière activité"
   }
 }
