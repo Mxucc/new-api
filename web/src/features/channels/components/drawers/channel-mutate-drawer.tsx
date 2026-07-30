@@ -1859,7 +1859,11 @@ export function ChannelMutateDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent className={sideDrawerContentClassName('sm:max-w-5xl')}>
+        <SheetContent
+          className={sideDrawerContentClassName(
+            'sm:w-[min(100vw,90rem)] sm:max-w-[calc(100vw-2rem)]'
+          )}
+        >
           <SheetHeader className={sideDrawerHeaderClassName()}>
             <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
               <div className='min-w-0'>
