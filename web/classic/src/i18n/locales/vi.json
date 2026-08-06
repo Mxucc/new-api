@@ -4383,6 +4383,7 @@
     "管理当前登录的设备。": "Quản lý các thiết bị hiện đang đăng nhập vào tài khoản của bạn.",
     "注销其他登录会话": "Đăng xuất các phiên khác",
     "当前设备": "Thiết bị hiện tại",
-    "最近活跃": "Hoạt động gần nhất"
+    "最近活跃": "Hoạt động gần nhất",
+    "平均 TTFT": "TTFT trung bình"
   }
 }

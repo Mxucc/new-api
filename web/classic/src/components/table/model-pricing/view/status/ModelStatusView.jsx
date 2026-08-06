@@ -68,6 +68,12 @@ const formatThroughput = (value) => {
   return `${throughput.toFixed(throughput < 10 ? 2 : 1)} t/s`;
 };
 
+const formatRequestCount = (value) => {
+  const count = Number(value);
+  if (!Number.isFinite(count) || count < 0) return '-';
+  return Math.round(count).toLocaleString();
+};
+
 const formatSuccessRate = (value) => {
   if (value == null) return '-';
   const rate = Number(value);
@@ -349,6 +355,17 @@ const ModelStatusView = ({
         ),
       },
       {
+        title: t('平均 TTFT'),
+        dataIndex: 'ttft',
+        width: 130,
+        align: 'right',
+        render: (_, row) => (
+          <span className='font-mono text-sm tabular-nums text-semi-color-text-2'>
+            {row.perf ? formatLatency(row.perf.avg_ttft_ms) : '-'}
+          </span>
+        ),
+      },
+      {
         title: t('吞吐量'),
         dataIndex: 'throughput',
         width: 130,
@@ -356,6 +373,17 @@ const ModelStatusView = ({
         render: (_, row) => (
           <span className='font-mono text-sm tabular-nums text-semi-color-text-2'>
             {row.perf ? formatThroughput(row.perf.avg_tps) : '-'}
+          </span>
+        ),
+      },
+      {
+        title: t('请求次数'),
+        dataIndex: 'requests',
+        width: 120,
+        align: 'right',
+        render: (_, row) => (
+          <span className='font-mono text-sm tabular-nums text-semi-color-text-2'>
+            {row.perf ? formatRequestCount(row.perf.request_count) : '-'}
           </span>
         ),
       },
@@ -538,9 +566,23 @@ const ModelStatusView = ({
                           }
                         />
                         <MetricValue
+                          label={t('平均 TTFT')}
+                          value={
+                            row.perf ? formatLatency(row.perf.avg_ttft_ms) : '-'
+                          }
+                        />
+                        <MetricValue
                           label={t('吞吐量')}
                           value={
                             row.perf ? formatThroughput(row.perf.avg_tps) : '-'
+                          }
+                        />
+                        <MetricValue
+                          label={t('请求次数')}
+                          value={
+                            row.perf
+                              ? formatRequestCount(row.perf.request_count)
+                              : '-'
                           }
                         />
                       </div>

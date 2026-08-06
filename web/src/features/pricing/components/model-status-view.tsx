@@ -33,11 +33,6 @@ import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
 } from '@/components/data-table'
-import { Button } from '@/components/ui/button'
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from '@/components/ui/toggle-group'
 import { StatusBadge, type StatusVariant } from '@/components/status-badge'
 import {
   Alert,
@@ -45,6 +40,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
   Empty,
   EmptyContent,
@@ -54,6 +50,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   Tooltip,
   TooltipContent,
@@ -344,7 +341,7 @@ function StatusRows(props: {
     <>
       <StaticDataTable
         className='hidden md:block'
-        tableClassName='min-w-[720px] text-sm'
+        tableClassName='min-w-[920px] text-sm'
         headerRowClassName={tableStyles.compactHeaderRow}
         data={props.rows}
         getRowKey={(row) => row.model.id || row.model.model_name}
@@ -372,12 +369,28 @@ function StatusRows(props: {
               row.perf ? formatLatency(row.perf.avg_latency_ms) : '—',
           },
           {
+            id: 'ttft',
+            header: t('Average TTFT'),
+            className: tableStyles.compactHeaderCellRight,
+            cellClassName: tableStyles.compactMutedNumericCell,
+            cell: (row) =>
+              row.perf ? formatLatency(row.perf.avg_ttft_ms) : '—',
+          },
+          {
             id: 'throughput',
             header: t('Throughput'),
             className: tableStyles.compactHeaderCellRight,
             cellClassName: tableStyles.compactMutedNumericCell,
             cell: (row) =>
               row.perf ? formatThroughput(row.perf.avg_tps) : '—',
+          },
+          {
+            id: 'requests',
+            header: t('Requests'),
+            className: tableStyles.compactHeaderCellRight,
+            cellClassName: tableStyles.compactMutedNumericCell,
+            cell: (row) =>
+              row.perf ? formatRequestCount(row.perf.request_count) : '—',
           },
           {
             id: 'actions',
@@ -423,8 +436,18 @@ function StatusRows(props: {
                 value={row.perf ? formatLatency(row.perf.avg_latency_ms) : '—'}
               />
               <MetricValue
+                label={t('Average TTFT')}
+                value={row.perf ? formatLatency(row.perf.avg_ttft_ms) : '—'}
+              />
+              <MetricValue
                 label={t('Throughput')}
                 value={row.perf ? formatThroughput(row.perf.avg_tps) : '—'}
+              />
+              <MetricValue
+                label={t('Requests')}
+                value={
+                  row.perf ? formatRequestCount(row.perf.request_count) : '—'
+                }
               />
             </div>
 
@@ -544,6 +567,11 @@ function MetricValue(props: { label: string; value: string }) {
       </div>
     </div>
   )
+}
+
+function formatRequestCount(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return '—'
+  return Math.round(value).toLocaleString()
 }
 
 function getStatusVariant(perf?: PerfModelSummary): StatusVariant {

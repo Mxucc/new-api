@@ -4001,6 +4001,7 @@
     "注销其他登录会话": "Sign out other sessions",
     "当前设备": "Current device",
     "登录方式": "Login method",
-    "最近活跃": "Last active"
+    "最近活跃": "Last active",
+    "平均 TTFT": "Average TTFT"
   }
 }

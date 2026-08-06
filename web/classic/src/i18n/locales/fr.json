@@ -3853,6 +3853,7 @@
     "注销其他登录会话": "Déconnecter les autres sessions",
     "当前设备": "Appareil actuel",
     "登录方式": "Méthode de connexion",
-    "最近活跃": "Dernière activité"
+    "最近活跃": "Dernière activité",
+    "平均 TTFT": "TTFT moyen"
   }
 }
