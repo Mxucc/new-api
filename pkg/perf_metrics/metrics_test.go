@@ -50,6 +50,18 @@ func TestQuerySummaryAllIncludesRequestCountAndTTFT(t *testing.T) {
 		OutputTokens:   200,
 		GenerationMs:   2000,
 	}).Error)
+	require.NoError(t, db.Create(&model.PerfMetric{
+		ModelName:      "status-model",
+		Group:          "vip",
+		BucketTs:       now,
+		RequestCount:   2,
+		SuccessCount:   2,
+		TotalLatencyMs: 400,
+		TtftSumMs:      100,
+		TtftCount:      2,
+		OutputTokens:   300,
+		GenerationMs:   3000,
+	}).Error)
 
 	result, err := QuerySummaryAll(24, nil)
 	require.NoError(t, err)
@@ -57,16 +69,29 @@ func TestQuerySummaryAllIncludesRequestCountAndTTFT(t *testing.T) {
 
 	summary := result.Models[0]
 	assert.Equal(t, "status-model", summary.ModelName)
-	assert.Equal(t, int64(4), summary.RequestCount)
-	assert.Equal(t, int64(133), summary.AvgTtftMs)
-	assert.Equal(t, int64(350), summary.AvgLatencyMs)
-	assert.Equal(t, 75.0, summary.SuccessRate)
+	assert.Equal(t, int64(6), summary.RequestCount)
+	assert.Equal(t, int64(100), summary.AvgTtftMs)
+	assert.Equal(t, int64(300), summary.AvgLatencyMs)
+	assert.Equal(t, 83.33, summary.SuccessRate)
 	assert.Equal(t, 100.0, summary.AvgTps)
 	require.Len(t, result.Trend, 2)
 	assert.Equal(t, int64(100), result.Trend[0].AvgTtftMs)
 	assert.Equal(t, 100.0, result.Trend[0].SuccessRate)
 	assert.Equal(t, int64(1), result.Trend[0].RequestCount)
-	assert.Equal(t, int64(150), result.Trend[1].AvgTtftMs)
-	assert.Equal(t, 66.67, result.Trend[1].SuccessRate)
-	assert.Equal(t, int64(3), result.Trend[1].RequestCount)
+	assert.Equal(t, int64(100), result.Trend[1].AvgTtftMs)
+	assert.Equal(t, 80.0, result.Trend[1].SuccessRate)
+	assert.Equal(t, int64(5), result.Trend[1].RequestCount)
+	require.Len(t, result.Groups, 2)
+	assert.Equal(t, "default", result.Groups[0].Group)
+	assert.Equal(t, int64(4), result.Groups[0].RequestCount)
+	assert.Equal(t, int64(350), result.Groups[0].AvgLatencyMs)
+	assert.Equal(t, int64(133), result.Groups[0].AvgTtftMs)
+	assert.Equal(t, 75.0, result.Groups[0].SuccessRate)
+	assert.Equal(t, 100.0, result.Groups[0].AvgTps)
+	assert.Equal(t, "vip", result.Groups[1].Group)
+	assert.Equal(t, int64(2), result.Groups[1].RequestCount)
+	assert.Equal(t, int64(200), result.Groups[1].AvgLatencyMs)
+	assert.Equal(t, int64(50), result.Groups[1].AvgTtftMs)
+	assert.Equal(t, 100.0, result.Groups[1].SuccessRate)
+	assert.Equal(t, 100.0, result.Groups[1].AvgTps)
 }

@@ -139,6 +139,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 	}
 
 	totals := map[string]counters{}
+	groupTotals := map[string]counters{}
 	modelBuckets := map[string]map[int64]counters{}
 	trendBuckets := map[int64]counters{}
 	for _, row := range rows {
@@ -152,6 +153,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			generationMs:   row.GenerationMs,
 		}
 		mergeModelTotals(totals, row.ModelName, value)
+		mergeGroupTotals(groupTotals, row.Group, value)
 		mergeModelBucket(modelBuckets, row.ModelName, row.BucketTs, value)
 		mergeCountersAtBucket(trendBuckets, row.BucketTs, value)
 	}
@@ -171,6 +173,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			return true
 		}
 		mergeModelTotals(totals, k.model, snap)
+		mergeGroupTotals(groupTotals, k.group, snap)
 		mergeModelBucket(modelBuckets, k.model, k.bucketTs, snap)
 		mergeCountersAtBucket(trendBuckets, k.bucketTs, snap)
 		return true
@@ -202,7 +205,35 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		})
 	}
 	sort.Slice(models, func(i, j int) bool {
+		if models[i].RequestCount == models[j].RequestCount {
+			return models[i].ModelName < models[j].ModelName
+		}
 		return models[i].RequestCount > models[j].RequestCount
+	})
+
+	groupsSummary := make([]GroupSummary, 0, len(groupTotals))
+	for group, total := range groupTotals {
+		if total.requestCount == 0 {
+			continue
+		}
+		avgTps := 0.0
+		if total.generationMs > 0 {
+			avgTps = float64(total.outputTokens) / (float64(total.generationMs) / 1000.0)
+		}
+		groupsSummary = append(groupsSummary, GroupSummary{
+			Group:        group,
+			AvgLatencyMs: total.totalLatencyMs / total.requestCount,
+			AvgTtftMs:    avg(total.ttftSumMs, total.ttftCount),
+			SuccessRate:  math.Round(float64(total.successCount)/float64(total.requestCount)*10000) / 100,
+			AvgTps:       math.Round(avgTps*100) / 100,
+			RequestCount: total.requestCount,
+		})
+	}
+	sort.Slice(groupsSummary, func(i, j int) bool {
+		if groupsSummary[i].RequestCount == groupsSummary[j].RequestCount {
+			return groupsSummary[i].Group < groupsSummary[j].Group
+		}
+		return groupsSummary[i].RequestCount > groupsSummary[j].RequestCount
 	})
 
 	trend := make([]SummaryTrendPoint, 0, len(trendBuckets))
@@ -224,7 +255,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 	}
 	sort.Slice(trend, func(i, j int) bool { return trend[i].Ts < trend[j].Ts })
 
-	return SummaryAllResult{Models: models, Trend: trend}, nil
+	return SummaryAllResult{Models: models, Trend: trend, Groups: groupsSummary}, nil
 }
 
 func mergeCountersAtBucket(buckets map[int64]counters, ts int64, value counters) {
@@ -256,6 +287,15 @@ func mergeModelTotals(totals map[string]counters, modelName string, value counte
 	current.outputTokens += value.outputTokens
 	current.generationMs += value.generationMs
 	totals[modelName] = current
+}
+
+func mergeGroupTotals(totals map[string]counters, group string, value counters) {
+	if value.requestCount == 0 {
+		return
+	}
+	current := totals[group]
+	mergeSummaryCounters(&current, value)
+	totals[group] = current
 }
 
 func mergeModelBucket(modelBuckets map[string]map[int64]counters, modelName string, bucketTs int64, value counters) {

@@ -365,6 +365,71 @@ const StatusTrendPanels = ({ trend, t }) => {
   );
 };
 
+const GroupPerformanceTable = ({ groups, t }) => {
+  if (!groups.length) return null;
+  const columns = [
+    {
+      title: t('分组'),
+      dataIndex: 'group',
+      render: (group) => <Tag color='blue'>{group || t('用户组')}</Tag>,
+    },
+    {
+      title: t('平均延迟'),
+      dataIndex: 'avg_latency_ms',
+      align: 'right',
+      render: formatLatency,
+    },
+    {
+      title: t('平均 TTFT'),
+      dataIndex: 'avg_ttft_ms',
+      align: 'right',
+      render: formatLatency,
+    },
+    {
+      title: t('吞吐量'),
+      dataIndex: 'avg_tps',
+      align: 'right',
+      render: formatThroughput,
+    },
+    {
+      title: t('成功率'),
+      dataIndex: 'success_rate',
+      align: 'right',
+      render: (rate) => (
+        <Tag color={getStatusColor(rate)}>{formatSuccessRate(rate)}</Tag>
+      ),
+    },
+    {
+      title: t('请求次数'),
+      dataIndex: 'request_count',
+      align: 'right',
+      render: formatRequestCount,
+    },
+  ];
+
+  return (
+    <section className='mt-6'>
+      <div className='mb-2 flex flex-wrap items-baseline justify-between gap-2'>
+        <div>
+          <div className='text-sm font-semibold text-semi-color-text-0'>
+            {t('各分组性能')}
+          </div>
+          <p className='text-xs text-semi-color-text-2'>
+            {t('平均延迟、TTFT、TPS 和成功率')}
+          </p>
+        </div>
+      </div>
+      <Table
+        columns={columns}
+        dataSource={groups}
+        rowKey='group'
+        size='small'
+        pagination={false}
+      />
+    </section>
+  );
+};
+
 const ModelStatusView = ({
   models = [],
   searchValue = '',
@@ -381,6 +446,7 @@ const ModelStatusView = ({
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState(null);
   const [trend, setTrend] = useState([]);
+  const [groups, setGroups] = useState([]);
   const requestIdRef = useRef(0);
 
   const loadMetrics = useCallback(
@@ -409,6 +475,11 @@ const ModelStatusView = ({
             ? response.data.data.trend
             : [],
         );
+        setGroups(
+          Array.isArray(response.data.data.groups)
+            ? response.data.data.groups
+            : [],
+        );
         setUpdatedAt(new Date());
       } catch (requestError) {
         if (requestId !== requestIdRef.current) return;
@@ -419,6 +490,7 @@ const ModelStatusView = ({
         );
         setMetrics([]);
         setTrend([]);
+        setGroups([]);
       } finally {
         if (requestId === requestIdRef.current) {
           setLoading(false);
@@ -708,6 +780,8 @@ const ModelStatusView = ({
             ) : null}
 
             <StatusTrendPanels trend={trend} t={t} />
+
+            <GroupPerformanceTable groups={groups} t={t} />
 
             {rows.length === 0 ? (
               renderEmptyState()

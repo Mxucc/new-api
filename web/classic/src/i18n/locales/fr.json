@@ -3861,6 +3861,8 @@
     "请求成功率；最近 24 小时 {{incidents}} 个异常桶": "Taux de réussite des requêtes ; {{incidents}} créneaux avec incident sur les dernières 24 heures",
     "请求成功率（最近 24 小时采样）": "Taux de réussite des requêtes échantillonné sur les dernières 24 heures",
     "{{count}} 个异常": "{{count}} incidents",
-    "异常桶": "Créneaux avec incident"
+    "异常桶": "Créneaux avec incident",
+    "各分组性能": "Performances par groupe",
+    "平均延迟、TTFT、TPS 和成功率": "Latence moyenne, TTFT, TPS et taux de réussite"
   }
 }

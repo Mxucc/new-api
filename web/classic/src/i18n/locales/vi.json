@@ -4391,6 +4391,8 @@
     "请求成功率；最近 24 小时 {{incidents}} 个异常桶": "Tỷ lệ yêu cầu thành công; {{incidents}} khoảng có sự cố trong 24 giờ qua",
     "请求成功率（最近 24 小时采样）": "Tỷ lệ yêu cầu thành công được lấy mẫu trong 24 giờ qua",
     "{{count}} 个异常": "{{count}} sự cố",
-    "异常桶": "Khoảng có sự cố"
+    "异常桶": "Khoảng có sự cố",
+    "各分组性能": "Hiệu suất theo nhóm",
+    "平均延迟、TTFT、TPS 和成功率": "Độ trễ trung bình, TTFT, TPS và tỷ lệ thành công"
   }
 }

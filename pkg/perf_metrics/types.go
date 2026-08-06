@@ -64,9 +64,19 @@ type SummaryTrendPoint struct {
 	RequestCount int64   `json:"request_count"`
 }
 
+type GroupSummary struct {
+	Group        string  `json:"group"`
+	AvgLatencyMs int64   `json:"avg_latency_ms"`
+	AvgTtftMs    int64   `json:"avg_ttft_ms"`
+	SuccessRate  float64 `json:"success_rate"`
+	AvgTps       float64 `json:"avg_tps"`
+	RequestCount int64   `json:"request_count"`
+}
+
 type SummaryAllResult struct {
 	Models []ModelSummary      `json:"models"`
 	Trend  []SummaryTrendPoint `json:"trend"`
+	Groups []GroupSummary      `json:"groups"`
 }
 
 type bucketKey struct {

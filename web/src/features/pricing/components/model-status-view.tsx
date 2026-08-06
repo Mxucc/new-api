@@ -35,6 +35,7 @@ import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
 } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge, type StatusVariant } from '@/components/status-badge'
 import {
   Alert,
@@ -67,6 +68,7 @@ import {
   getSuccessRateLevel,
 } from '@/features/performance-metrics/lib/format'
 import type {
+  PerfGroupSummary,
   PerfModelSummary,
   PerfSummaryTrendPoint,
 } from '@/features/performance-metrics/types'
@@ -119,6 +121,10 @@ export function ModelStatusView(props: ModelStatusViewProps) {
 
   const metrics = useMemo(
     () => metricsQuery.data?.data?.models ?? [],
+    [metricsQuery.data]
+  )
+  const groups = useMemo<PerfGroupSummary[]>(
+    () => metricsQuery.data?.data?.groups ?? [],
     [metricsQuery.data]
   )
   const searchedModels = useMemo(
@@ -232,6 +238,8 @@ export function ModelStatusView(props: ModelStatusViewProps) {
 
         <StatusTrendPanels trend={metricsQuery.data?.data?.trend ?? []} />
 
+        <StatusGroupPerformanceTable groups={groups} />
+
         {rows.length === 0 ? (
           <StatusEmptyState
             hasSearch={Boolean(props.searchQuery.trim())}
@@ -324,7 +332,7 @@ export function ModelStatusView(props: ModelStatusViewProps) {
 function SummaryMetric(props: {
   icon: React.ComponentType<{ className?: string }>
   label: string
-  value: number
+  value: React.ReactNode
 }) {
   const Icon = props.icon
   return (
@@ -395,6 +403,123 @@ function StatusTrendPanels(props: { trend: PerfSummaryTrendPoint[] }) {
         <UptimeTrendChart series={uptimeSeries} />
       </section>
     </div>
+  )
+}
+
+function StatusGroupPerformanceTable(props: { groups: PerfGroupSummary[] }) {
+  const { t } = useTranslation()
+  if (props.groups.length === 0) return null
+
+  const getRateClassName = (rate: number) => {
+    const level = getSuccessRateLevel(rate)
+    if (level === 'critical') return 'text-red-600 dark:text-red-400'
+    if (level === 'warning') return 'text-amber-600 dark:text-amber-400'
+    return 'text-emerald-600 dark:text-emerald-400'
+  }
+
+  return (
+    <section className='space-y-2'>
+      <div>
+        <h3 className='text-sm font-semibold'>{t('Per-group performance')}</h3>
+        <p className='text-muted-foreground text-xs'>
+          {t('Average latency, TTFT, TPS, and success rate')}
+        </p>
+      </div>
+      <StaticDataTable
+        className='hidden md:block'
+        tableClassName='text-sm'
+        headerRowClassName={tableStyles.compactHeaderRow}
+        data={props.groups}
+        getRowKey={(group) => group.group}
+        columns={[
+          {
+            id: 'group',
+            header: t('Group'),
+            className: tableStyles.compactHeaderCell,
+            cellClassName: tableStyles.compactCell,
+            cell: (group) => <GroupBadge group={group.group} size='sm' />,
+          },
+          {
+            id: 'latency',
+            header: t('Average latency'),
+            className: tableStyles.compactHeaderCellRight,
+            cellClassName: tableStyles.compactMutedNumericCell,
+            cell: (group) => formatLatency(group.avg_latency_ms),
+          },
+          {
+            id: 'ttft',
+            header: t('Average TTFT'),
+            className: tableStyles.compactHeaderCellRight,
+            cellClassName: tableStyles.compactMutedNumericCell,
+            cell: (group) => formatLatency(group.avg_ttft_ms),
+          },
+          {
+            id: 'tps',
+            header: t('Throughput'),
+            className: tableStyles.compactHeaderCellRight,
+            cellClassName: tableStyles.compactMutedNumericCell,
+            cell: (group) => formatThroughput(group.avg_tps),
+          },
+          {
+            id: 'success',
+            header: t('Success rate'),
+            className: tableStyles.compactHeaderCellRight,
+            cellClassName: tableStyles.compactCell,
+            cell: (group) => (
+              <span
+                className={cn(
+                  'font-mono text-sm tabular-nums',
+                  getRateClassName(group.success_rate)
+                )}
+              >
+                {formatUptimePct(group.success_rate)}
+              </span>
+            ),
+          },
+          {
+            id: 'requests',
+            header: t('Requests'),
+            className: tableStyles.compactHeaderCellRight,
+            cellClassName: tableStyles.compactMutedNumericCell,
+            cell: (group) => group.request_count.toLocaleString(),
+          },
+        ]}
+      />
+      <div className='grid gap-2 md:hidden'>
+        {props.groups.map((group) => (
+          <div key={group.group} className='border p-3'>
+            <div className='flex items-center justify-between gap-3'>
+              <GroupBadge group={group.group} size='sm' />
+              <span className='font-mono text-xs tabular-nums'>
+                {formatUptimePct(group.success_rate)}
+              </span>
+            </div>
+            <div className='mt-3 grid grid-cols-2 gap-3 text-xs'>
+              <SummaryMetric
+                label={t('Average latency')}
+                value={formatLatency(group.avg_latency_ms)}
+                icon={Timer}
+              />
+              <SummaryMetric
+                label={t('Average TTFT')}
+                value={formatLatency(group.avg_ttft_ms)}
+                icon={Timer}
+              />
+              <SummaryMetric
+                label={t('Throughput')}
+                value={formatThroughput(group.avg_tps)}
+                icon={Activity}
+              />
+              <SummaryMetric
+                label={t('Requests')}
+                value={group.request_count}
+                icon={Boxes}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 

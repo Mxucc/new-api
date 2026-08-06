@@ -4009,6 +4009,8 @@
     "请求成功率；最近 24 小时 {{incidents}} 个异常桶": "Request success rate; {{incidents}} incident buckets in the last 24 hours",
     "请求成功率（最近 24 小时采样）": "Request success rate sampled over the last 24 hours",
     "{{count}} 个异常": "{{count}} incidents",
-    "异常桶": "Incident buckets"
+    "异常桶": "Incident buckets",
+    "各分组性能": "Per-group performance",
+    "平均延迟、TTFT、TPS 和成功率": "Average latency, TTFT, TPS, and success rate"
   }
 }
