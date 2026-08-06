@@ -58,5 +58,13 @@ export type PerfSummaryAllData = {
   message?: string
   data: {
     models: PerfModelSummary[]
+    trend: PerfSummaryTrendPoint[]
   }
+}
+
+export type PerfSummaryTrendPoint = {
+  ts: number
+  avg_ttft_ms: number
+  success_rate: number
+  request_count: number
 }

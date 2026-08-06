@@ -4002,6 +4002,13 @@
     "当前设备": "Current device",
     "登录方式": "Login method",
     "最近活跃": "Last active",
-    "平均 TTFT": "Average TTFT"
+    "平均 TTFT": "Average TTFT",
+    "延迟趋势（最近 24 小时）": "Latency trend (last 24h)",
+    "平均首 Token 延迟": "Average first-token latency",
+    "可用率（最近 24 小时）": "Availability (last 24h)",
+    "请求成功率；最近 24 小时 {{incidents}} 个异常桶": "Request success rate; {{incidents}} incident buckets in the last 24 hours",
+    "请求成功率（最近 24 小时采样）": "Request success rate sampled over the last 24 hours",
+    "{{count}} 个异常": "{{count}} incidents",
+    "异常桶": "Incident buckets"
   }
 }

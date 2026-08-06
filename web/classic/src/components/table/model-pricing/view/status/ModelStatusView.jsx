@@ -37,14 +37,17 @@ import {
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
+import { VChart } from '@visactor/react-vchart';
 import {
   Activity,
   Boxes,
   ChevronRight,
   CircleHelp,
+  HeartPulse,
   Info,
   RefreshCw,
   Search,
+  Timer,
 } from 'lucide-react';
 import { API, getLobeHubIcon } from '../../../../../helpers';
 import { normalizeLanguage } from '../../../../../i18n/language';
@@ -207,6 +210,161 @@ const MetricValue = ({ label, value }) => (
   </div>
 );
 
+const formatTrendHour = (timestamp) => {
+  const date = new Date(Number(timestamp) * 1000);
+  return `${String(date.getHours()).padStart(2, '0')}:00`;
+};
+
+const getTrendRateColor = (rate) => {
+  if (!Number.isFinite(Number(rate))) return '#9ca3af';
+  if (Number(rate) >= 90) return '#10b981';
+  if (Number(rate) >= 70) return '#f59e0b';
+  return '#ef4444';
+};
+
+const StatusTrendHeader = ({ icon, title, description, accent }) => {
+  const Icon = icon;
+  return (
+    <div className='mb-2 flex flex-wrap items-center justify-between gap-2'>
+      <div className='flex min-w-0 items-center gap-2'>
+        <Icon size={15} className='text-semi-color-text-2' />
+        <div className='min-w-0'>
+          <div className='text-sm font-semibold text-semi-color-text-0'>
+            {title}
+          </div>
+          <p className='text-xs text-semi-color-text-2'>{description}</p>
+        </div>
+      </div>
+      {accent ? (
+        <div className='text-xs font-medium text-amber-600'>{accent}</div>
+      ) : null}
+    </div>
+  );
+};
+
+const StatusTrendPanels = ({ trend, t }) => {
+  const latencyValues = trend
+    .filter((point) => Number(point.avg_ttft_ms) > 0)
+    .map((point) => ({
+      time: formatTrendHour(point.ts),
+      ttft: Number(point.avg_ttft_ms),
+    }));
+  const uptimeValues = trend.map((point) => ({
+    time: formatTrendHour(point.ts),
+    uptime: Math.min(100, Math.max(0, Number(point.success_rate) || 0)),
+    incidents: Number(point.success_rate) < 100 ? 1 : 0,
+  }));
+  const incidentCount = uptimeValues.reduce(
+    (count, point) => count + point.incidents,
+    0,
+  );
+  const latencySpec = {
+    type: 'line',
+    data: [{ id: 'status-latency', values: latencyValues }],
+    xField: 'time',
+    yField: 'ttft',
+    smooth: true,
+    line: { style: { stroke: '#6366f1', lineWidth: 2 } },
+    point: { visible: true, style: { size: 5 } },
+    axes: [
+      { orient: 'bottom', tick: { visible: false } },
+      { orient: 'left', label: { formatMethod: (value) => `${value} ms` } },
+    ],
+    tooltip: {
+      mark: {
+        content: [
+          {
+            key: t('平均首 Token 延迟'),
+            value: (datum) => `${Math.round(datum.ttft)} ms`,
+          },
+        ],
+      },
+    },
+  };
+  const uptimeSpec = {
+    type: 'line',
+    data: [{ id: 'status-uptime', values: uptimeValues }],
+    xField: 'time',
+    yField: 'uptime',
+    smooth: true,
+    line: { style: { stroke: '#10b981', lineWidth: 2 } },
+    point: {
+      visible: true,
+      style: {
+        size: 5,
+        fill: (datum) => getTrendRateColor(datum.uptime),
+      },
+    },
+    axes: [
+      { orient: 'bottom', tick: { visible: false } },
+      {
+        orient: 'left',
+        min: 0,
+        max: 100,
+        label: { formatMethod: (value) => `${value}%` },
+      },
+    ],
+    tooltip: {
+      mark: {
+        content: [
+          {
+            key: t('请求成功率；最近 24 小时 {{incidents}} 个异常桶'),
+            value: (datum) => `${Number(datum.uptime).toFixed(2)}%`,
+          },
+          {
+            key: t('异常桶'),
+            value: (datum) => `${datum.incidents}`,
+          },
+        ],
+      },
+    },
+  };
+
+  if (trend.length === 0) return null;
+
+  return (
+    <div className='mt-4 grid gap-6 xl:grid-cols-2'>
+      <section className='min-w-0 border-t border-semi-color-border pt-4'>
+        <StatusTrendHeader
+          icon={Timer}
+          title={t('延迟趋势（最近 24 小时）')}
+          description={t('平均首 Token 延迟')}
+        />
+        {latencyValues.length > 0 ? (
+          <div className='h-56 sm:h-64'>
+            <VChart spec={latencySpec} />
+          </div>
+        ) : (
+          <div className='flex h-56 items-center justify-center text-xs text-semi-color-text-2'>
+            {t('暂无性能数据')}
+          </div>
+        )}
+      </section>
+      <section className='min-w-0 border-t border-semi-color-border pt-4'>
+        <StatusTrendHeader
+          icon={HeartPulse}
+          title={t('可用率（最近 24 小时）')}
+          description={
+            incidentCount > 0
+              ? t('请求成功率；最近 24 小时 {{incidents}} 个异常桶', {
+                  incidents: incidentCount,
+                })
+              : t('请求成功率（最近 24 小时采样）')
+          }
+          accent={
+            incidentCount > 0
+              ? t('{{count}} 个异常', { count: incidentCount })
+              : null
+          }
+        />
+        <div className='h-56 sm:h-64'>
+          <VChart spec={uptimeSpec} />
+        </div>
+      </section>
+    </div>
+  );
+};
+
 const ModelStatusView = ({
   models = [],
   searchValue = '',
@@ -222,6 +380,7 @@ const ModelStatusView = ({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [trend, setTrend] = useState([]);
   const requestIdRef = useRef(0);
 
   const loadMetrics = useCallback(
@@ -245,6 +404,11 @@ const ModelStatusView = ({
             ? response.data.data.models
             : [],
         );
+        setTrend(
+          Array.isArray(response.data.data.trend)
+            ? response.data.data.trend
+            : [],
+        );
         setUpdatedAt(new Date());
       } catch (requestError) {
         if (requestId !== requestIdRef.current) return;
@@ -254,6 +418,7 @@ const ModelStatusView = ({
             t('无法加载性能数据'),
         );
         setMetrics([]);
+        setTrend([]);
       } finally {
         if (requestId === requestIdRef.current) {
           setLoading(false);
@@ -541,6 +706,8 @@ const ModelStatusView = ({
                 {t('更新时间')}：{updatedAtLabel}
               </div>
             ) : null}
+
+            <StatusTrendPanels trend={trend} t={t} />
 
             {rows.length === 0 ? (
               renderEmptyState()

@@ -62,4 +62,11 @@ func TestQuerySummaryAllIncludesRequestCountAndTTFT(t *testing.T) {
 	assert.Equal(t, int64(350), summary.AvgLatencyMs)
 	assert.Equal(t, 75.0, summary.SuccessRate)
 	assert.Equal(t, 100.0, summary.AvgTps)
+	require.Len(t, result.Trend, 2)
+	assert.Equal(t, int64(100), result.Trend[0].AvgTtftMs)
+	assert.Equal(t, 100.0, result.Trend[0].SuccessRate)
+	assert.Equal(t, int64(1), result.Trend[0].RequestCount)
+	assert.Equal(t, int64(150), result.Trend[1].AvgTtftMs)
+	assert.Equal(t, 66.67, result.Trend[1].SuccessRate)
+	assert.Equal(t, int64(3), result.Trend[1].RequestCount)
 }

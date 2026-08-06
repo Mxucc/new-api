@@ -3854,6 +3854,13 @@
     "当前设备": "Appareil actuel",
     "登录方式": "Méthode de connexion",
     "最近活跃": "Dernière activité",
-    "平均 TTFT": "TTFT moyen"
+    "平均 TTFT": "TTFT moyen",
+    "延迟趋势（最近 24 小时）": "Tendance de latence (24 dernières heures)",
+    "平均首 Token 延迟": "Latence moyenne du premier token",
+    "可用率（最近 24 小时）": "Disponibilité (dernières 24 h)",
+    "请求成功率；最近 24 小时 {{incidents}} 个异常桶": "Taux de réussite des requêtes ; {{incidents}} créneaux avec incident sur les dernières 24 heures",
+    "请求成功率（最近 24 小时采样）": "Taux de réussite des requêtes échantillonné sur les dernières 24 heures",
+    "{{count}} 个异常": "{{count}} incidents",
+    "异常桶": "Créneaux avec incident"
   }
 }

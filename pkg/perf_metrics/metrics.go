@@ -140,6 +140,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 
 	totals := map[string]counters{}
 	modelBuckets := map[string]map[int64]counters{}
+	trendBuckets := map[int64]counters{}
 	for _, row := range rows {
 		value := counters{
 			requestCount:   row.RequestCount,
@@ -152,6 +153,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		}
 		mergeModelTotals(totals, row.ModelName, value)
 		mergeModelBucket(modelBuckets, row.ModelName, row.BucketTs, value)
+		mergeCountersAtBucket(trendBuckets, row.BucketTs, value)
 	}
 
 	hotBuckets.Range(func(key, value any) bool {
@@ -170,6 +172,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		}
 		mergeModelTotals(totals, k.model, snap)
 		mergeModelBucket(modelBuckets, k.model, k.bucketTs, snap)
+		mergeCountersAtBucket(trendBuckets, k.bucketTs, snap)
 		return true
 	})
 
@@ -202,7 +205,42 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		return models[i].RequestCount > models[j].RequestCount
 	})
 
-	return SummaryAllResult{Models: models}, nil
+	trend := make([]SummaryTrendPoint, 0, len(trendBuckets))
+	for ts, bucket := range trendBuckets {
+		if bucket.requestCount == 0 {
+			continue
+		}
+		avgTtft := int64(0)
+		if bucket.ttftCount > 0 {
+			avgTtft = bucket.ttftSumMs / bucket.ttftCount
+		}
+		successRate := float64(bucket.successCount) / float64(bucket.requestCount) * 100
+		trend = append(trend, SummaryTrendPoint{
+			Ts:           ts,
+			AvgTtftMs:    avgTtft,
+			SuccessRate:  math.Round(successRate*100) / 100,
+			RequestCount: bucket.requestCount,
+		})
+	}
+	sort.Slice(trend, func(i, j int) bool { return trend[i].Ts < trend[j].Ts })
+
+	return SummaryAllResult{Models: models, Trend: trend}, nil
+}
+
+func mergeCountersAtBucket(buckets map[int64]counters, ts int64, value counters) {
+	current := buckets[ts]
+	mergeSummaryCounters(&current, value)
+	buckets[ts] = current
+}
+
+func mergeSummaryCounters(target *counters, value counters) {
+	target.requestCount += value.requestCount
+	target.successCount += value.successCount
+	target.totalLatencyMs += value.totalLatencyMs
+	target.ttftSumMs += value.ttftSumMs
+	target.ttftCount += value.ttftCount
+	target.outputTokens += value.outputTokens
+	target.generationMs += value.generationMs
 }
 
 func mergeModelTotals(totals map[string]counters, modelName string, value counters) {

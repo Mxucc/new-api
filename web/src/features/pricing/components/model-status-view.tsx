@@ -23,8 +23,10 @@ import {
   Boxes,
   ChevronRight,
   CircleHelp,
+  HeartPulse,
   Info,
   RefreshCw,
+  Timer,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,13 +66,18 @@ import {
   getSuccessRateDotClass,
   getSuccessRateLevel,
 } from '@/features/performance-metrics/lib/format'
-import type { PerfModelSummary } from '@/features/performance-metrics/types'
+import type {
+  PerfModelSummary,
+  PerfSummaryTrendPoint,
+} from '@/features/performance-metrics/types'
 import { toIntlLocale } from '@/i18n/languages'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
 import { filterBySearch } from '../lib/filters'
+import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
+import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 
 type StatusScope = 'recent' | 'all'
 
@@ -223,6 +230,8 @@ export function ModelStatusView(props: ModelStatusViewProps) {
           </p>
         )}
 
+        <StatusTrendPanels trend={metricsQuery.data?.data?.trend ?? []} />
+
         {rows.length === 0 ? (
           <StatusEmptyState
             hasSearch={Boolean(props.searchQuery.trim())}
@@ -327,6 +336,87 @@ function SummaryMetric(props: {
         </div>
         <div className='text-lg font-semibold tabular-nums'>{props.value}</div>
       </div>
+    </div>
+  )
+}
+
+function StatusTrendPanels(props: { trend: PerfSummaryTrendPoint[] }) {
+  const { t } = useTranslation()
+  const latencySeries: LatencyTimePoint[] = props.trend
+    .filter((point) => point.avg_ttft_ms > 0)
+    .map((point) => ({
+      timestamp: new Date(point.ts * 1000).toISOString(),
+      group: t('All Models'),
+      ttft_ms: point.avg_ttft_ms,
+    }))
+  const uptimeSeries: UptimeDayPoint[] = props.trend.map((point) => ({
+    date: new Date(point.ts * 1000).toISOString(),
+    uptime_pct: point.success_rate,
+    incidents: point.success_rate < 100 ? 1 : 0,
+    outage_minutes: 0,
+  }))
+  const incidentCount = uptimeSeries.reduce(
+    (count, point) => count + point.incidents,
+    0
+  )
+
+  if (props.trend.length === 0) return null
+
+  return (
+    <div className='grid gap-6 xl:grid-cols-2'>
+      <section className='min-w-0 border-t pt-4'>
+        <StatusTrendHeader
+          icon={Timer}
+          title={t('Latency trend (last 24h)')}
+          description={t('Average TTFT')}
+        />
+        <LatencyTrendChart series={latencySeries} />
+      </section>
+      <section className='min-w-0 border-t pt-4'>
+        <StatusTrendHeader
+          icon={HeartPulse}
+          title={t('Availability (last 24h)')}
+          description={
+            incidentCount > 0
+              ? t(
+                  'Request success rate; {{incidents}} incident buckets in the last 24 hours',
+                  { incidents: incidentCount }
+                )
+              : t('Request success rate sampled over the last 24 hours')
+          }
+          accent={
+            incidentCount > 0 ? (
+              <span className='text-amber-600 dark:text-amber-400'>
+                {t('{{count}} incidents', { count: incidentCount })}
+              </span>
+            ) : null
+          }
+        />
+        <UptimeTrendChart series={uptimeSeries} />
+      </section>
+    </div>
+  )
+}
+
+function StatusTrendHeader(props: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  description: string
+  accent?: React.ReactNode
+}) {
+  const Icon = props.icon
+  return (
+    <div className='mb-2 flex flex-wrap items-center justify-between gap-2'>
+      <div className='flex min-w-0 items-center gap-2'>
+        <Icon className='text-muted-foreground/70 size-3.5 shrink-0' />
+        <div className='min-w-0'>
+          <div className='text-sm font-semibold'>{props.title}</div>
+          <p className='text-muted-foreground text-xs'>{props.description}</p>
+        </div>
+      </div>
+      {props.accent && (
+        <div className='text-xs font-medium'>{props.accent}</div>
+      )}
     </div>
   )
 }

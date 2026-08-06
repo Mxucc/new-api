@@ -57,8 +57,16 @@ type ModelSummary struct {
 	RequestCount       int64     `json:"request_count"`
 }
 
+type SummaryTrendPoint struct {
+	Ts           int64   `json:"ts"`
+	AvgTtftMs    int64   `json:"avg_ttft_ms"`
+	SuccessRate  float64 `json:"success_rate"`
+	RequestCount int64   `json:"request_count"`
+}
+
 type SummaryAllResult struct {
-	Models []ModelSummary `json:"models"`
+	Models []ModelSummary      `json:"models"`
+	Trend  []SummaryTrendPoint `json:"trend"`
 }
 
 type bucketKey struct {
