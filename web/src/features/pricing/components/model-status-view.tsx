@@ -52,6 +52,14 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
@@ -80,6 +88,7 @@ import { filterBySearch } from '../lib/filters'
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
+import { ModelDetailsPerformance } from './model-details-performance'
 
 type StatusScope = 'recent' | 'all'
 
@@ -111,6 +120,9 @@ export interface ModelStatusViewProps {
 export function ModelStatusView(props: ModelStatusViewProps) {
   const { t, i18n } = useTranslation()
   const [scope, setScope] = useState<StatusScope>('recent')
+  const [selectedModelName, setSelectedModelName] = useState<string | null>(
+    null
+  )
   const metricsQuery = useQuery({
     queryKey: ['perf-metrics-summary', 24],
     queryFn: () => getPerfMetricsSummary(24),
@@ -188,6 +200,10 @@ export function ModelStatusView(props: ModelStatusViewProps) {
   }
 
   const noDataCount = Math.max(props.models.length - activeModelNames.size, 0)
+  const selectedRow =
+    rows.find((row) => row.model.model_name === selectedModelName) ??
+    rows.at(0) ??
+    null
 
   let statusContent: React.ReactNode
   if (metricsQuery.isLoading) {
@@ -236,9 +252,25 @@ export function ModelStatusView(props: ModelStatusViewProps) {
           </p>
         )}
 
-        <StatusTrendPanels trend={metricsQuery.data?.data?.trend ?? []} />
+        {selectedRow && (
+          <StatusModelInspector
+            row={selectedRow}
+            rows={rows}
+            onModelChange={setSelectedModelName}
+            onModelClick={props.onModelClick}
+          />
+        )}
 
-        <StatusGroupPerformanceTable groups={groups} />
+        <section className='space-y-4 border-t pt-5'>
+          <div>
+            <h3 className='text-sm font-semibold'>{t('All Models')}</h3>
+            <p className='text-muted-foreground text-xs'>
+              {t('Performance metrics for the last 24 hours')}
+            </p>
+          </div>
+          <StatusTrendPanels trend={metricsQuery.data?.data?.trend ?? []} />
+          <StatusGroupPerformanceTable groups={groups} />
+        </section>
 
         {rows.length === 0 ? (
           <StatusEmptyState
@@ -248,7 +280,12 @@ export function ModelStatusView(props: ModelStatusViewProps) {
             onShowAll={() => setScope('all')}
           />
         ) : (
-          <StatusRows rows={rows} onModelClick={props.onModelClick} />
+          <StatusRows
+            rows={rows}
+            selectedModelName={selectedRow?.model.model_name ?? null}
+            onModelSelect={setSelectedModelName}
+            onModelClick={props.onModelClick}
+          />
         )}
       </>
     )
@@ -406,6 +443,73 @@ function StatusTrendPanels(props: { trend: PerfSummaryTrendPoint[] }) {
   )
 }
 
+function StatusModelInspector(props: {
+  row: ModelStatusRow
+  rows: ModelStatusRow[]
+  onModelChange: (modelName: string) => void
+  onModelClick: (modelName: string) => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <section className='space-y-4 border-t pt-5'>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='min-w-0'>
+          <div className='text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase'>
+            {t('Performance')}
+          </div>
+          <ModelIdentity model={props.row.model} />
+        </div>
+        <div className='flex min-w-0 items-center gap-2'>
+          <Select
+            value={props.row.model.model_name}
+            onValueChange={(value) => {
+              if (value) props.onModelChange(value)
+            }}
+            items={props.rows.map((row) => ({
+              value: row.model.model_name,
+              label: row.model.model_name,
+            }))}
+          >
+            <SelectTrigger className='min-w-0 flex-1 sm:w-72 sm:flex-none'>
+              <SelectValue placeholder={t('Model')} />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {props.rows.map((row) => (
+                  <SelectItem
+                    key={row.model.model_name}
+                    value={row.model.model_name}
+                  >
+                    {row.model.model_name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='icon'
+                  aria-label={`${t('Details')}: ${props.row.model.model_name}`}
+                  onClick={() => props.onModelClick(props.row.model.model_name)}
+                >
+                  <ChevronRight className='size-4' />
+                </Button>
+              }
+            />
+            <TooltipContent>{t('Details')}</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+      <ModelDetailsPerformance model={props.row.model} />
+    </section>
+  )
+}
+
 function StatusGroupPerformanceTable(props: { groups: PerfGroupSummary[] }) {
   const { t } = useTranslation()
   if (props.groups.length === 0) return null
@@ -548,6 +652,8 @@ function StatusTrendHeader(props: {
 
 function StatusRows(props: {
   rows: ModelStatusRow[]
+  selectedModelName: string | null
+  onModelSelect: (modelName: string) => void
   onModelClick: (modelName: string) => void
 }) {
   const { t } = useTranslation()
@@ -560,6 +666,9 @@ function StatusRows(props: {
         headerRowClassName={tableStyles.compactHeaderRow}
         data={props.rows}
         getRowKey={(row) => row.model.id || row.model.model_name}
+        getRowClassName={(row) =>
+          row.model.model_name === props.selectedModelName ? 'bg-muted/45' : ''
+        }
         columns={[
           {
             id: 'model',
@@ -606,6 +715,30 @@ function StatusRows(props: {
             cellClassName: tableStyles.compactMutedNumericCell,
             cell: (row) =>
               row.perf ? formatRequestCount(row.perf.request_count) : '—',
+          },
+          {
+            id: 'performance',
+            header: <span className='sr-only'>{t('Performance')}</span>,
+            className: tableStyles.actionHeaderCell,
+            cellClassName: tableStyles.actionCell,
+            cell: (row) => (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon'
+                      aria-label={`${t('Performance')}: ${row.model.model_name}`}
+                      onClick={() => props.onModelSelect(row.model.model_name)}
+                    >
+                      <Activity className='size-4' />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{t('Performance')}</TooltipContent>
+              </Tooltip>
+            ),
           },
           {
             id: 'actions',
@@ -668,14 +801,42 @@ function StatusRows(props: {
 
             <div className='mt-3 flex items-center justify-between gap-3 border-t pt-3'>
               <RecentSuccessBars perf={row.perf} />
-              <Button
-                type='button'
-                variant='ghost'
-                onClick={() => props.onModelClick(row.model.model_name)}
-              >
-                {t('Details')}
-                <ChevronRight data-icon='inline-end' className='size-4' />
-              </Button>
+              <div className='flex items-center gap-1'>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        aria-label={`${t('Performance')}: ${row.model.model_name}`}
+                        onClick={() =>
+                          props.onModelSelect(row.model.model_name)
+                        }
+                      >
+                        <Activity className='size-4' />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>{t('Performance')}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        aria-label={`${t('Details')}: ${row.model.model_name}`}
+                        onClick={() => props.onModelClick(row.model.model_name)}
+                      >
+                        <ChevronRight className='size-4' />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>{t('Details')}</TooltipContent>
+                </Tooltip>
+              </div>
             </div>
           </div>
         ))}
