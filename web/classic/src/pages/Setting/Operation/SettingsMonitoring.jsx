@@ -44,9 +44,21 @@ export default function SettingsMonitoring(props) {
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
+    'monitor_setting.channel_test_mode': 'scheduled_all',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
+  const channelTestModeDescription = {
+    scheduled_all: t(
+      '定期检查除手动禁用外的所有通道，用于主动发现故障并自动恢复。',
+    ),
+    auto_ban_only: t(
+      '仅定期检查已启用自动禁用的通道，并排除手动禁用的通道。',
+    ),
+    passive_recovery: t(
+      '不检查健康通道，只重新检查自动禁用的通道，并在恢复后重新启用。',
+    ),
+  }[inputs['monitor_setting.channel_test_mode']];
   const parsedAutoDisableStatusCodes = parseHttpStatusCodeRules(
     inputs.AutomaticDisableStatusCodes || '',
   );
@@ -147,12 +159,44 @@ export default function SettingsMonitoring(props) {
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  field={'monitor_setting.channel_test_mode'}
+                  label={t('通道定时测试模式')}
+                  optionList={[
+                    {
+                      value: 'scheduled_all',
+                      label: t('主动检查所有通道'),
+                    },
+                    {
+                      value: 'auto_ban_only',
+                      label: t('主动检查启用自动禁用的通道'),
+                    },
+                    {
+                      value: 'passive_recovery',
+                      label: t('仅检查等待恢复的通道'),
+                    },
+                  ]}
+                  extraText={channelTestModeDescription}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.channel_test_mode': value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
                   label={t('自动测试所有通道间隔时间')}
                   step={1}
                   min={1}
                   suffix={t('分钟')}
-                  extraText={t('每隔多少分钟测试一次所有通道')}
+                  extraText={
+                    inputs['monitor_setting.channel_test_mode'] ===
+                    'passive_recovery'
+                      ? t('每隔多少分钟检查一次自动禁用通道是否恢复')
+                      : t('每隔多少分钟测试一次所有通道')
+                  }
                   placeholder={''}
                   field={'monitor_setting.auto_test_channel_minutes'}
                   onChange={(value) =>

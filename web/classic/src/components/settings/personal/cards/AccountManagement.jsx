@@ -201,6 +201,33 @@ const AccountManagement = ({
     loadCustomOAuthBindings();
   }, []);
 
+  const handleGenerateAccessToken = () => {
+    if (!systemToken) {
+      generateAccessToken();
+      return;
+    }
+
+    Modal.confirm({
+      title: t('重新生成访问令牌？'),
+      content: (
+        <div className='space-y-2'>
+          <Typography.Paragraph>
+            {t(
+              '这将立即使现有访问令牌失效，使用该令牌的应用程序或脚本将停止工作。',
+            )}
+          </Typography.Paragraph>
+          <Typography.Paragraph>
+            {t('新令牌只会显示一次，请立即复制并安全保存。')}
+          </Typography.Paragraph>
+        </div>
+      ),
+      okText: t('重新生成'),
+      cancelText: t('取消'),
+      okType: 'danger',
+      onOk: generateAccessToken,
+    });
+  };
+
   const passkeyEnabled = passkeyStatus?.enabled;
   const lastUsedLabel = passkeyStatus?.last_used_at
     ? new Date(passkeyStatus.last_used_at).toLocaleString()
@@ -672,7 +699,7 @@ const AccountManagement = ({
                     <Button
                       type='primary'
                       theme='solid'
-                      onClick={generateAccessToken}
+                      onClick={handleGenerateAccessToken}
                       className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
                       icon={<IconKey />}
                     >

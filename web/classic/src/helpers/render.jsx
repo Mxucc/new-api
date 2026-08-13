@@ -160,6 +160,80 @@ export function getLucideIcon(key, selected = false) {
 }
 
 // 获取模型分类
+const MODEL_CATEGORY_RULES = [
+  { key: 'perplexity', label: 'Perplexity', icon: <Perplexity.Color />, keywords: ['perplexity', 'sonar-'] },
+  { key: 'nvidia', label: 'NVIDIA', icon: null, keywords: ['nvidia/', 'nvidia.', 'nemotron'] },
+  {
+    key: 'openai',
+    label: 'OpenAI',
+    icon: <OpenAI />,
+    keywords: [
+      'openai/', 'openai.', 'gpt-', 'chatgpt-', 'codex-', 'dall-e-',
+      'whisper-', 'omni-moderation-', 'text-moderation-',
+      'text-embedding-ada-', 'text-embedding-3-', 'text-ada-',
+      'text-babbage-', 'text-curie-', 'davinci-', 'babbage-',
+      'computer-use-preview', 'sora',
+    ],
+    pattern: /(?:^|[/.:])(?:o(?:1|3|4)(?=$|[-.:])|tts-)/,
+  },
+  { key: 'anthropic', label: 'Anthropic', icon: <Claude.Color />, keywords: ['anthropic', 'claude'] },
+  {
+    key: 'gemini',
+    label: 'Gemini',
+    icon: <Gemini.Color />,
+    keywords: ['gemini', 'gemma', 'learnlm', 'imagen', 'veo', 'nano-banana', 'palm-'],
+    pattern: /(?:^|[/.:])aqa$/,
+  },
+  { key: 'xai', label: 'xAI', icon: <XAI />, keywords: ['x-ai/', 'xai/', 'xai-', 'grok'] },
+  { key: 'deepseek', label: 'DeepSeek', icon: <DeepSeek.Color />, keywords: ['deepseek'] },
+  {
+    key: 'qwen',
+    label: 'Qwen',
+    icon: <Qwen.Color />,
+    keywords: ['qwen', 'qwq-', 'qvq-', 'tongyi', 'gte-'],
+    pattern: /(?:^|[/.:])(?:text-embedding-v\d+|gui-plus|z-image)(?:$|[-_.:])/,
+  },
+  { key: 'wan', label: 'Wan', icon: null, pattern: /(?:^|[/.:])wan(?:x?\d|[-_])/ },
+  { key: 'moonshot', label: 'Moonshot', icon: <Moonshot />, keywords: ['moonshot', 'kimi-'] },
+  { key: 'minimax', label: 'MiniMax', icon: <Minimax.Color />, keywords: ['minimax', 'abab', 'hailuo'], pattern: /^(?:t2v|i2v|s2v)-01(?:-|$)/ },
+  { key: 'doubao', label: 'Doubao', icon: <Doubao.Color />, keywords: ['doubao', 'volcengine', 'seedance', 'seedream', 'seed-1-'] },
+  { key: 'zhipu', label: 'Zhipu', icon: <Zhipu.Color />, keywords: ['zhipu', 'zai-org', 'thudm', 'chatglm', 'cogview', 'cogvideo'], pattern: /(?:^|[/._-])glm(?=$|[-._])/ },
+  { key: 'baidu', label: 'Baidu', icon: <Wenxin.Color />, keywords: ['baidu', 'wenxin', 'ernie'] },
+  { key: 'yi', label: 'Yi', icon: <Yi.Color />, keywords: ['01-ai/'], pattern: /(?:^|[/.:])yi(?=$|[-_])/ },
+  { key: 'iflytek', label: 'iFlytek', icon: <Spark.Color />, keywords: ['iflytek', 'sparkdesk'] },
+  { key: 'tencent', label: 'Tencent', icon: <Hunyuan.Color />, keywords: ['tencent', 'hunyuan'], pattern: /(?:^|[/.:])hy\d*(?=$|[-_.:])/ },
+  { key: 'baichuan', label: 'Baichuan', icon: null, keywords: ['baichuan'] },
+  { key: 'internlm', label: 'InternLM', icon: null, keywords: ['internlm'] },
+  { key: 'stepfun', label: 'StepFun', icon: null, keywords: ['stepfun', 'step-'] },
+  { key: 'mimo', label: 'MiMo', icon: null, keywords: ['xiaomi', 'mimo-'] },
+  { key: 'mistral', label: 'Mistral', icon: <Mistral.Color />, keywords: ['mistral', 'mixtral', 'codestral', 'ministral', 'pixtral', 'magistral'] },
+  { key: 'meta', label: 'Meta', icon: <Ollama />, keywords: ['meta-llama', 'llama-', 'llama2', 'llama3'] },
+  { key: 'cohere', label: 'Cohere', icon: <Cohere.Color />, keywords: ['cohere', 'command-', 'c4ai-aya', 'aya-'], pattern: /(?:^|[/.:])command$/ },
+  { key: 'jina', label: 'Jina', icon: <Jina />, keywords: ['jinaai', 'jina-'] },
+  { key: 'baai', label: 'BAAI', icon: null, keywords: ['baai/', 'bge-'] },
+  { key: 'black-forest-labs', label: 'Black Forest Labs', icon: null, keywords: ['black-forest-labs', 'flux.'] },
+  { key: 'microsoft', label: 'Microsoft', icon: null, keywords: ['microsoft/'], pattern: /(?:^|[/.:])phi(?=$|[-._])/ },
+  { key: 'amazon', label: 'Amazon', icon: null, keywords: ['amazon/', 'amazon.', 'nova-', 'titan-'] },
+  { key: 'ai21', label: 'AI21 Labs', icon: null, keywords: ['ai21', 'jamba'] },
+  { key: 'stability-ai', label: 'Stability AI', icon: null, keywords: ['stabilityai', 'stable-diffusion', 'stable-image', 'sdxl-'] },
+  { key: 'nous-research', label: 'Nous Research', icon: null, keywords: ['nousresearch', 'hermes-'] },
+  { key: 'ai360', label: '360 AI', icon: <Ai360.Color />, keywords: ['360gpt', '360zhinao'] },
+  { key: 'midjourney', label: 'Midjourney', icon: <MjProxyIcon />, keywords: ['midjourney', 'mj_', 'mj-', 'swap_face'] },
+  { key: 'kling', label: 'Kling', icon: <Kling.Color />, keywords: ['kling'] },
+  { key: 'vidu', label: 'Vidu', icon: null, keywords: ['vidu'] },
+  { key: 'suno', label: 'Suno', icon: <Suno />, keywords: ['suno'] },
+  { key: 'jimeng', label: 'Jimeng', icon: <Jimeng.Color />, keywords: ['jimeng'] },
+];
+
+function matchesModelCategory(modelName, rule) {
+  const normalizedName = String(modelName || '').trim().toLowerCase();
+  return (
+    rule.keywords?.some((keyword) => normalizedName.includes(keyword)) ||
+    rule.pattern?.test(normalizedName) ||
+    false
+  );
+}
+
 export const getModelCategories = (() => {
   let categoriesCache = null;
   let lastLocale = null;
@@ -176,149 +250,18 @@ export const getModelCategories = (() => {
         icon: null,
         filter: () => true,
       },
-      openai: {
-        label: 'OpenAI',
-        icon: <OpenAI />,
-        filter: (model) =>
-            model.model_name.toLowerCase().includes('gpt') ||
-            model.model_name.toLowerCase().includes('dall-e') ||
-            model.model_name.toLowerCase().includes('whisper') ||
-            model.model_name.toLowerCase().includes('tts-1') ||
-            model.model_name.toLowerCase().includes('text-embedding-3') ||
-            model.model_name.toLowerCase().includes('text-moderation') ||
-            model.model_name.toLowerCase().includes('babbage') ||
-            model.model_name.toLowerCase().includes('davinci') ||
-            model.model_name.toLowerCase().includes('curie') ||
-            model.model_name.toLowerCase().includes('ada') ||
-            model.model_name.toLowerCase().includes('o1') ||
-            model.model_name.toLowerCase().includes('o3') ||
-            model.model_name.toLowerCase().includes('o4'),
-      },
-      anthropic: {
-        label: 'Anthropic',
-        icon: <Claude.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('claude'),
-      },
-      gemini: {
-        label: 'Gemini',
-        icon: <Gemini.Color />,
-        filter: (model) =>
-            model.model_name.toLowerCase().includes('gemini') ||
-            model.model_name.toLowerCase().includes('gemma') ||
-            model.model_name.toLowerCase().includes('learnlm') ||
-            model.model_name.toLowerCase().startsWith('embedding-') ||
-            model.model_name.toLowerCase().includes('text-embedding-004') ||
-            model.model_name.toLowerCase().includes('imagen-4') ||
-            model.model_name.toLowerCase().includes('veo-') ||
-            model.model_name.toLowerCase().includes('aqa'),
-      },
-      moonshot: {
-        label: 'Moonshot',
-        icon: <Moonshot />,
-        filter: (model) =>
-            model.model_name.toLowerCase().includes('moonshot') ||
-            model.model_name.toLowerCase().includes('kimi'),
-      },
-      zhipu: {
-        label: t('智谱'),
-        icon: <Zhipu.Color />,
-        filter: (model) =>
-            model.model_name.toLowerCase().includes('chatglm') ||
-            model.model_name.toLowerCase().includes('glm-') ||
-            model.model_name.toLowerCase().includes('cogview') ||
-            model.model_name.toLowerCase().includes('cogvideo'),
-      },
-      qwen: {
-        label: t('通义千问'),
-        icon: <Qwen.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('qwen'),
-      },
-      deepseek: {
-        label: 'DeepSeek',
-        icon: <DeepSeek.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('deepseek'),
-      },
-      minimax: {
-        label: 'MiniMax',
-        icon: <Minimax.Color />,
-        filter: (model) =>
-            model.model_name.toLowerCase().includes('abab') ||
-            model.model_name.toLowerCase().includes('minimax'),
-      },
-      baidu: {
-        label: t('文心一言'),
-        icon: <Wenxin.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('ernie'),
-      },
-      xunfei: {
-        label: t('讯飞星火'),
-        icon: <Spark.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('spark'),
-      },
-      midjourney: {
-        label: 'MjProxy',
-        icon: <MjProxyIcon />,
-        filter: (model) => model.model_name.toLowerCase().includes('mj_'),
-      },
-      tencent: {
-        label: t('腾讯混元'),
-        icon: <Hunyuan.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('hunyuan'),
-      },
-      cohere: {
-        label: 'Cohere',
-        icon: <Cohere.Color />,
-        filter: (model) =>
-            model.model_name.toLowerCase().includes('command') ||
-            model.model_name.toLowerCase().includes('c4ai-') ||
-            model.model_name.toLowerCase().includes('embed-'),
-      },
-      cloudflare: {
-        label: 'Cloudflare',
-        icon: <Cloudflare.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('@cf/'),
-      },
-      ai360: {
-        label: t('360智脑'),
-        icon: <Ai360.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('360'),
-      },
-      jina: {
-        label: 'Jina',
-        icon: <Jina />,
-        filter: (model) => model.model_name.toLowerCase().includes('jina'),
-      },
-      mistral: {
-        label: 'Mistral AI',
-        icon: <Mistral.Color />,
-        filter: (model) =>
-            model.model_name.toLowerCase().includes('mistral') ||
-            model.model_name.toLowerCase().includes('codestral') ||
-            model.model_name.toLowerCase().includes('pixtral') ||
-            model.model_name.toLowerCase().includes('voxtral') ||
-            model.model_name.toLowerCase().includes('magistral'),
-      },
-      xai: {
-        label: 'xAI',
-        icon: <XAI />,
-        filter: (model) => model.model_name.toLowerCase().includes('grok'),
-      },
-      llama: {
-        label: 'Llama',
-        icon: <Ollama />,
-        filter: (model) => model.model_name.toLowerCase().includes('llama'),
-      },
-      doubao: {
-        label: t('豆包'),
-        icon: <Doubao.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('doubao'),
-      },
-      yi: {
-        label: t('零一万物'),
-        icon: <Yi.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('yi'),
-      },
     };
+
+    for (const rule of MODEL_CATEGORY_RULES) {
+      categoriesCache[rule.key] = {
+        label: rule.label,
+        icon: rule.icon,
+        filter: (model) => {
+          const modelName = model?.model_name || model?.id || model;
+          return matchesModelCategory(modelName, rule);
+        },
+      };
+    }
 
     lastLocale = currentLocale;
     return categoriesCache;
@@ -2300,6 +2243,7 @@ export function renderTieredModelPrice(opts) {
     cache_creation_tokens: cacheCreationTokens = 0,
     cache_creation_tokens_5m: cacheCreationTokens5m = 0,
     cache_creation_tokens_1h: cacheCreationTokens1h = 0,
+    request_rules: requestRules = [],
   } = opts;
   let exprStr = '';
   try { exprStr = decodeFromBase64(exprB64); } catch { /* ignore */ }
@@ -2328,8 +2272,17 @@ export function renderTieredModelPrice(opts) {
       .filter((v) => v.group !== 'cache' || hasAnyCacheTokens)
       .map((v) => [v.field, v.label]);
 
+  const matchedRequestRules = Array.isArray(requestRules)
+      ? requestRules.filter((rule) => rule?.matched)
+      : [];
   const lines = [
     buildBillingText('命中档位：{{tier}}', { tier: matchedTier || tier.label }),
+    ...matchedRequestRules.map((rule) =>
+        buildBillingText('命中请求条件：{{condition}} × {{multiplier}}', {
+          condition: rule.cond,
+          multiplier: rule.multiplier,
+        }),
+    ),
     ...priceLines
         .filter(([field]) => tier[field] > 0)
         .map(([field, label]) =>
@@ -2352,6 +2305,7 @@ export function renderTieredModelPriceSimple(opts) {
     cache_creation_tokens: cacheCreationTokens = 0,
     displayMode = 'price',
     outputMode = 'segments',
+    request_rules: requestRules = [],
   } = opts;
   let exprStr = '';
   try { exprStr = decodeFromBase64(exprB64); } catch { /* ignore */ }
@@ -2370,6 +2324,19 @@ export function renderTieredModelPriceSimple(opts) {
         text: getGroupRatioText(groupRatio, user_group_ratio),
       },
     ];
+
+    const matchedRequestRules = Array.isArray(requestRules)
+        ? requestRules.filter((rule) => rule?.matched)
+        : [];
+    for (const rule of matchedRequestRules) {
+      segments.push({
+        tone: 'primary',
+        text: i18next.t('命中请求条件：{{condition}} × {{multiplier}}', {
+          condition: rule.cond,
+          multiplier: rule.multiplier,
+        }),
+      });
+    }
 
     if (!tier) {
       segments.push({

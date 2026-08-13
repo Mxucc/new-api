@@ -971,12 +971,6 @@ function evalExprLocally(exprStr, p, c, extraTokenValues) {
       matchedTier = name;
       return value;
     };
-    const headerFn = () => '';
-    const paramFn = () => null;
-    const hasFn = (source, substr) => {
-      if (source == null || substr == null) return false;
-      return String(source).includes(String(substr));
-    };
     const cacheReadTokens = extraTokenValues.cacheReadTokens || 0;
     const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0;
     const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0;
@@ -985,11 +979,7 @@ function evalExprLocally(exprStr, p, c, extraTokenValues) {
       p,
       c,
       len,
-      nil: null,
       tier: tierFn,
-      header: headerFn,
-      param: paramFn,
-      has: hasFn,
       max: Math.max,
       min: Math.min,
       abs: Math.abs,
