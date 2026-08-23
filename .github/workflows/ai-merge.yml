@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: ai-upstream-sync-main
@@ -174,3 +175,38 @@ jobs:
       - name: Push synchronized branch
         if: steps.merge.outputs.result != 'no_changes'
         run: git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Create xdev release tag
+        id: release
+        if: steps.merge.outputs.result != 'no_changes'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force upstream
+          upstream_version="$(git describe --tags --abbrev=0 --match 'v*' "upstream/${UPSTREAM_BRANCH}")"
+          release_tag="${upstream_version}-xdev"
+
+          git check-ref-format "refs/tags/${release_tag}"
+          echo "Upstream version: ${upstream_version}"
+          echo "Release tag: ${release_tag}"
+          echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${release_tag}" >/dev/null 2>&1; then
+            echo "Release tag already exists; skipping duplicate release."
+            echo 'created=false' >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          git tag -a "${release_tag}" -m "Release ${release_tag}" HEAD
+          git push origin "${release_tag}"
+          echo 'created=true' >> "${GITHUB_OUTPUT}"
+
+      - name: Trigger release workflow
+        if: steps.release.outputs.created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run release.yml \
+            --ref "${{ steps.release.outputs.release_tag }}" \
+            -f "release_tag=${{ steps.release.outputs.release_tag }}"
