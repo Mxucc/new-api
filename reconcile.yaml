@@ -1,0 +1,18 @@
+# Conservative defaults for automated upstream conflict resolution.
+model: "gpt-4o-mini"
+max_batch_size: 3
+temperature: 0
+timeout: 120
+preserve_whitespace: true
+
+file_types:
+  go:
+    custom_prompt: "Preserve existing fork behavior, use gofmt-compatible Go, and keep SQLite, MySQL, and PostgreSQL compatibility. Integrate both sides instead of discarding either side."
+  javascript:
+    custom_prompt: "Preserve both the default frontend and the maintained web/classic frontend. Integrate upstream behavior without removing fork-only features, routes, or API compatibility."
+  typescript:
+    custom_prompt: "Preserve both the default frontend and the maintained web/classic frontend. Integrate upstream behavior without removing fork-only features, routes, or API compatibility."
+  json:
+    custom_prompt: "Produce valid JSON and preserve the union of translation keys and configuration entries from both sides."
+  yaml:
+    custom_prompt: "Produce valid YAML and retain security, validation, and unattended-operation safeguards from both sides."
