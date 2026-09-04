@@ -59,6 +59,16 @@ jobs:
           bun install --frozen-lockfile
           VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
+      - name: Package Web frontend
+        run: |
+          test -f web/dist/index.html
+          tar -czf "new-api-web-${VERSION}.tar.gz" -C web dist
+          sha256sum "new-api-web-${VERSION}.tar.gz" > checksums-web-frontend.txt
+      - name: Package Classic frontend
+        run: |
+          test -f web/classic/dist/index.html
+          tar -czf "new-api-classic-${VERSION}.tar.gz" -C web/classic dist
+          sha256sum "new-api-classic-${VERSION}.tar.gz" > checksums-classic-frontend.txt
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -73,7 +83,7 @@ jobs:
           DEBIAN_FRONTEND=noninteractive sudo apt-get install -y gcc-aarch64-linux-gnu
           CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-arm64-$VERSION
       - name: Generate checksums
-        run: sha256sum new-api-* > checksums-linux.txt
+        run: sha256sum "new-api-${VERSION}" "new-api-arm64-${VERSION}" > checksums-linux.txt
 
       - name: Release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
@@ -81,8 +91,13 @@ jobs:
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           files: |
-            new-api-*
+            new-api-v*
+            new-api-arm64-v*
             checksums-linux.txt
+            new-api-web-*.tar.gz
+            checksums-web-frontend.txt
+            new-api-classic-*.tar.gz
+            checksums-classic-frontend.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
