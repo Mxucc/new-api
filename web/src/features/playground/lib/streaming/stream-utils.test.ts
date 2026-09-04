@@ -16,20 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { isStreamHeartbeatMessage } from './stream-utils'
 
 describe('stream heartbeat messages', () => {
   test('ignores empty frames and SSE comment heartbeats', () => {
-    assert.equal(isStreamHeartbeatMessage(''), true)
-    assert.equal(isStreamHeartbeatMessage('   '), true)
-    assert.equal(isStreamHeartbeatMessage(': PING'), true)
+    expect(isStreamHeartbeatMessage('')).toBe(true)
+    expect(isStreamHeartbeatMessage('   ')).toBe(true)
+    expect(isStreamHeartbeatMessage(': PING')).toBe(true)
   })
 
   test('keeps completion chunks and done markers for normal processing', () => {
-    assert.equal(isStreamHeartbeatMessage('[DONE]'), false)
-    assert.equal(isStreamHeartbeatMessage('{"choices":[]}'), false)
+    expect(isStreamHeartbeatMessage('[DONE]')).toBe(false)
+    expect(isStreamHeartbeatMessage('{"choices":[]}')).toBe(false)
   })
 })

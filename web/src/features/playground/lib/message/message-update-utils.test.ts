@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import type { Message, MessageRole } from '../../types'
 import { updateTargetAssistantMessage } from './message-update-utils'
@@ -51,8 +50,8 @@ describe('target assistant message updates', () => {
       (message) => replaceContent(message, 'target response')
     )
 
-    assert.equal(updated[0].versions[0].content, 'target response')
-    assert.equal(updated[2].versions[0].content, 'assistant-later')
+    expect(updated[0].versions[0].content).toBe('target response')
+    expect(updated[2].versions[0].content).toBe('assistant-later')
   })
 
   test('preserves messages when a supplied target no longer exists', () => {
@@ -64,7 +63,7 @@ describe('target assistant message updates', () => {
       (message) => replaceContent(message, 'unexpected response')
     )
 
-    assert.strictEqual(updated, messages)
+    expect(updated).toBe(messages)
   })
 
   test('falls back to the last assistant for legacy callers without a key', () => {
@@ -76,6 +75,6 @@ describe('target assistant message updates', () => {
       (message) => replaceContent(message, 'legacy response')
     )
 
-    assert.equal(updated[0].versions[0].content, 'legacy response')
+    expect(updated[0].versions[0].content).toBe('legacy response')
   })
 })

@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { getPublicEmbeddedFrameSandbox } from './public-embedded-frame-policy'
 
@@ -33,7 +32,7 @@ describe('public embedded frame sandbox', () => {
     ]
 
     for (const url of trustedUrls) {
-      assert.equal(getPublicEmbeddedFrameSandbox(url), TRUSTED_SANDBOX, url)
+      expect(getPublicEmbeddedFrameSandbox(url), url).toBe(TRUSTED_SANDBOX)
     }
   })
 
@@ -49,7 +48,7 @@ describe('public embedded frame sandbox', () => {
     ]
 
     for (const url of untrustedUrls) {
-      assert.equal(getPublicEmbeddedFrameSandbox(url), STRICT_SANDBOX, url)
+      expect(getPublicEmbeddedFrameSandbox(url), url).toBe(STRICT_SANDBOX)
     }
   })
 })
