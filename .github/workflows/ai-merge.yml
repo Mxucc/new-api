@@ -24,6 +24,9 @@ jobs:
     if: github.repository == 'Mxucc/new-api'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    outputs:
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      release_created: ${{ steps.release.outputs.created }}
 
     steps:
       - name: Checkout target branch
@@ -176,10 +179,12 @@ jobs:
         if: steps.merge.outputs.result != 'no_changes'
         run: git push origin "HEAD:${TARGET_BRANCH}"
 
-      - name: Create xdev release tag
+      - name: Ensure xdev release tag
         id: release
-        if: steps.merge.outputs.result != 'no_changes'
+        if: steps.merge.outputs.result != ''
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -193,20 +198,25 @@ jobs:
           echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
 
           if git ls-remote --exit-code --tags origin "refs/tags/${release_tag}" >/dev/null 2>&1; then
-            echo "Release tag already exists; skipping duplicate release."
-            echo 'created=false' >> "${GITHUB_OUTPUT}"
-            exit 0
+            echo "Release tag already exists; keeping the existing immutable tag."
+          else
+            git tag -a "${release_tag}" -m "Release ${release_tag}" HEAD
+            git push origin "${release_tag}"
           fi
 
-          git tag -a "${release_tag}" -m "Release ${release_tag}" HEAD
-          git push origin "${release_tag}"
-          echo 'created=true' >> "${GITHUB_OUTPUT}"
+          if gh release view "${release_tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${release_tag} already exists; skipping publication."
+            echo 'created=false' >> "${GITHUB_OUTPUT}"
+          else
+            echo "Release ${release_tag} is missing; scheduling publication."
+            echo 'created=true' >> "${GITHUB_OUTPUT}"
+          fi
 
-      - name: Trigger release workflow
-        if: steps.release.outputs.created == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh workflow run release.yml \
-            --ref "${{ steps.release.outputs.release_tag }}" \
-            -f "release_tag=${{ steps.release.outputs.release_tag }}"
+  publish-xdev:
+    name: Publish xdev release
+    needs: sync-upstream
+    if: needs.sync-upstream.outputs.release_created == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      release_tag: ${{ needs.sync-upstream.outputs.release_tag }}
+    secrets: inherit
