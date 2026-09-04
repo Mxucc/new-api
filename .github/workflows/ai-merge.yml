@@ -120,15 +120,15 @@ jobs:
             exit 1
           fi
 
+          while IFS= read -r -d '' file; do
+            git add -A -- "${file}"
+          done < "${conflict_manifest}"
+
           if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
             echo 'reconcile-ai left unresolved Git conflicts:' >&2
             git diff --name-only --diff-filter=U >&2
             exit 1
           fi
-
-          while IFS= read -r -d '' file; do
-            git add -A -- "${file}"
-          done < "${conflict_manifest}"
 
           git diff --cached --check
           git commit -m 'chore: sync upstream with AI conflict resolution [skip ci]'
