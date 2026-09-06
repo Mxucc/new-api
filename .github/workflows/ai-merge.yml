@@ -111,30 +111,59 @@ jobs:
           set -euo pipefail
           conflict_manifest="${RUNNER_TEMP}/upstream-conflicts.zlist"
 
+          if [[ ! -s "${conflict_manifest}" ]]; then
+            echo "The conflict manifest is missing or empty: ${conflict_manifest}" >&2
+            exit 1
+          fi
+
+          echo 'Original conflicted paths:'
+          while IFS= read -r -d '' file; do
+            printf '  %s\n' "${file}"
+          done < "${conflict_manifest}"
+
+          unmerged="$(git diff --name-only --diff-filter=U)"
+          if [[ -n "${unmerged}" ]]; then
+            echo 'reconcile-ai left unresolved Git conflicts:' >&2
+            printf '%s\n' "${unmerged}" >&2
+            exit 1
+          fi
+
           marker_found=0
           while IFS= read -r -d '' file; do
-            if [[ -f "${file}" ]] && grep -nE '^(<<<<<<< .+|=======|>>>>>>> .+)$' "${file}"; then
+            if [[ -f "${file}" ]] && grep -nE '^(<<<<<<< |=======|>>>>>>> )' "${file}"; then
               echo "Conflict markers remain in ${file}" >&2
               marker_found=1
             fi
           done < "${conflict_manifest}"
 
+          if git grep -nE '^(<<<<<<< |=======|>>>>>>> )' -- .; then
+            echo 'Conflict markers remain in the resolved tree.' >&2
+            marker_found=1
+          fi
+
           if [[ "${marker_found}" -ne 0 ]]; then
             exit 1
           fi
 
-          while IFS= read -r -d '' file; do
-            git add -A -- "${file}"
-          done < "${conflict_manifest}"
+          # reconcile-ai normally stages its resolutions, but newer releases may
+          # finish the merge and create a commit themselves. Stage the complete
+          # checkout so deletions, renames, and newly created files are included.
+          git add -A
 
-          if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
-            echo 'reconcile-ai left unresolved Git conflicts:' >&2
-            git diff --name-only --diff-filter=U >&2
-            exit 1
+          if ! git diff --cached --check; then
+            echo 'Warning: the AI-resolved patch contains whitespace errors; continuing.' >&2
           fi
 
-          git diff --cached --check
-          git commit -m 'chore: sync upstream with AI conflict resolution [skip ci]'
+          if git diff --cached --quiet; then
+            if [[ -f .git/MERGE_HEAD ]]; then
+              echo 'The merge is still in progress, but no staged resolution was produced.' >&2
+              exit 1
+            fi
+
+            echo 'reconcile-ai already committed the resolved merge; nothing left to commit.'
+          else
+            git commit -m 'chore: sync upstream with AI conflict resolution [skip ci]'
+          fi
 
       - name: Set up Bun
         if: steps.merge.outputs.result != 'no_changes'
