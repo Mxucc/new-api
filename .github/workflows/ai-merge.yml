@@ -1,6 +1,9 @@
 name: AI-Assisted Upstream Sync
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
@@ -121,11 +124,13 @@ jobs:
             printf '  %s\n' "${file}"
           done < "${conflict_manifest}"
 
-          # reconcile-ai may write resolved contents without staging them. Git
-          # exits non-zero when any unmerged index entries remain, so capture
-          # that result instead of letting set -e hide the actual paths.
+          # Reconcile only the paths that were actually conflicted. Using a
+          # repository-wide `git add -A` can fail on an unrelated generated
+          # file and hides which merge path still needs attention.
           add_status=0
-          git add -A || add_status=$?
+          while IFS= read -r -d '' file; do
+            git add -A -- "${file}" || add_status=$?
+          done < "${conflict_manifest}"
 
           unmerged="$(git diff --name-only --diff-filter=U)"
           if [[ "${add_status}" -ne 0 || -n "${unmerged}" ]]; then
