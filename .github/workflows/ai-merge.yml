@@ -121,15 +121,20 @@ jobs:
             printf '  %s\n' "${file}"
           done < "${conflict_manifest}"
 
-          # reconcile-ai may write resolved contents without staging them. Add
-          # the complete checkout before checking the index so Git can record
-          # those resolutions and clear the unmerged entries.
-          git add -A
+          # reconcile-ai may write resolved contents without staging them. Git
+          # exits non-zero when any unmerged index entries remain, so capture
+          # that result instead of letting set -e hide the actual paths.
+          add_status=0
+          git add -A || add_status=$?
 
           unmerged="$(git diff --name-only --diff-filter=U)"
-          if [[ -n "${unmerged}" ]]; then
+          if [[ "${add_status}" -ne 0 || -n "${unmerged}" ]]; then
             echo 'reconcile-ai left unresolved Git conflicts:' >&2
-            printf '%s\n' "${unmerged}" >&2
+            if [[ -n "${unmerged}" ]]; then
+              printf '%s\n' "${unmerged}" >&2
+            else
+              git status --short >&2
+            fi
             exit 1
           fi
 
