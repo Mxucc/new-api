@@ -121,17 +121,17 @@ jobs:
             printf '  %s\n' "${file}"
           done < "${conflict_manifest}"
 
+          # reconcile-ai may write resolved contents without staging them. Add
+          # the complete checkout before checking the index so Git can record
+          # those resolutions and clear the unmerged entries.
+          git add -A
+
           unmerged="$(git diff --name-only --diff-filter=U)"
           if [[ -n "${unmerged}" ]]; then
             echo 'reconcile-ai left unresolved Git conflicts:' >&2
             printf '%s\n' "${unmerged}" >&2
             exit 1
           fi
-
-          # reconcile-ai normally stages its resolutions, but newer releases may
-          # finish the merge and create a commit themselves. Stage the complete
-          # checkout so deletions, renames, and newly created files are included.
-          git add -A
 
           if ! git diff --cached --check; then
             echo 'Warning: the AI-resolved patch contains whitespace errors; continuing.' >&2
