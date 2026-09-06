@@ -1,9 +1,10 @@
 name: AI-Assisted Upstream Sync
 
 on:
+  # Run for every commit pushed to this repository. The sync job always
+  # checks out TARGET_BRANCH (main), so commits on other branches still
+  # exercise the same unattended sync/validation path.
   push:
-    branches:
-      - main
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
