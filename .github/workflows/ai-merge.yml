@@ -234,9 +234,7 @@ jobs:
         if: steps.merge.outputs.result != 'no_changes'
         env:
           GOWORK: 'off'
-        run: |
-          go test ./...
-          (cd relaykit && go test ./...)
+        run: make test
 
       - name: Push synchronized branch
         if: steps.merge.outputs.result != 'no_changes'
