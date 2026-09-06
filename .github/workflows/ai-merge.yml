@@ -130,16 +130,20 @@ jobs:
 
           marker_found=0
           while IFS= read -r -d '' file; do
-            if [[ -f "${file}" ]] && grep -nE '^(<<<<<<< |=======|>>>>>>> )' "${file}"; then
+            if [[ -f "${file}" ]] && awk '
+              /^<<<<<<< / { state = 1; start = NR; next }
+              state == 1 && /^=======$/ { state = 2; next }
+              state == 2 && /^>>>>>>> / {
+                printf "%s:%d: unresolved conflict marker sequence\n", FILENAME, start
+                found = 1
+                state = 0
+              }
+              END { exit(found ? 0 : 1) }
+            ' "${file}"; then
               echo "Conflict markers remain in ${file}" >&2
               marker_found=1
             fi
           done < "${conflict_manifest}"
-
-          if git grep -nE '^(<<<<<<< |=======|>>>>>>> )' -- .; then
-            echo 'Conflict markers remain in the resolved tree.' >&2
-            marker_found=1
-          fi
 
           if [[ "${marker_found}" -ne 0 ]]; then
             exit 1
