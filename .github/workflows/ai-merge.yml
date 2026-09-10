@@ -100,11 +100,16 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m venv "${RUNNER_TEMP}/reconcile-ai"
+          # PyYAML is required for the resolver to read reconcile.yaml; without
+          # it the resolver silently ignores the project's resolution prompts
+          # and writes unconstrained output.
           "${RUNNER_TEMP}/reconcile-ai/bin/python" -m pip install \
             --disable-pip-version-check \
             --no-cache-dir \
-            "reconcile-ai==${RECONCILE_AI_VERSION}"
+            "reconcile-ai==${RECONCILE_AI_VERSION}" \
+            PyYAML
           "${RUNNER_TEMP}/reconcile-ai/bin/reconcile" --help >/dev/null
+          "${RUNNER_TEMP}/reconcile-ai/bin/python" -c 'import yaml'
 
       - name: Resolve conflicts with AI
         if: steps.merge.outputs.result == 'conflicted'
@@ -151,13 +156,21 @@ jobs:
           # either the AI resolution or the side Git already picked for a
           # delete/modify conflict. Anything still carrying markers was not
           # resolved: the upstream side is authoritative for it, as documented
-          # in the merge step.
+          # in the merge step. The marker shapes mirror git's own detection in
+          # `git diff --check`: 7+ `<`/`>` followed by space or end of line, or a
+          # line containing exactly 7 `=`.
+          marker_pattern='^(<{7,}|>{7,})( |$)|^={7}( |$)'
           while IFS= read -r -d '' file; do
             if [[ ! -e "${file}" && ! -L "${file}" ]]; then
               echo "NOTE: ${file} is deleted locally and modified upstream; keeping the local deletion." >&2
-            elif ! grep -qE -- '^(<{7,}|>{7,})( |$)' "${file}"; then
+            elif ! grep -qE -- "${marker_pattern}" "${file}"; then
               echo "Keeping the working tree content for: ${file}"
             elif git checkout --theirs -- "${file}"; then
+              if grep -qE -- "${marker_pattern}" "${file}"; then
+                echo "Cannot resolve ${file}: the upstream side still contains conflict markers." >&2
+                exit 1
+              fi
+
               echo "Using the upstream version for unresolved path: ${file}" >&2
             else
               echo "Cannot resolve ${file}: it still contains conflict markers and the upstream side is unavailable." >&2
@@ -188,7 +201,17 @@ jobs:
             exit 1
           fi
 
-          if ! git diff --cached --check; then
+          # `git diff --cached --check` detects the same conflict-marker shapes
+          # git itself writes. Leftover markers must fail the run: committing
+          # them would break the branch and hide the unresolved merge.
+          check_output="$(git diff --cached --check || true)"
+          if [[ -n "${check_output}" ]]; then
+            printf '%s\n' "${check_output}" >&2
+            if grep -qF 'leftover conflict marker' <<<"${check_output}"; then
+              echo 'Conflict markers remain in the staged resolved content.' >&2
+              exit 1
+            fi
+
             echo 'Warning: the AI-resolved patch contains whitespace errors; continuing.' >&2
           fi
 
