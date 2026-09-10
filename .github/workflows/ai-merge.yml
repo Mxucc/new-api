@@ -141,63 +141,61 @@ jobs:
             printf '  %s\n' "${file}"
           done < "${conflict_manifest}"
 
-          # Reconcile only the paths that were actually conflicted. Using a
-          # repository-wide `git add -A` can fail on an unrelated generated
-          # file and hides which merge path still needs attention.
-          add_status=0
+          # reconcile-ai stages its resolutions with GitPython, which inserts a
+          # stage-0 entry while leaving the merge stages (1/2/3) in place. Git
+          # then still reports the path as unmerged and treats `git add` on it
+          # as a silent no-op, so the index entry must be dropped explicitly
+          # before the working tree content can be staged again.
+          #
+          # Working tree content without conflict markers is kept as is: that is
+          # either the AI resolution or the side Git already picked for a
+          # delete/modify conflict. Anything still carrying markers was not
+          # resolved: the upstream side is authoritative for it, as documented
+          # in the merge step.
           while IFS= read -r -d '' file; do
-            if ! git add -A -- "${file}"; then
-              echo "git add failed for conflicted path: ${file}" >&2
-              add_status=1
+            if [[ ! -e "${file}" && ! -L "${file}" ]]; then
+              echo "NOTE: ${file} is deleted locally and modified upstream; keeping the local deletion." >&2
+            elif ! grep -qE -- '^(<{7,}|>{7,})( |$)' "${file}"; then
+              echo "Keeping the working tree content for: ${file}"
+            elif git checkout --theirs -- "${file}"; then
+              echo "Using the upstream version for unresolved path: ${file}" >&2
+            else
+              echo "Cannot resolve ${file}: it still contains conflict markers and the upstream side is unavailable." >&2
+              exit 1
+            fi
+
+            git update-index --force-remove -- "${file}"
+            if [[ -e "${file}" ]]; then
+              git add -f -- "${file}"
             fi
           done < "${conflict_manifest}"
 
-          unmerged="$(git diff --name-only --diff-filter=U)"
-          if [[ "${add_status}" -ne 0 || -n "${unmerged}" ]]; then
-            echo 'reconcile-ai did not fully clear the Git index; applying the upstream side to the remaining paths.' >&2
+          unmerged="$(git ls-files -u)"
+          if [[ -n "${unmerged}" ]]; then
+            echo 'Unresolved Git index entries remain after staging:' >&2
+            printf '%s\n' "${unmerged}" >&2
             git status --short >&2 || true
-            git diff --name-only --diff-filter=U >&2 || true
-            git ls-files -u >&2 || true
+            exit 1
+          fi
 
-            fallback_status=0
-            while IFS= read -r -d '' file; do
-              if [[ -n "$(git ls-files -u -- "${file}")" ]]; then
-                echo "Using upstream version for unresolved path: ${file}" >&2
-                if ! git checkout --theirs -- "${file}"; then
-                  echo "git checkout --theirs failed for: ${file}" >&2
-                  fallback_status=1
-                  continue
-                fi
-                if ! git add -A -- "${file}"; then
-                  echo "git add failed after fallback for: ${file}" >&2
-                  fallback_status=1
-                fi
-              fi
-            done < "${conflict_manifest}"
-
-            unmerged="$(git diff --name-only --diff-filter=U)"
-            if [[ "${fallback_status}" -ne 0 || -n "${unmerged}" ]]; then
-              echo 'Unresolved Git conflicts remain after AI and upstream fallback:' >&2
-              printf '%s\n' "${unmerged}" >&2
-              git status --short >&2 || true
-              git ls-files -u >&2 || true
-              exit 1
-            fi
+          # Anything the merge or the resolver left modified in the working tree
+          # must be staged, otherwise the push would publish an incomplete merge
+          # while the run reports success.
+          drifted="$(git diff --name-only)"
+          if [[ -n "${drifted}" ]]; then
+            echo 'Tracked changes are not staged and would be missing from the merge commit:' >&2
+            printf '%s\n' "${drifted}" >&2
+            exit 1
           fi
 
           if ! git diff --cached --check; then
             echo 'Warning: the AI-resolved patch contains whitespace errors; continuing.' >&2
           fi
 
-          if git diff --cached --quiet; then
-            if [[ -f .git/MERGE_HEAD ]]; then
-              echo 'The merge is still in progress, but no staged resolution was produced.' >&2
-              exit 1
-            fi
-
-            echo 'reconcile-ai already committed the resolved merge; nothing left to commit.'
-          else
+          if [[ -f .git/MERGE_HEAD ]] || ! git diff --cached --quiet; then
             git commit -m 'chore: sync upstream with AI conflict resolution [skip ci]'
+          else
+            echo 'The merge is already committed; nothing left to commit.'
           fi
 
       - name: Preserve classic frontend compatibility
