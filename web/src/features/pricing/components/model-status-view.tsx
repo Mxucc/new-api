@@ -889,8 +889,9 @@ function ModelStatusBadge(props: { perf?: PerfModelSummary }) {
 function RecentSuccessBars(props: { perf?: PerfModelSummary }) {
   const { t } = useTranslation()
   const recentRates =
-    props.perf?.recent_success_rates?.filter((rate) => Number.isFinite(rate)) ??
-    []
+    props.perf?.recent_success_series
+      ?.map((point) => point.success_rate)
+      .filter((rate) => Number.isFinite(rate)) ?? []
   let statusRates: number[] = []
   if (props.perf) {
     statusRates =

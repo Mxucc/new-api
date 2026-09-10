@@ -19,10 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
+  ClipboardList,
   CreditCard,
   FileText,
   FlaskConical,
-  Gift,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -31,6 +31,7 @@ import {
   Radio,
   ServerCog,
   Settings,
+  ShieldCheck,
   Ticket,
   User,
   Users,
@@ -39,7 +40,6 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
-import { useInvitationFeatureStatus } from '@/features/invitations/hooks/use-invitation-feature-status'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -50,7 +50,6 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
-  const invitationFeature = useInvitationFeatureStatus()
 
   return {
     navGroups: [
@@ -95,6 +94,11 @@ export function useSidebarData(): SidebarData {
             icon: FileText,
           },
           {
+            title: t('Audit Logs'),
+            url: '/usage-logs/audit',
+            icon: ClipboardList,
+          },
+          {
             title: t('Task Logs'),
             url: '/usage-logs/task',
             activeUrls: ['/usage-logs/drawing'],
@@ -112,19 +116,15 @@ export function useSidebarData(): SidebarData {
             url: '/wallet',
             icon: Wallet,
           },
-          ...(invitationFeature.userVisible
-            ? [
-                {
-                  title: t('Invitations'),
-                  url: '/invitations',
-                  icon: Gift,
-                },
-              ]
-            : []),
           {
             title: t('Profile'),
             url: '/profile',
             icon: User,
+          },
+          {
+            title: t('Security & Access'),
+            url: '/security',
+            icon: ShieldCheck,
           },
         ],
       },
@@ -157,15 +157,6 @@ export function useSidebarData(): SidebarData {
             url: '/subscriptions',
             icon: CreditCard,
           },
-          ...(invitationFeature.available
-            ? [
-                {
-                  title: t('Rebate Management'),
-                  url: '/invitations/admin',
-                  icon: Gift,
-                },
-              ]
-            : []),
           {
             title: t('System Info'),
             url: '/system-info',
