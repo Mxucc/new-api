@@ -58,6 +58,10 @@ jobs:
           set -euo pipefail
           upstream_ref="upstream/${UPSTREAM_BRANCH}"
 
+          # Kept so the deterministic retry can redo the merge from the exact
+          # commit this run started from.
+          echo "pre_merge_sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
           if git merge-base --is-ancestor "${upstream_ref}" HEAD; then
             echo 'result=no_changes' >> "${GITHUB_OUTPUT}"
             exit 0
@@ -129,7 +133,24 @@ jobs:
             --verbose \
             --model "${RECONCILE_MODEL}"
 
-      - name: Verify AI conflict resolution
+      # The staging step below parses every resolved file before accepting it,
+      # so the toolchains have to be available first.
+      - name: Set up Bun
+        if: steps.merge.outputs.result != 'no_changes'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.3.14'
+
+      - name: Set up Go
+        if: steps.merge.outputs.result != 'no_changes'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            relaykit/go.sum
+
+      - name: Stage conflict resolutions
         if: steps.merge.outputs.result == 'conflicted'
         shell: bash
         run: |
@@ -152,29 +173,84 @@ jobs:
           # as a silent no-op, so the index entry must be dropped explicitly
           # before the working tree content can be staged again.
           #
-          # Working tree content without conflict markers is kept as is: that is
-          # either the AI resolution or the side Git already picked for a
-          # delete/modify conflict. Anything still carrying markers was not
-          # resolved: the upstream side is authoritative for it, as documented
-          # in the merge step. The marker shapes mirror git's own detection in
-          # `git diff --check`: 7+ `<`/`>` followed by space or end of line, or a
-          # line containing exactly 7 `=`.
+          # A resolution that does not even parse is never accepted: the AI
+          # occasionally emits syntactically broken files. Such a path falls
+          # back to a deterministic resolution instead of reaching `main`.
+          #
+          # The marker shapes mirror git's own detection in `git diff --check`:
+          # 7+ `<`/`>` followed by space or end of line, or a line containing
+          # exactly 7 `=`.
           marker_pattern='^(<{7,}|>{7,})( |$)|^={7}( |$)'
+
+          parses() {
+            case "$1" in
+              *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)
+                bun build --no-bundle --target=browser \
+                  --outfile="${RUNNER_TEMP}/syntax-check.js" "$1" >/dev/null 2>&1
+                ;;
+              *.go)
+                gofmt -e -l "$1" >/dev/null 2>&1
+                ;;
+              *.json)
+                # Rejects duplicate keys as well as malformed JSON.
+                python3 .github/scripts/validate-json.py "$1" >/dev/null 2>&1
+                ;;
+              *)
+                return 0
+                ;;
+            esac
+          }
+
+          # The resolver's stage-0 entry also turns `git checkout --merge` and
+          # `git checkout --theirs` into silent no-ops, so fallback candidates
+          # are rebuilt from the index stages directly.
+          candidates="${RUNNER_TEMP}/conflict-candidates"
+          mkdir -p "${candidates}"
+
+          stage_blob() { # $1 = stage, $2 = path, $3 = destination
+            git show ":$1:$2" > "$3" 2>/dev/null
+          }
+
           while IFS= read -r -d '' file; do
             if [[ ! -e "${file}" && ! -L "${file}" ]]; then
               echo "NOTE: ${file} is deleted locally and modified upstream; keeping the local deletion." >&2
-            elif ! grep -qE -- "${marker_pattern}" "${file}"; then
-              echo "Keeping the working tree content for: ${file}"
-            elif git checkout --theirs -- "${file}"; then
-              if grep -qE -- "${marker_pattern}" "${file}"; then
-                echo "Cannot resolve ${file}: the upstream side still contains conflict markers." >&2
+            else
+              ours="${candidates}/ours"
+              base="${candidates}/base"
+              theirs="${candidates}/theirs"
+              accepted=''
+
+              if ! git cat-file -e ":3:${file}" 2>/dev/null; then
+                echo "NOTE: ${file} is modified locally and deleted upstream; keeping the local content." >&2
+              elif ! grep -qE -- "${marker_pattern}" "${file}" && parses "${file}"; then
+                accepted='resolver output'
+              elif stage_blob 2 "${file}" "${ours}" && stage_blob 3 "${file}" "${theirs}"; then
+                # Keep both sides of every conflicting hunk. That is the right
+                # answer for additive conflicts (new list entries, new fields,
+                # new functions) and `parses` rejects it whenever the two sides
+                # really overlapped, in which case the upstream version wins.
+                if ! stage_blob 1 "${file}" "${base}"; then
+                  : > "${base}"
+                fi
+
+                git merge-file -p --union "${ours}" "${base}" "${theirs}" > "${file}" || true
+                if parses "${file}"; then
+                  accepted='combination of both sides'
+                else
+                  cp "${theirs}" "${file}"
+                  accepted='upstream version'
+                fi
+              elif stage_blob 3 "${file}" "${theirs}"; then
+                cp "${theirs}" "${file}"
+                accepted='upstream version'
+              fi
+
+              if [[ -z "${accepted}" ]]; then
+                echo "Cannot resolve ${file}: no usable candidate and the upstream side is unavailable." >&2
                 exit 1
               fi
 
-              echo "Using the upstream version for unresolved path: ${file}" >&2
-            else
-              echo "Cannot resolve ${file}: it still contains conflict markers and the upstream side is unavailable." >&2
-              exit 1
+              echo "Using the ${accepted} for: ${file}"
             fi
 
             git update-index --force-remove -- "${file}"
@@ -201,6 +277,16 @@ jobs:
             exit 1
           fi
 
+
+          # Files the merge or the resolver left untracked would be validated but
+          # never committed, so publication would not match what was checked. The
+          # resolver's own log directory is not part of the tree.
+          untracked="$(git ls-files --others --exclude-standard | grep -v '^\.reconcile/' || true)"
+          if [[ -n "${untracked}" ]]; then
+            echo 'Untracked files would be missing from the merge commit:' >&2
+            printf '%s\n' "${untracked}" >&2
+            exit 1
+          fi
           # `git diff --cached --check` detects the same conflict-marker shapes
           # git itself writes. Leftover markers must fail the run: committing
           # them would break the branch and hide the unresolved merge.
@@ -212,13 +298,7 @@ jobs:
               exit 1
             fi
 
-            echo 'Warning: the AI-resolved patch contains whitespace errors; continuing.' >&2
-          fi
-
-          if [[ -f .git/MERGE_HEAD ]] || ! git diff --cached --quiet; then
-            git commit -m 'chore: sync upstream with AI conflict resolution [skip ci]'
-          else
-            echo 'The merge is already committed; nothing left to commit.'
+            echo 'Warning: the staged patch contains whitespace errors; continuing.' >&2
           fi
 
       - name: Preserve classic frontend compatibility
@@ -226,77 +306,133 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          path = Path('controller/option.go')
-          source = path.read_text()
-          block = re.compile(r'(?ms)^\tcase "theme\.frontend":\n.*?(?=^\tcase "GroupRatio":)')
-          match = block.search(source)
-          if match is None:
-              raise SystemExit('controller/option.go no longer contains the frontend theme validation block')
-
-          current = match.group(0)
-          if 'option.Value != "default" && option.Value != "classic"' not in current:
-              replacement = (
-                  '\tcase "theme.frontend":\n'
-                  '\t\tif option.Value != "default" && option.Value != "classic" {\n'
-                  '\t\t\tc.JSON(http.StatusOK, gin.H{\n'
-                  '\t\t\t\t"success": false,\n'
-                  '\t\t\t\t"message": "无效的主题值，可选值：default（新版前端）、classic（经典前端）",\n'
-                  '\t\t\t})\n'
-                  '\t\t\treturn\n'
-                  '\t\t}\n'
-              )
-              path.write_text(source[:match.start()] + replacement + source[match.end():])
-          PY
-
+          python3 .github/scripts/apply-classic-frontend-compat.py
           git add controller/option.go
-          if ! git diff --cached --quiet -- controller/option.go; then
-            git commit -m 'fix: preserve classic frontend compatibility [skip ci]'
-          fi
 
-      - name: Set up Bun
+      # The merge is only committed and pushed once it has been validated, so a
+      # broken resolution can never reach main. When the AI-assisted resolution
+      # does not validate, the merge is redone deterministically (upstream wins
+      # does not validate, the merge is redone deterministically (upstream wins
+      # for every still-conflicted path) and validated again.
+      - name: Validate merged tree
+        id: validate
         if: steps.merge.outputs.result != 'no_changes'
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: '1.3.14'
-
-      - name: Validate default frontend
-        if: steps.merge.outputs.result != 'no_changes'
-        working-directory: web
-        run: |
-          bun install --frozen-lockfile
-          bun run typecheck
-          bun run test
-          bun run build
-
-      - name: Validate classic frontend
-        if: steps.merge.outputs.result != 'no_changes'
-        working-directory: web/classic
-        run: |
-          bun install --frozen-lockfile
-          bun run build
-
-      - name: Set up Go
-        if: steps.merge.outputs.result != 'no_changes'
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: |
-            go.sum
-            relaykit/go.sum
-
-      - name: Validate backend
-        if: steps.merge.outputs.result != 'no_changes'
+        shell: bash
         env:
           GOWORK: 'off'
-        run: make test
+          MERGE_RESULT: ${{ steps.merge.outputs.result }}
+          PRE_MERGE_SHA: ${{ steps.merge.outputs.pre_merge_sha }}
+        run: |
+          set -uo pipefail
 
-      - name: Push synchronized branch
+          # The frontend unit suite is not part of the gate: upstream's own
+          # revision currently fails some of those tests, so they cannot tell a
+          # bad merge apart from an upstream regression. They still run
+          # afterwards, without blocking the sync.
+          validate() {
+            ( cd web && bun install --frozen-lockfile && bun run typecheck && bun run build ) &&
+              ( cd web/classic && bun install --frozen-lockfile && bun run build ) &&
+              go build ./... &&
+              make test
+          }
+
+          if validate; then
+            echo 'Validation passed.'
+            exit 0
+          fi
+
+          if [[ "${MERGE_RESULT}" != 'conflicted' ]]; then
+            echo 'Validation failed after a clean merge; there is no conflict resolution to retry.' >&2
+            exit 1
+          fi
+
+          if [[ -z "${PRE_MERGE_SHA}" ]]; then
+            echo 'The merge step did not report the pre-merge commit; cannot retry deterministically.' >&2
+            exit 1
+          fi
+
+          echo '::warning::The AI-assisted conflict resolution failed validation; retrying with the deterministic upstream-first merge.'
+          git reset --hard "${PRE_MERGE_SHA}"
+          git merge --no-commit "upstream/${UPSTREAM_BRANCH}" || true
+
+          # A merge that never started would leave the pre-merge tree behind,
+          # validate it, and report success without syncing anything.
+          if [[ ! -f .git/MERGE_HEAD ]]; then
+            echo 'The deterministic merge did not start; refusing to continue.' >&2
+            exit 1
+          fi
+
+          # Every path that still conflicts takes the upstream version wholesale.
+          # Merging only the conflicting hunks can splice two sides together and
+          # leave syntactically broken code behind, so the whole file wins.
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+            if git cat-file -e ":3:${path}" 2>/dev/null; then
+              mkdir -p -- "$(dirname -- "${path}")"
+              git show ":3:${path}" > "${path}"
+              echo "Deterministic retry uses the upstream version of: ${path}"
+            else
+              echo "Deterministic retry follows upstream and deletes: ${path}"
+              rm -f -- "${path}"
+            fi
+
+            git update-index --force-remove -- "${path}"
+            if [[ -e "${path}" ]]; then
+              git add -f -- "${path}"
+            fi
+          done <<<"$(git diff --name-only --diff-filter=U)"
+
+          if [[ -n "$(git ls-files -u)" ]]; then
+            echo 'The deterministic merge still leaves unmerged paths:' >&2
+            git ls-files -u >&2
+            exit 1
+          fi
+
+          if git diff --cached --quiet; then
+            echo 'The deterministic merge produced no changes; refusing to publish.' >&2
+            exit 1
+          fi
+
+          python3 .github/scripts/apply-classic-frontend-compat.py || exit 1
+          git add -A
+          echo 'RESOLUTION_MODE=deterministic-upstream-first' >> "${GITHUB_ENV}"
+
+          validate
+
+      - name: Frontend unit tests
         if: steps.merge.outputs.result != 'no_changes'
-        run: git push origin "HEAD:${TARGET_BRANCH}"
+        continue-on-error: true
+        working-directory: web
+        run: bun run test
+
+      - name: Publish synchronized merge
+        if: steps.merge.outputs.result != 'no_changes'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -n "$(git ls-files -u)" ]]; then
+            echo 'Unmerged index entries remain; refusing to publish.' >&2
+            exit 1
+          fi
+
+          # Idempotent: guarantees the fork's classic frontend support is in the
+          # published tree even if an earlier step was skipped.
+          python3 .github/scripts/apply-classic-frontend-compat.py
+          git add controller/option.go
+
+          message='chore: sync upstream with AI conflict resolution [skip ci]'
+          if [[ "${RESOLUTION_MODE:-}" == 'deterministic-upstream-first' ]]; then
+            message='chore: sync upstream with deterministic conflict resolution [skip ci]'
+          fi
+
+          if [[ -f .git/MERGE_HEAD ]] || ! git diff --cached --quiet; then
+            git commit -m "${message}"
+          else
+            echo 'Nothing left to commit; the merged tree is already in place.'
+          fi
+
+          git push origin "HEAD:${TARGET_BRANCH}"
 
       - name: Ensure xdev release tag
         id: release
