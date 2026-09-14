@@ -399,11 +399,98 @@ jobs:
 
           validate
 
+      # Upstream's own revision fails a few of these tests, and the full suite
+      # fails a few more flakily under runner load, so a bare failure cannot tell
+      # a bad resolution apart from an upstream regression. The merged tree is
+      # only rejected for failures that survive an isolated re-run and that the
+      # upstream parent does not have at all.
       - name: Frontend unit tests
         if: steps.merge.outputs.result != 'no_changes'
-        continue-on-error: true
-        working-directory: web
-        run: bun run test
+        shell: bash
+        run: |
+          set -uo pipefail
+          reports="${RUNNER_TEMP}/test-reports"
+          baseline="${RUNNER_TEMP}/upstream-baseline"
+          mkdir -p "${reports}"
+
+          run_suite() { # $1 = repository root, $2 = report path
+            ( cd "$1/web" && bun run test -- \
+                --testTimeout=20000 --retry=1 --reporter=json --outputFile="$2" ) >/dev/null 2>&1 || true
+          }
+
+          failing_files() { # $1 = repository root, $2 = report path
+            python3 - "$1" "$2" <<'PY'
+          import json
+          import os
+          import sys
+
+          root = os.path.abspath(sys.argv[1])
+          with open(sys.argv[2], encoding='utf-8') as handle:
+              report = json.load(handle)
+          failing = sorted(
+              os.path.relpath(result['name'], root)
+              for result in report.get('testResults', [])
+              if result.get('status') == 'failed'
+          )
+          print('\n'.join(failing))
+          PY
+          }
+
+          # The full suite fails flakily under runner load, so a candidate file
+          # only counts as a failure when it fails again on its own.
+          confirmed_failures() { # $1 = repository root, $2 = suite report, $3 = scratch report
+            local candidate filter
+            for candidate in $(failing_files "$1" "$2"); do
+              filter="${candidate#web/}"
+              ( cd "$1/web" && bun run test -- \
+                  --testTimeout=20000 --retry=3 --reporter=json --outputFile="$3" "$filter" ) >/dev/null 2>&1 || true
+              if [[ -s "$3" ]] && failing_files "$1" "$3" | grep -qxF -- "${candidate}"; then
+                echo "${candidate}"
+              else
+                echo "  ignored (not reproducible in isolation): ${candidate}" >&2
+              fi
+            done
+          }
+
+          run_suite "${PWD}" "${reports}/merged.json"
+          if [[ ! -s "${reports}/merged.json" ]]; then
+            echo 'The merged tree did not produce a test report.' >&2
+            exit 1
+          fi
+
+          # A worktree left over from an earlier attempt would block the add.
+          git worktree remove --force "${baseline}" >/dev/null 2>&1 || true
+          rm -rf "${baseline}"
+
+          if git worktree add --detach --force "${baseline}" "upstream/${UPSTREAM_BRANCH}" >/dev/null 2>&1 &&
+            ( cd "${baseline}/web" && bun install --frozen-lockfile ) >/dev/null 2>&1; then
+            run_suite "${baseline}" "${reports}/baseline.json"
+          fi
+
+          merged_failed="$(confirmed_failures "${PWD}" "${reports}/merged.json" "${reports}/confirm.json")"
+          if [[ ! -s "${reports}/baseline.json" ]]; then
+            echo '::warning::The upstream baseline did not run; reporting the merged failures without comparing them.'
+            printf '%s\n' "${merged_failed:-<none>}" | sed 's/^/  /'
+            exit 0
+          fi
+
+          baseline_failed="$(confirmed_failures "${baseline}" "${reports}/baseline.json" "${reports}/confirm.json")"
+
+          echo 'Test failures in the upstream baseline:'
+          printf '%s\n' "${baseline_failed:-<none>}" | sed 's/^/  /'
+          echo 'Test failures in the merged tree:'
+          printf '%s\n' "${merged_failed:-<none>}" | sed 's/^/  /'
+
+          introduced="$(comm -23 \
+            <(printf '%s\n' "${merged_failed}" | sort) \
+            <(printf '%s\n' "${baseline_failed}" | sort) | grep -v '^$' || true)"
+          if [[ -n "${introduced}" ]]; then
+            echo 'The merge introduces test failures that upstream does not have:' >&2
+            printf '%s\n' "${introduced}" >&2
+            exit 1
+          fi
+
+          echo 'No test failures beyond the upstream baseline.'
 
       - name: Publish synchronized merge
         if: steps.merge.outputs.result != 'no_changes'
