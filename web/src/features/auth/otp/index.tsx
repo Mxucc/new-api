@@ -16,33 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link, useSearch } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { AuthLayout } from '../auth-layout'
-import { getAuthRedirectSearch } from '../lib/redirect'
 import { OtpForm } from './components/otp-form'
 
 export function Otp() {
   const { t } = useTranslation()
-  const { redirect } = useSearch({ from: '/(auth)/otp' })
-  const redirectSearch = getAuthRedirectSearch(redirect)
-
   return (
     <AuthLayout>
       <div className='w-full space-y-8'>
         <div className='space-y-3'>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Two-factor Authentication')}
+            {t('Security verification')}
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {t('Please enter the authentication code.')}
+            {t('Verify your identity to finish signing in.')}
           </p>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
             {t('Session expired?')}{' '}
             <Link
               to='/sign-in'
-              search={redirectSearch}
               className='hover:text-primary font-medium underline underline-offset-4'
             >
               {t('Re-login')}
@@ -51,7 +46,7 @@ export function Otp() {
           </p>
         </div>
 
-        <OtpForm redirectTo={redirect} />
+        <OtpForm />
       </div>
     </AuthLayout>
   )
