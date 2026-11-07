@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { exchangeExternalAuthForRedirect } from './externalAuthExchange';
+
 const AUTH_REDIRECT_STORAGE_KEY = 'auth:redirect';
 
 export function getSafeAuthRedirectTarget(redirectTo) {
@@ -65,10 +67,18 @@ export function takeRememberedAuthRedirect() {
   }
 }
 
-export function navigateToAuthRedirect(redirectTo) {
+export async function navigateToAuthRedirect(
+  redirectTo,
+  { replace = false } = {},
+) {
   const target = getSafeAuthRedirectTarget(redirectTo);
   if (!target || typeof window === 'undefined') return false;
 
-  window.location.assign(target);
+  await exchangeExternalAuthForRedirect(target);
+  if (replace) {
+    window.location.replace(target);
+  } else {
+    window.location.assign(target);
+  }
   return true;
 }

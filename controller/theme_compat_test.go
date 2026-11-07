@@ -28,7 +28,7 @@ func TestUpdateOptionRejectsUnsupportedFrontendTheme(t *testing.T) {
 	UpdateOption(context)
 
 	assert.Equal(t, http.StatusOK, response.Code)
-	assert.JSONEq(t, `{"success":false,"message":"无效的主题值，可选值：default（新版前端）、classic（经典前端）"}`, response.Body.String())
+	assert.JSONEq(t, `{"success":false,"message":"The theme can only be set to default (new console) or classic (classic console)","message_key":"The theme can only be set to default (new console) or classic (classic console)"}`, response.Body.String())
 }
 
 func TestUpdateOptionAcceptsClassicFrontendTheme(t *testing.T) {
@@ -36,16 +36,19 @@ func TestUpdateOptionAcceptsClassicFrontendTheme(t *testing.T) {
 	previousMap := common.OptionMap
 	previousTheme := common.GetTheme()
 	previousThemeSetting := system_setting.GetThemeSettings().Frontend
+	previousRedisEnabled := common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Option{}))
 	model.DB = db
 	common.OptionMap = map[string]string{}
+	common.RedisEnabled = false
 	t.Cleanup(func() {
 		model.DB = previousDB
 		common.OptionMap = previousMap
 		system_setting.GetThemeSettings().Frontend = previousThemeSetting
 		common.SetTheme(previousTheme)
+		common.RedisEnabled = previousRedisEnabled
 	})
 
 	response := httptest.NewRecorder()

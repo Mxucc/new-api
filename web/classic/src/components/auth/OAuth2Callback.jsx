@@ -68,7 +68,12 @@ const OAuth2Callback = (props) => {
         setUserData(data);
         updateAPI();
         showSuccess(t('登录成功！'));
-        if (navigateToAuthRedirect(pendingRedirectRef.current)) {
+        try {
+          if (await navigateToAuthRedirect(pendingRedirectRef.current)) {
+            return;
+          }
+        } catch (error) {
+          showError(error?.message || t('外部应用鉴权失败，请重试'));
           return;
         }
         navigate('/console/token');

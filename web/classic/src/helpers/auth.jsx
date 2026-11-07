@@ -20,7 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { history } from './history';
-import { getSafeAuthRedirectTarget } from './authRedirect';
+import {
+  getSafeAuthRedirectTarget,
+  navigateToAuthRedirect,
+} from './authRedirect';
+import { showError } from './utils';
 
 export function authHeader() {
   // return authorization header with jwt token
@@ -35,7 +39,17 @@ export function authHeader() {
 
 function DocumentRedirect({ target }) {
   useEffect(() => {
-    window.location.replace(target);
+    let active = true;
+
+    navigateToAuthRedirect(target, { replace: true }).catch((error) => {
+      if (active) {
+        showError(error?.message || '外部应用鉴权失败，请重试');
+      }
+    });
+
+    return () => {
+      active = false;
+    };
   }, [target]);
 
   return null;

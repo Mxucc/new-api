@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   API,
   getLogo,
@@ -31,6 +31,9 @@ import {
   setUserData,
   onDiscordOAuthClicked,
   onCustomOAuthClicked,
+  getSafeAuthRedirectTarget,
+  rememberAuthRedirect,
+  navigateToAuthRedirect,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
 import {
@@ -113,6 +116,30 @@ const RegisterForm = () => {
 
   const logo = getLogo();
   const systemName = getSystemName();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
+  const redirectTarget = useMemo(
+    () => getSafeAuthRedirectTarget(redirectTo),
+    [redirectTo],
+  );
+  const loginPath = redirectTarget
+    ? `/login?redirect=${encodeURIComponent(redirectTarget)}`
+    : '/login';
+
+  const redirectAfterRegistration = async (fallback = '/') => {
+    try {
+      if (await navigateToAuthRedirect(redirectTarget)) {
+        return;
+      }
+      navigate(fallback);
+    } catch (error) {
+      showError(error?.message || t('外部应用鉴权失败，请重试'));
+    }
+  };
+
+  const rememberRegisterRedirect = () => {
+    rememberAuthRedirect(redirectTarget);
+  };
 
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
@@ -133,12 +160,12 @@ const RegisterForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthRegisterOptions = Boolean(
     status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.telegram_oauth ||
-      hasCustomOAuthProviders,
+    status.discord_oauth ||
+    status.oidc_enabled ||
+    status.wechat_login ||
+    status.linuxdo_oauth ||
+    status.telegram_oauth ||
+    hasCustomOAuthProviders,
   );
 
   const [showEmailVerification, setShowEmailVerification] = useState(false);
@@ -198,7 +225,7 @@ const RegisterForm = () => {
         localStorage.setItem('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
-        navigate('/');
+        redirectAfterRegistration('/');
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
@@ -241,7 +268,7 @@ const RegisterForm = () => {
         );
         const { success, message } = res.data;
         if (success) {
-          navigate('/login');
+          navigate(loginPath);
           showSuccess('注册成功！');
         } else {
           showError(message);
@@ -295,6 +322,7 @@ const RegisterForm = () => {
       setGithubButtonDisabled(true);
     }, 20000);
     try {
+      rememberRegisterRedirect();
       onGitHubOAuthClicked(status.github_client_id, { shouldLogout: true });
     } finally {
       setTimeout(() => setGithubLoading(false), 3000);
@@ -304,6 +332,7 @@ const RegisterForm = () => {
   const handleDiscordClick = () => {
     setDiscordLoading(true);
     try {
+      rememberRegisterRedirect();
       onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
     } finally {
       setTimeout(() => setDiscordLoading(false), 3000);
@@ -313,6 +342,7 @@ const RegisterForm = () => {
   const handleOIDCClick = () => {
     setOidcLoading(true);
     try {
+      rememberRegisterRedirect();
       onOIDCClicked(
         status.oidc_authorization_endpoint,
         status.oidc_client_id,
@@ -327,6 +357,7 @@ const RegisterForm = () => {
   const handleLinuxDOClick = () => {
     setLinuxdoLoading(true);
     try {
+      rememberRegisterRedirect();
       onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
     } finally {
       setTimeout(() => setLinuxdoLoading(false), 3000);
@@ -336,6 +367,7 @@ const RegisterForm = () => {
   const handleCustomOAuthClick = (provider) => {
     setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: true }));
     try {
+      rememberRegisterRedirect();
       onCustomOAuthClicked(provider, { shouldLogout: true });
     } finally {
       setTimeout(() => {
@@ -382,7 +414,7 @@ const RegisterForm = () => {
         showSuccess('登录成功！');
         setUserData(data);
         updateAPI();
-        navigate('/');
+        redirectAfterRegistration('/');
       } else {
         showError(message);
       }
@@ -544,7 +576,7 @@ const RegisterForm = () => {
                 <Text>
                   {t('已有账户？')}{' '}
                   <Link
-                    to='/login'
+                    to={loginPath}
                     className='text-blue-600 hover:text-blue-800 font-medium'
                   >
                     {t('登录')}
@@ -720,7 +752,7 @@ const RegisterForm = () => {
                 <Text>
                   {t('已有账户？')}{' '}
                   <Link
-                    to='/login'
+                    to={loginPath}
                     className='text-blue-600 hover:text-blue-800 font-medium'
                   >
                     {t('登录')}
@@ -785,8 +817,7 @@ const RegisterForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister ||
-        !hasOAuthRegisterOptions
+        {showEmailRegister || !hasOAuthRegisterOptions
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

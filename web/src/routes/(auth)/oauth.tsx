@@ -23,6 +23,7 @@ import { useEffect } from 'react'
 import { wechatLoginByCode } from '@/features/auth/api'
 import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
 import { applyAuthBundle, isAuthBundle } from '@/lib/api'
+import { exchangeExternalAuthForRedirect } from '@/lib/external-auth-exchange'
 import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { createServerError } from '@/lib/server-error-message'
@@ -46,6 +47,7 @@ function OAuthComponent() {
             const target =
               sanitizeAuthRedirect(search?.redirect, window.location.origin) ??
               '/dashboard'
+            await exchangeExternalAuthForRedirect(target)
             navigate({ href: target, replace: true })
             return
           }

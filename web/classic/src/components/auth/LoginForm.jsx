@@ -125,12 +125,20 @@ const LoginForm = () => {
     [redirectTo],
   );
 
-  const redirectAfterLogin = (fallback = '/console') => {
-    if (navigateToAuthRedirect(redirectTarget)) {
-      return;
+  const redirectAfterLogin = async (fallback = '/console') => {
+    try {
+      if (await navigateToAuthRedirect(redirectTarget)) {
+        return;
+      }
+      navigate(fallback);
+    } catch (error) {
+      showError(error?.message || t('外部应用鉴权失败，请重试'));
     }
-    navigate(fallback);
   };
+
+  const registerPath = redirectTarget
+    ? `/register?redirect=${encodeURIComponent(redirectTarget)}`
+    : '/register';
 
   const rememberLoginRedirect = () => {
     rememberAuthRedirect(redirectTarget);
@@ -155,12 +163,12 @@ const LoginForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthLoginOptions = Boolean(
     status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.telegram_oauth ||
-      hasCustomOAuthProviders,
+    status.discord_oauth ||
+    status.oidc_enabled ||
+    status.wechat_login ||
+    status.linuxdo_oauth ||
+    status.telegram_oauth ||
+    hasCustomOAuthProviders,
   );
 
   useEffect(() => {
@@ -736,7 +744,7 @@ const LoginForm = () => {
                   <Text>
                     {t('没有账户？')}{' '}
                     <Link
-                      to='/register'
+                      to={registerPath}
                       className='text-blue-600 hover:text-blue-800 font-medium'
                     >
                       {t('注册')}
@@ -889,7 +897,7 @@ const LoginForm = () => {
                   <Text>
                     {t('没有账户？')}{' '}
                     <Link
-                      to='/register'
+                      to={registerPath}
                       className='text-blue-600 hover:text-blue-800 font-medium'
                     >
                       {t('注册')}
