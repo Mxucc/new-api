@@ -44,7 +44,7 @@ services:
 #      - SESSION_COOKIE_TRUSTED_URL=https://example.com,https://admin.example.com  # Secure=true 时必填的精确 HTTPS Origin；不是 relay CORS 白名单，不支持通配符/路径 (Required exact HTTPS origins when Secure=true; not a relay CORS allowlist, no wildcard/path)
 #      - TRUSTED_PROXIES=172.20.0.0/16  # 未配置时信任回环/RFC1918/fc00::/7 并告警，none 为严格模式，显式列表替代默认值 (Unset trusts loopback/RFC 1918/fc00::/7 with a warning; none trusts no proxies; an explicit list replaces defaults)
 #      - ISSUER_URL=https://example.com/connect  # 内置 connect（OAuth2/OIDC）必填，公开可访问且带 /connect 前缀 (Required by the bundled connect service; public URL including the /connect prefix)
-#      - DATABASE_URL=postgresql://root:123456@postgres:5432/invitations  # 内置 invitations 的返利库，只支持 PostgreSQL (Bundled invitations rebate database; PostgreSQL only)
+#      - INVITATIONS_DATABASE_URL=postgresql://root:123456@postgres:5432/invitations  # 内置 invitations 的返利库，只支持 PostgreSQL；DATABASE_URL 与 connect 的 SQLite 同名冲突，故用专用变量 (Bundled invitations rebate database; PostgreSQL only. DATABASE_URL collides with connect's SQLite, so use this name)
 #      - NEWAPI_DATABASE_URL=postgresql://root:123456@postgres:5432/new-api  # 内置 invitations 只读 new-api 订单库 (Bundled invitations reads new-api orders; PostgreSQL only)
 #      - AI_BRIDGE_RELAY_ENABLED=false  # true 时 /v1 等模型协议入口也经内置 ai-bridge 转发，且 ai-bridge 上游必须指向另一个 new-api (Also route the model protocol entrypoints through the bundled ai-bridge; its upstream must then be another new-api)
 #      - USER_SESSION_ACTIVE_LIMIT=50

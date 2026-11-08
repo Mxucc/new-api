@@ -220,6 +220,54 @@ docker compose up -d
 docker compose logs -f new-api
 ```
 
+### 内置服务：ai-bridge / invitations / connect
+
+这三个服务原本是独立部署的 Rust 进程（各自一个容器 + nginx 反代），现在与本仓库一起发布：镜像内同时构建网关和三个服务，容器启动时由 `docker/entrypoint.sh` 拉起它们。`/connect`、`/ai-bridge`、`/invitations` 的**页面由 new-api 前端渲染**，网关只把服务自己的接口与 OAuth2 协议路径转发过去（[router/service_proxy.go](./router/service_proxy.go)）。细节见 [services/README.md](./services/README.md)。
+
+| | 旧版（三个独立容器 + nginx） | 现在（一个容器） |
+| --- | --- | --- |
+| 部署单元 | 4 个容器 + nginx location 块 | 1 个镜像，entrypoint 管理 3 个子进程 |
+| 页面 | 各服务自己渲染 HTML（硬编码文案、无 i18n） | new-api 前端页面，随语言包切换 |
+| 反向代理 | nginx 把 `/invitations/api/`、`/connect/`、`/ai-bridge/` 转给各服务 | 网关内置转发，无需 nginx |
+| 关闭单个服务 | 停容器 | `INVITATIONS_AUTOSTART=false`（或对应服务），页面显示「本部署未启用」 |
+
+**从旧版迁移时，环境变量按下面的对应关系整理。**三个服务读同名变量但含义不同，容器已按服务隔离，不再依赖 nginx 改写：
+
+| 旧变量（谁在用） | 现在怎么读 | 迁移动作 |
+| --- | --- | --- |
+| `SESSION_SECRET`（new-api + 三个服务，同一个值） | 三个服务仍读同一个值 | 保持原值；**必须设置**，否则 new-api 用随机密钥，服务无法解析登录态，两个页面都是未授权 |
+| `DATABASE_URL`（connect 用 SQLite，invitations 用 PostgreSQL） | connect 读 `CONNECT_DATABASE_URL`，invitations 读 `INVITATIONS_DATABASE_URL`，都没有才回退 `DATABASE_URL` | **同名冲突**：invitations 的 PG 串放到 `INVITATIONS_DATABASE_URL`；connect 建议显式写 `CONNECT_DATABASE_URL=sqlite:connect.db?mode=rwc`。若 `DATABASE_URL` 是 PG 且没设 `CONNECT_DATABASE_URL`，connect 会拒绝启动并提示 |
+| `LISTEN_ADDR`（connect 4000，invitations 6212） | `CONNECT_LISTEN_ADDR` / `INVITATIONS_LISTEN_ADDR`，默认 `127.0.0.1:4000` / `127.0.0.1:6212` | 一般不用设；改端口时 `*_SERVICE_URL` 与健康探测会自动跟着变 |
+| `BASE_PATH`（connect 必须是 `/connect`，invitations 必须是空） | `CONNECT_BASE_PATH` / `INVITATIONS_BASE_PATH`，默认 `/connect` / 空 | **不要在全局设置 `BASE_PATH`**；会被按服务覆盖，设了也不生效 |
+| `API_BASE_URL`（connect 回源 new-api） | `CONNECT_API_BASE_URL`，默认按 `PORT` 推导 | 不要写死 `http://127.0.0.1:3000`；改 `PORT` 后默认值仍然正确 |
+| `AI_BRIDGE_UPSTREAM_BASE_URL`（ai-bridge 回源） | 同上，默认 `http://127.0.0.1:${PORT}` | 不要在容器里写死端口 |
+| `PRIVATE_KEY_PATH`（connect 的 OIDC 私钥） | 容器工作目录是 `/data`，默认 `keys/private.pem` | 把旧私钥放到 `/data/keys/private.pem`，否则会生成新私钥、JWKS `kid` 变化 |
+| `AI_BRIDGE_ADMIN_CONFIG_FILE`、`AI_BRIDGE_CYBER_POLICY_*_FILE` | 默认全部在 `/data/ai-bridge/` | 把旧的控制台覆盖配置与黑/白名单文件搬过去 |
+| `ISSUER_URL`、`SYNC_SECRET`、`AUTO_SYNC_*`、`NEWAPI_DATABASE_URL`、`ID_TOKEN_*`、`REFRESH_TOKEN_*` 等专有项 | 原名不变 | 原样搬过来 |
+
+**必须一起搬走的数据**（否则页面能打开但数据是空的）：
+
+| 旧文件 | 新位置 |
+| --- | --- |
+| `connect.db` | `/data/connect.db` |
+| `keys/private.pem` | `/data/keys/private.pem` |
+| `admin-config.env` | `/data/ai-bridge/admin-config.env` |
+| `black.txt` / `white.txt` / `black_ip` / `black_log` / `white_log` | `/data/ai-bridge/` 同名 |
+
+invitations 的数据在 PostgreSQL 里，`INVITATIONS_DATABASE_URL` 指向原库即可。旧版 ai-bridge 的 `/v1` 反代改由 `AI_BRIDGE_RELAY_ENABLED=true` 表达；它要求 ai-bridge 的上游是**另一个** new-api 实例（指向自身会形成环，网关会忽略该开关并记录日志）。
+
+迁移完成后：删除 nginx 里 `/invitations/api/`、`/connect/`、`/ai-bridge/` 的 location（保留 `/` 到网关，否则用户访问到的仍是旧 HTML 页面），再 `docker compose up -d`，确认日志出现 `[bundled-services] started …`。
+
+不想用某个服务时把它关掉即可，不会影响其它功能：
+
+```bash
+INVITATIONS_AUTOSTART=false
+CONNECT_AUTOSTART=false
+AI_BRIDGE_AUTOSTART=false
+```
+
+三个服务也可以继续单独部署，此时给网关设置 `INVITATIONS_SERVICE_URL` / `CONNECT_SERVICE_URL` / `AI_BRIDGE_SERVICE_URL`，并相应设置 `*_AUTOSTART=false`。
+
 ### 存储与配置
 
 | 组件 | 可选方案 |

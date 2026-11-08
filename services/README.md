@@ -26,9 +26,22 @@
 - 必填配置缺失时不启动该服务，并清掉对应的 `*_SERVICE_URL`，避免转发到一个起不来的进程。
 - 服务退出会按指数退避重启，连续失败到上限后停止重启并打日志；网关退出时一起收尾。
 
-必填配置：`invitations` 需要 `DATABASE_URL`、`NEWAPI_DATABASE_URL`、`SESSION_SECRET`；`connect` 需要 `SESSION_SECRET`、`ISSUER_URL`。`SESSION_SECRET` 必须与 new-api 一致，服务靠它解析同域登录态。三个服务都只读 new-api 的 session cookie，不写 new-api 的库（`invitations` 只读订单表）。
+必填配置：`invitations` 需要数据库（`INVITATIONS_DATABASE_URL`，未设置时回退 `DATABASE_URL`）、`NEWAPI_DATABASE_URL`、`SESSION_SECRET`；`connect` 需要 `SESSION_SECRET`、`ISSUER_URL`，数据库默认 `sqlite:connect.db`。`SESSION_SECRET` 必须与 new-api 一致，服务靠它解析同域登录态。三个服务都只读 new-api 的 session cookie，不写 new-api 的库（`invitations` 只读订单表）。
 
-各服务自己的配置见同名 `.env.example`；`BASE_PATH` 由入口脚本按服务注入（`CONNECT_BASE_PATH`、`INVITATIONS_BASE_PATH`），不要全局设置。
+### 容器内的变量隔离
+
+这三个服务会读同名的 `DATABASE_URL`、`LISTEN_ADDR`、`BASE_PATH`，但含义不同（connect 的库是 SQLite、invitations 是 PostgreSQL；connect 的前缀是 `/connect`、invitations 是空）。`docker/entrypoint.sh` 因此把每个服务的配置写进它自己的进程，同时接受旧版单独部署时的名字作为回退，旧 `.env` 不需要改名即可迁移：
+
+| 变量 | connect | invitations | ai-bridge |
+| --- | --- | --- | --- |
+| 数据库 | `CONNECT_DATABASE_URL` → `DATABASE_URL` → `sqlite:connect.db?mode=rwc` | `INVITATIONS_DATABASE_URL` → `DATABASE_URL` | — |
+| 监听 | `CONNECT_LISTEN_ADDR`（默认 `127.0.0.1:4000`，不继承全局 `LISTEN_ADDR`） | `INVITATIONS_LISTEN_ADDR`（默认 `127.0.0.1:6212`，不继承全局 `LISTEN_ADDR`） | `AI_BRIDGE_LISTEN_ADDR`（默认 `127.0.0.1:8080`） |
+| 路径前缀 | `CONNECT_BASE_PATH`（默认 `/connect`） | `INVITATIONS_BASE_PATH`（默认空） | — |
+| 回源 new-api | `CONNECT_API_BASE_URL` → `http://127.0.0.1:${PORT}` | — | `AI_BRIDGE_UPSTREAM_BASE_URL` → `http://127.0.0.1:${PORT}` |
+
+`*_SERVICE_URL` 与启动探测地址都按上面的监听端口推导，改端口不需要再手写地址。若 `DATABASE_URL` 是 PostgreSQL 而 `CONNECT_DATABASE_URL` 未设置，connect 会拒绝启动并提示改用 `CONNECT_DATABASE_URL`，避免把返利库的 DSN 当作 SQLite 路径。
+
+各服务自己的配置见同名 `.env.example`。
 
 ### 关于 /v1 经 ai-bridge 转发
 

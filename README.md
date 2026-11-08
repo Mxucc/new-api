@@ -220,6 +220,54 @@ docker compose up -d
 docker compose logs -f new-api
 ```
 
+### Bundled services: ai-bridge, invitations, connect
+
+These three services used to be separate Rust deployments (one container each plus nginx). They now ship with this repository: the image builds the gateway and all three services, and `docker/entrypoint.sh` starts them with the container. The pages at `/connect`, `/ai-bridge` and `/invitations` are **rendered by the new-api frontend**; the gateway forwards only each service's own API and OAuth2 protocol paths ([router/service_proxy.go](./router/service_proxy.go)). See [services/README.md](./services/README.md) for details.
+
+| | Before (three containers + nginx) | Now (one container) |
+| --- | --- | --- |
+| Deployment unit | 4 containers + nginx location blocks | 1 image, the entrypoint supervises 3 child processes |
+| Pages | Each service rendered its own HTML (hardcoded copy, no i18n) | new-api frontend pages that follow the language packs |
+| Reverse proxy | nginx forwarded `/invitations/api/`, `/connect/`, `/ai-bridge/` | Built into the gateway, no nginx needed |
+| Disabling one service | Stop its container | `INVITATIONS_AUTOSTART=false` (or the matching service); the page reports that it is not deployed here |
+
+**When migrating, reorganize the environment variables as follows.** The three services read names that collide but mean different things; the container isolates them per service, so the old nginx rewrites are no longer needed:
+
+| Old variable (who used it) | How it is read now | What to do |
+| --- | --- | --- |
+| `SESSION_SECRET` (new-api plus all three services, one shared value) | The services still read the same value | Keep it, but it **must be set**; otherwise new-api signs sessions with a random secret and the services cannot decode the dashboard session, so both pages answer unauthorized |
+| `DATABASE_URL` (SQLite for connect, PostgreSQL for invitations) | connect reads `CONNECT_DATABASE_URL`, invitations reads `INVITATIONS_DATABASE_URL`, each falling back to `DATABASE_URL` | **Name collision:** put the invitations PostgreSQL URL in `INVITATIONS_DATABASE_URL`, and set `CONNECT_DATABASE_URL=sqlite:connect.db?mode=rwc` explicitly. If `DATABASE_URL` is PostgreSQL and `CONNECT_DATABASE_URL` is unset, connect refuses to start and says why |
+| `LISTEN_ADDR` (4000 for connect, 6212 for invitations) | `CONNECT_LISTEN_ADDR` / `INVITATIONS_LISTEN_ADDR`, defaulting to `127.0.0.1:4000` / `127.0.0.1:6212` | Usually nothing to set; changing the address also moves `*_SERVICE_URL` and the readiness probe |
+| `BASE_PATH` (`/connect` for connect, empty for invitations) | `CONNECT_BASE_PATH` / `INVITATIONS_BASE_PATH`, defaulting to `/connect` / empty | **Do not set `BASE_PATH` globally**; it is overridden per service and therefore has no effect |
+| `API_BASE_URL` (connect's upstream) | `CONNECT_API_BASE_URL`, derived from `PORT` | Do not hardcode `http://127.0.0.1:3000`; the derived default follows `PORT` |
+| `AI_BRIDGE_UPSTREAM_BASE_URL` (ai-bridge's upstream) | Same, defaulting to `http://127.0.0.1:${PORT}` | Do not hardcode the port inside the container |
+| `PRIVATE_KEY_PATH` (connect's OIDC key) | Working directory is `/data`, so the default is `keys/private.pem` | Put the existing key at `/data/keys/private.pem`; otherwise a new key is generated and the JWKS `kid` changes |
+| `AI_BRIDGE_ADMIN_CONFIG_FILE`, `AI_BRIDGE_CYBER_POLICY_*_FILE` | All default to `/data/ai-bridge/` | Copy the console's override file and the black/white lists over |
+| `ISSUER_URL`, `SYNC_SECRET`, `AUTO_SYNC_*`, `NEWAPI_DATABASE_URL`, `ID_TOKEN_*`, `REFRESH_TOKEN_*` and other service-specific names | Unchanged | Copy them as they are |
+
+**Data that has to move with them** (otherwise the pages open but show nothing):
+
+| Old file | New location |
+| --- | --- |
+| `connect.db` | `/data/connect.db` |
+| `keys/private.pem` | `/data/keys/private.pem` |
+| `admin-config.env` | `/data/ai-bridge/admin-config.env` |
+| `black.txt` / `white.txt` / `black_ip` / `black_log` / `white_log` | `/data/ai-bridge/`, same names |
+
+invitations keeps its data in PostgreSQL, so pointing `INVITATIONS_DATABASE_URL` at the existing database is enough. The old nginx rule that sent `/v1` to ai-bridge is now `AI_BRIDGE_RELAY_ENABLED=true`; it requires ai-bridge's upstream to be a **different** new-api instance, because pointing it back at this gateway forms a loop that the gateway refuses and logs.
+
+After migrating, delete the `/invitations/api/`, `/connect/` and `/ai-bridge/` locations from nginx (keep `/` pointed at the gateway, otherwise visitors still reach the old HTML pages), run `docker compose up -d`, and confirm the logs contain `[bundled-services] started …`.
+
+Any service can be switched off without affecting the rest:
+
+```bash
+INVITATIONS_AUTOSTART=false
+CONNECT_AUTOSTART=false
+AI_BRIDGE_AUTOSTART=false
+```
+
+The services can also stay external: set `INVITATIONS_SERVICE_URL` / `CONNECT_SERVICE_URL` / `AI_BRIDGE_SERVICE_URL` on the gateway and the matching `*_AUTOSTART=false`.
+
 ### Storage and configuration
 
 | Component | Options |
