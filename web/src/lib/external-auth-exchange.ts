@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { getFreshAuthHeaders } from '@/lib/auth-session'
 
+// Bundled services whose pages are part of the dashboard itself (/connect and
+// /ai-bridge) are not listed: those paths are dashboard routes, so navigating to
+// them must not run a service session exchange first.
 const externalAuthExchangePaths = [
-  ['/connect', '/connect/auth/exchange'],
-  ['/ai-bridge', '/ai-bridge/auth/exchange'],
   ['/jobs-files', '/jobs-files/auth/exchange'],
   ['/jobs-flies', '/jobs-flies/auth/exchange'],
 ] as const

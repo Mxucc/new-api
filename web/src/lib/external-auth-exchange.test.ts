@@ -42,13 +42,16 @@ describe('external authentication exchange', () => {
   })
 
   test.each([
-    ['/connect', '/connect/auth/exchange'],
-    ['/connect/authorize?client_id=test', '/connect/auth/exchange'],
-    ['/ai-bridge/', '/ai-bridge/auth/exchange'],
     ['/jobs-files/', '/jobs-files/auth/exchange'],
     ['/jobs-flies/api/me', '/jobs-flies/auth/exchange'],
   ])('maps %s to its fixed exchange endpoint', (target, expected) => {
     expect(externalAuthExchangePath(target, origin)).toBe(expected)
+  })
+
+  test('treats bundled service pages as dashboard routes', () => {
+    expect(externalAuthExchangePath('/connect', origin)).toBe(null)
+    expect(externalAuthExchangePath('/connect/dashboard', origin)).toBe(null)
+    expect(externalAuthExchangePath('/ai-bridge', origin)).toBe(null)
   })
 
   test('rejects cross-origin and lookalike paths', () => {
@@ -64,10 +67,10 @@ describe('external authentication exchange', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(null, { status: 204 }))
 
-    await exchangeExternalAuthForRedirect('/connect/dashboard', origin)
+    await exchangeExternalAuthForRedirect('/jobs-files/dashboard', origin)
 
     expect(mockedGetFreshAuthHeaders).toHaveBeenCalledOnce()
-    expect(fetchMock).toHaveBeenCalledWith('/connect/auth/exchange', {
+    expect(fetchMock).toHaveBeenCalledWith('/jobs-files/auth/exchange', {
       method: 'POST',
       headers: { Authorization: 'Bearer dashboard-access-token' },
       credentials: 'same-origin',
@@ -90,7 +93,7 @@ describe('external authentication exchange', () => {
     )
 
     await expect(
-      exchangeExternalAuthForRedirect('/ai-bridge', origin)
+      exchangeExternalAuthForRedirect('/jobs-flies/api/me', origin)
     ).rejects.toThrow('External authentication exchange failed (401)')
   })
 })

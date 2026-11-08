@@ -2,24 +2,24 @@
 
 这里存放随网关一起发布的服务。它们原本为了不改动 new-api 而独立部署，现在源码、镜像和进程管理都并入本仓库，部署只需要一个容器。
 
-| 目录 | 服务 | 公开路径 | 默认监听 | 状态库 |
+| 目录 | 服务 | 网关转发的路径 | 默认监听 | 状态库 |
 | --- | --- | --- | --- | --- |
-| `ai-bridge/` | 模型协议前置代理、风控与重试、管理控制台 | `/ai-bridge/*` | `127.0.0.1:8080` | `/data/ai-bridge/*` 文本状态文件 |
+| `ai-bridge/` | 模型协议前置代理、风控与重试 | `/ai-bridge/api/*`、`/ai-bridge/auth/exchange` | `127.0.0.1:8080` | `/data/ai-bridge/*` 文本状态文件 |
 | `invitations/` | 邀请返利、提现审批、小时级订单同步 | `/invitations/api/*` | `127.0.0.1:6212` | 自己的 PostgreSQL |
-| `connect/` | OAuth2 / OIDC 授权服务器 | `/connect/*` | `127.0.0.1:4000` | `/data/connect.db`（SQLite） |
+| `connect/` | OAuth2 / OIDC 授权服务器 | `/connect/api/*`、`/connect/authorize`、`/connect/token`、`/connect/userinfo`、`/connect/.well-known/*`、`/connect/auth/exchange`、`/connect/clients` | `127.0.0.1:4000` | `/data/connect.db`（SQLite） |
+
+`/connect` 与 `/ai-bridge` 本身是**前端页面**（`web/src/features/connect`、`web/src/features/ai-bridge`），由网关的嵌入式前端渲染；服务自带的 HTML 控制台只在直接访问服务端口时可用。新增服务接口时，记得把路径加进 `router/service_proxy.go` 的 `connectServicePaths` / `aiBridgeServicePaths`。
 
 ## 网关如何发布它们
 
-`router/service_proxy.go` 按下面的环境变量把公开路径转发给对应服务；变量为空时该路径仍归网关（例如 `/invitations` 仍是前端路由），因此单独跑网关不会有额外依赖。
+`router/service_proxy.go` 按下面的环境变量把服务自己的接口路径转发过去：变量为空时这些路径返回 `404 {"success":false,"message":"<service> service is not configured"}`，页面据此显示「本部署未启用」，其余路径（`/connect`、`/ai-bridge`、`/invitations`）始终是前端路由。
 
 | 环境变量 | 作用 |
 | --- | --- |
 | `INVITATIONS_SERVICE_URL` | `/invitations/api/*` 的目标地址（转发时去掉 `/invitations` 前缀） |
-| `CONNECT_SERVICE_URL` | `/connect/*` 的目标地址（路径原样转发） |
-| `AI_BRIDGE_SERVICE_URL` | `/ai-bridge/*` 的目标地址（路径原样转发） |
-| `AI_BRIDGE_RELAY_ENABLED` | `true` 时 `/v1`、`/v1beta`、`/mj`、`/suno`、`/kling/v1`、`/jimeng`、`/pg` 及 `/:mode/mj` 也经 ai-bridge 转发 |
-
-| `AI_BRIDGE_RELAY_ENABLED` | `true` 时 `/v1`、`/v1beta`、`/mj`、`/suno`、`/kling/v1`、`/jimeng`、`/pg` 及 `/:mode/mj` 也经 ai-bridge 转发；要求 ai-bridge 的上游不是本网关（见下） |
+| `CONNECT_SERVICE_URL` | Connect 自己的接口与 OAuth2 协议路径的目标地址（路径原样转发） |
+| `AI_BRIDGE_SERVICE_URL` | `/ai-bridge/api/*` 与 `/ai-bridge/auth/exchange` 的目标地址（路径原样转发） |
+| `AI_BRIDGE_RELAY_ENABLED` | `true` 时 `/v1`、`/v1beta`、`/mj`、`/suno`、`/kling/v1`、`/jimeng`、`/pg` 及 `/:mode/mj` 也经 ai-bridge 转发；要求 ai-bridge 服务地址已配置且其上游不是本网关（见下） |
 
 - 镜像里缺少对应可执行文件时不动这些变量，路径仍由网关处理。
 - `<SERVICE>_AUTOSTART=false` 时不启动该服务，也不改动对应地址（服务跑在容器外时用）。
@@ -50,6 +50,12 @@ go run main.go
 ```
 
 服务自身要有独立的配置来源（同一份 `.env` 会同时被两个服务读取时要小心共用变量名，例如 `BASE_PATH`）：把 `.env` 复制到服务目录，或用 `env -C services/<name>` 之类的方式只给该服务加载。
+
+## 前端页面
+
+- `/connect`（全员可见）：我的 OAuth2 应用（client_id/client_secret、回调地址、创建/编辑/删除）与我的授权（scope、首次授权时间、撤销）。接口走 `/connect/api/*`；管理员在 `GET /connect/api/clients` 上会拿到全部应用并带 `owner_name`。
+- `/ai-bridge`（管理员可见，`role>=10`）：运行控制台，含概览、冷却、名单、配置、日志五个面板。写操作除同源会话外还必须带 `/ai-bridge/api/me` 返回的 `csrf_token`（`X-AI-Bridge-CSRF` 头）。
+- 授权同意页（`/connect/authorize`）仍是 connect 服务渲染的协议页面：它是第三方跳转过程中的一环，需要保留服务端渲染。
 
 ## 注意
 

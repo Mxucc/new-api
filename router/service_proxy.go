@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -15,8 +16,7 @@ import (
 )
 
 // Environment variables wiring the in-repo services under services/ to the
-// gateway. Each one names the service's own listener; when it is empty the
-// matching public paths stay on the gateway (embedded dashboard or 404).
+// gateway. Each one names the service's own listener.
 const (
 	envInvitationsServiceURL   = "INVITATIONS_SERVICE_URL"
 	envConnectServiceURL       = "CONNECT_SERVICE_URL"
@@ -28,65 +28,115 @@ const (
 // defaultAIBridgeUpstream is ai-bridge's own default for the service it fronts.
 const defaultAIBridgeUpstream = "http://127.0.0.1:3000"
 
+// A bundled service owns only its API and protocol paths. Everything else under
+// the same prefix is a dashboard page of the embedded frontend: /connect and
+// /ai-bridge are rendered natively, so the services' own HTML consoles are not
+// reachable through the gateway.
+var (
+	invitationsServicePaths = []string{"/invitations/api"}
+	connectServicePaths     = []string{
+		"/connect/api",
+		"/connect/authorize",
+		"/connect/token",
+		"/connect/userinfo",
+		"/connect/.well-known",
+		"/connect/auth",
+		"/connect/clients",
+	}
+	aiBridgeServicePaths = []string{"/ai-bridge/api", "/ai-bridge/auth"}
+)
+
 // relayPathPrefixes are the model protocol entrypoints ai-bridge fronts when
 // AI_BRIDGE_RELAY_ENABLED is on, mirroring services/ai-bridge/deploy/nginx-ai-bridge.conf.
 var relayPathPrefixes = []string{"/v1", "/v1beta", "/mj", "/suno", "/kling/v1", "/jimeng", "/pg"}
 
-// rewriteFunc returns the path to send to a service, or false when the public
-// path belongs to the gateway instead.
-type rewriteFunc func(path string) (string, bool)
-
-type serviceProxyRule struct {
+// serviceRoute publishes one group of paths to a bundled service. A route whose
+// service is not configured answers with a JSON 404 instead, so a dashboard page
+// can tell "not deployed here" apart from a failing service.
+type serviceRoute struct {
 	service string
-	target  *url.URL
-	rewrite rewriteFunc
-	proxy   *httputil.ReverseProxy
+	matches func(path string) bool
+	// stripPrefix is removed from the path before forwarding; empty keeps it.
+	stripPrefix string
+	proxy       *httputil.ReverseProxy
 }
 
 func registerBundledServices(router *gin.Engine) {
-	var rules []serviceProxyRule
-	add := func(envKey, service string, rewrite rewriteFunc) {
-		raw := strings.TrimSpace(os.Getenv(envKey))
-		if raw == "" {
-			return
+	var routes []serviceRoute
+	add := func(envKey, service, stripPrefix string, matches func(string) bool) *url.URL {
+		target, err := parseServiceURL(os.Getenv(envKey))
+		if err != nil {
+			common.SysError(common.LogText("%s is unusable: %v", envKey, err))
+			target = nil
 		}
-		target, err := url.Parse(raw)
-		if err != nil || target.Host == "" || (target.Scheme != "http" && target.Scheme != "https") {
-			common.SysError(common.LogText("%s is not a valid service URL: %s", envKey, raw))
-			return
+		route := serviceRoute{service: service, matches: matches, stripPrefix: stripPrefix}
+		if target != nil {
+			route.proxy = newServiceProxy(service, target)
+			common.SysLog(common.LogText("forward %s requests to %s", service, target))
 		}
-		rule := serviceProxyRule{service: service, target: target, rewrite: rewrite}
-		rule.proxy = newServiceProxy(service, target)
-		rules = append(rules, rule)
-		common.SysLog(common.LogText("forward %s requests to %s", service, target))
+		routes = append(routes, route)
+		return target
 	}
-	add(envInvitationsServiceURL, "invitations", rewriteInvitationsPath)
-	add(envConnectServiceURL, "connect", keepPath("/connect"))
-	add(envAIBridgeServiceURL, "ai-bridge", keepPath("/ai-bridge"))
+
+	add(envInvitationsServiceURL, "invitations", "/invitations", prefixMatcher(invitationsServicePaths))
+	add(envConnectServiceURL, "connect", "", prefixMatcher(connectServicePaths))
+	aiBridgeTarget := add(envAIBridgeServiceURL, "ai-bridge", "", prefixMatcher(aiBridgeServicePaths))
+
 	if strings.EqualFold(strings.TrimSpace(os.Getenv(envAIBridgeRelayEnabled)), "true") {
-		if upstream, loops := relayLoopsBackIntoGateway(); loops {
+		upstream, loops := relayLoopsBackIntoGateway()
+		switch {
+		case aiBridgeTarget == nil:
+			common.SysError(common.LogText("AI_BRIDGE_RELAY_ENABLED is ignored: %s is empty, so the model protocol entrypoints stay on this gateway", envAIBridgeServiceURL))
+		case loops:
 			common.SysError(common.LogText("AI_BRIDGE_RELAY_ENABLED is ignored: ai-bridge forwards to %s, which is this gateway, so relay requests would loop", upstream))
-		} else {
-			add(envAIBridgeServiceURL, "ai-bridge relay", rewriteRelayPath)
+		default:
+			routes = append(routes, serviceRoute{
+				service: "ai-bridge relay",
+				matches: relayPathMatcher,
+				proxy:   newServiceProxy("ai-bridge relay", aiBridgeTarget),
+			})
 		}
-	}
-	if len(rules) == 0 {
-		return
 	}
 
 	router.Use(func(c *gin.Context) {
-		for _, rule := range rules {
-			targetPath, matched := rule.rewrite(c.Request.URL.Path)
-			if !matched {
+		path := c.Request.URL.Path
+		for _, route := range routes {
+			if !route.matches(path) {
 				continue
 			}
-			c.Request.URL.Path = targetPath
-			c.Request.URL.RawPath = ""
-			rule.proxy.ServeHTTP(c.Writer, c.Request)
+			if route.proxy == nil {
+				c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+					"success": false,
+					"message": route.service + " service is not configured",
+				})
+				return
+			}
+			if route.stripPrefix != "" {
+				c.Request.URL.Path = strings.TrimPrefix(path, route.stripPrefix)
+				c.Request.URL.RawPath = ""
+			}
+			route.proxy.ServeHTTP(c.Writer, c.Request)
 			c.Abort()
 			return
 		}
 	})
+}
+
+// parseServiceURL reads a service listener address; nil means the service is not
+// configured on this deployment.
+func parseServiceURL(raw string) (*url.URL, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	target, err := url.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	if target.Host == "" || (target.Scheme != "http" && target.Scheme != "https") {
+		return nil, fmt.Errorf("expected an absolute http:// or https:// address, got %q", raw)
+	}
+	return target, nil
 }
 
 func newServiceProxy(service string, target *url.URL) *httputil.ReverseProxy {
@@ -102,36 +152,25 @@ func newServiceProxy(service string, target *url.URL) *httputil.ReverseProxy {
 	return proxy
 }
 
-// keepPath forwards the public path unchanged, for services mounted under their
-// own root path such as /connect or /ai-bridge.
-func keepPath(prefix string) rewriteFunc {
-	return func(path string) (string, bool) {
-		return path, matchesPrefix(path, prefix)
-	}
-}
-
-// rewriteInvitationsPath strips /invitations from /invitations/api/* because the
-// service serves its API under /api.
-func rewriteInvitationsPath(path string) (string, bool) {
-	const public = "/invitations/api"
-	if !matchesPrefix(path, public) {
-		return "", false
-	}
-	return "/api" + strings.TrimPrefix(path, public), true
-}
-
-func rewriteRelayPath(path string) (string, bool) {
-	for _, prefix := range relayPathPrefixes {
-		if matchesPrefix(path, prefix) {
-			return path, true
+func prefixMatcher(prefixes []string) func(string) bool {
+	return func(path string) bool {
+		for _, prefix := range prefixes {
+			if matchesPrefix(path, prefix) {
+				return true
+			}
 		}
+		return false
 	}
-	// new-api also exposes /:mode/mj, for example /turbo/mj/submit/imagine.
+}
+
+// relayPathMatcher also accepts the mode variants new-api exposes, for example
+// /turbo/mj/submit/imagine.
+func relayPathMatcher(path string) bool {
+	if prefixMatcher(relayPathPrefixes)(path) {
+		return true
+	}
 	segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	if len(segments) >= 2 && segments[0] != "api" && segments[1] == "mj" {
-		return path, true
-	}
-	return "", false
+	return len(segments) >= 2 && segments[0] != "api" && segments[1] == "mj"
 }
 
 // relayLoopsBackIntoGateway reports whether ai-bridge forwards back into this

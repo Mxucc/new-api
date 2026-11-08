@@ -603,7 +603,11 @@ test('configuration navigation retains its height when the form content overflow
     name: 'Channel configuration',
   })
   expect(navigation.parentElement).toHaveClass('shrink-0')
-  expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-7xl')
+  // This fork widens the channel drawer past upstream's max-w-7xl.
+  expect(screen.getByRole('dialog')).toHaveClass(
+    'sm:w-[min(100vw,90rem)]',
+    'sm:max-w-[calc(100vw-2rem)]'
+  )
 })
 
 test('without plugin binding permission only built-in providers are offered', () => {
@@ -2539,7 +2543,8 @@ test('on wide screens redirecting a fetched model opens the floating panel besid
   })
   // The window floats; the sheet keeps its full width.
   expect(document.querySelector('[data-slot="sheet-content"]')).toHaveClass(
-    'sm:max-w-7xl'
+    'sm:w-[min(100vw,90rem)]',
+    'sm:max-w-[calc(100vw-2rem)]'
   )
   expect(
     screen.getByRole('tab', { name: /Connection & Models/ })

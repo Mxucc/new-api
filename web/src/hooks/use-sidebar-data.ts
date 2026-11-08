@@ -23,9 +23,11 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  Gauge,
   Gift,
   Key,
   LayoutDashboard,
+  Link2,
   ListTodo,
   MessageSquare,
   PlugZap,
@@ -41,8 +43,11 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarBadges, SidebarData } from '@/components/layout/types'
+import { useAiBridgeIdentity } from '@/features/ai-bridge/hooks/use-ai-bridge-console'
+import { useConnectAvailability } from '@/features/connect/hooks/use-connect-availability'
 import { useInvitationFeatureStatus } from '@/features/invitations/hooks/use-invitation-feature-status'
 import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -53,6 +58,11 @@ import { ROLE } from '@/lib/roles'
 export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
   const { t } = useTranslation()
   const invitationFeature = useInvitationFeatureStatus()
+  const connectAvailable = useConnectAvailability()
+  const role = useAuthStore((state) => state.auth.user?.role ?? 0)
+  // Only an administrator session can open the console, and only that session
+  // should probe it; everyone else keeps the entry out of the sidebar.
+  const aiBridgeAvailable = useAiBridgeIdentity(role >= ROLE.ADMIN).isSuccess
 
   return {
     navGroups: [
@@ -128,6 +138,15 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
                 },
               ]
             : []),
+          ...(connectAvailable
+            ? [
+                {
+                  title: t('Connect'),
+                  url: '/connect',
+                  icon: Link2,
+                },
+              ]
+            : []),
           {
             title: t('Profile'),
             url: '/profile',
@@ -175,6 +194,15 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
                   title: t('Rebate Management'),
                   url: '/invitations/admin',
                   icon: Gift,
+                },
+              ]
+            : []),
+          ...(aiBridgeAvailable
+            ? [
+                {
+                  title: t('AI Bridge'),
+                  url: '/ai-bridge',
+                  icon: Gauge,
                 },
               ]
             : []),

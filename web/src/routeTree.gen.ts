@@ -26,7 +26,9 @@ import { Route as errors403RouteImport } from './routes/(errors)/403'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
+import { Route as AuthenticatedAiBridgeRouteImport } from './routes/_authenticated/ai-bridge'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
+import { Route as AuthenticatedConnectRouteImport } from './routes/_authenticated/connect'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
@@ -159,9 +161,19 @@ const errors503Route = errors503RouteImport.update({
   path: '/503',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAiBridgeRoute = AuthenticatedAiBridgeRouteImport.update({
+  id: '/ai-bridge',
+  path: '/ai-bridge',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedChat2linkRoute = AuthenticatedChat2linkRouteImport.update({
   id: '/chat2link',
   path: '/chat2link',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedConnectRoute = AuthenticatedConnectRouteImport.update({
+  id: '/connect',
+  path: '/connect',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedInvitationsRoute =
@@ -460,7 +472,9 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/ai-bridge': typeof AuthenticatedAiBridgeRoute
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/connect': typeof AuthenticatedConnectRoute
   '/invitations': typeof AuthenticatedInvitationsRouteWithChildren
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
@@ -525,7 +539,9 @@ export interface FileRoutesByTo {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/ai-bridge': typeof AuthenticatedAiBridgeRoute
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/connect': typeof AuthenticatedConnectRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
@@ -593,7 +609,9 @@ export interface FileRoutesById {
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
+  '/_authenticated/ai-bridge': typeof AuthenticatedAiBridgeRoute
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
+  '/_authenticated/connect': typeof AuthenticatedConnectRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRouteWithChildren
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
@@ -661,7 +679,9 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/ai-bridge'
     | '/chat2link'
+    | '/connect'
     | '/invitations'
     | '/oauth/$provider'
     | '/about/'
@@ -726,7 +746,9 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/ai-bridge'
     | '/chat2link'
+    | '/connect'
     | '/oauth/$provider'
     | '/about'
     | '/pricing'
@@ -793,7 +815,9 @@ export interface FileRouteTypes {
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
+    | '/_authenticated/ai-bridge'
     | '/_authenticated/chat2link'
+    | '/_authenticated/connect'
     | '/_authenticated/invitations'
     | '/oauth/$provider'
     | '/about/'
@@ -983,11 +1007,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof errors503RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/ai-bridge': {
+      id: '/_authenticated/ai-bridge'
+      path: '/ai-bridge'
+      fullPath: '/ai-bridge'
+      preLoaderRoute: typeof AuthenticatedAiBridgeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/chat2link': {
       id: '/_authenticated/chat2link'
       path: '/chat2link'
       fullPath: '/chat2link'
       preLoaderRoute: typeof AuthenticatedChat2linkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/connect': {
+      id: '/_authenticated/connect'
+      path: '/connect'
+      fullPath: '/connect'
+      preLoaderRoute: typeof AuthenticatedConnectRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/invitations': {
@@ -1436,7 +1474,9 @@ const AuthenticatedInvitationsRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  AuthenticatedAiBridgeRoute: typeof AuthenticatedAiBridgeRoute
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
+  AuthenticatedConnectRoute: typeof AuthenticatedConnectRoute
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRouteWithChildren
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
@@ -1463,7 +1503,9 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
+  AuthenticatedAiBridgeRoute: AuthenticatedAiBridgeRoute,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
+  AuthenticatedConnectRoute: AuthenticatedConnectRoute,
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRouteWithChildren,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,

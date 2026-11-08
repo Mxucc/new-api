@@ -12,42 +12,67 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBundledServicePathRewrites(t *testing.T) {
+func TestBundledServicePathOwnership(t *testing.T) {
 	for _, testCase := range []struct {
-		name        string
-		rewrite     rewriteFunc
-		path        string
-		wantPath    string
-		wantMatched bool
+		name    string
+		owned   bool
+		matcher func(string) bool
+		path    string
 	}{
-		{name: "invitations api root", rewrite: rewriteInvitationsPath, path: "/invitations/api", wantPath: "/api", wantMatched: true},
-		{name: "invitations api path", rewrite: rewriteInvitationsPath, path: "/invitations/api/invitations/me", wantPath: "/api/invitations/me", wantMatched: true},
-		{name: "invitations page stays on the gateway", rewrite: rewriteInvitationsPath, path: "/invitations", wantMatched: false},
-		{name: "invitations sibling path", rewrite: rewriteInvitationsPath, path: "/invitations/apiary", wantMatched: false},
-		{name: "connect root", rewrite: keepPath("/connect"), path: "/connect", wantPath: "/connect", wantMatched: true},
-		{name: "connect authorize", rewrite: keepPath("/connect"), path: "/connect/authorize", wantPath: "/connect/authorize", wantMatched: true},
-		{name: "connect sibling path", rewrite: keepPath("/connect"), path: "/connections", wantMatched: false},
-		{name: "ai-bridge console", rewrite: keepPath("/ai-bridge"), path: "/ai-bridge", wantPath: "/ai-bridge", wantMatched: true},
-		{name: "ai-bridge api", rewrite: keepPath("/ai-bridge"), path: "/ai-bridge/api/keys", wantPath: "/ai-bridge/api/keys", wantMatched: true},
-		{name: "relay v1 prefix", rewrite: rewriteRelayPath, path: "/v1/chat/completions", wantPath: "/v1/chat/completions", wantMatched: true},
-		{name: "relay v10 is not v1", rewrite: rewriteRelayPath, path: "/v10/chat/completions", wantMatched: false},
-		{name: "relay midjourney mode", rewrite: rewriteRelayPath, path: "/turbo/mj/submit/imagine", wantPath: "/turbo/mj/submit/imagine", wantMatched: true},
-		{name: "relay skips dashboard api", rewrite: rewriteRelayPath, path: "/api/mj/task", wantMatched: false},
-		{name: "relay leaves dashboard routes", rewrite: rewriteRelayPath, path: "/api/status", wantMatched: false},
+		{name: "invitations api root", owned: true, matcher: prefixMatcher(invitationsServicePaths), path: "/invitations/api"},
+		{name: "invitations api path", owned: true, matcher: prefixMatcher(invitationsServicePaths), path: "/invitations/api/invitations/me"},
+		{name: "invitations page stays on the dashboard", matcher: prefixMatcher(invitationsServicePaths), path: "/invitations"},
+		{name: "invitations sibling path", matcher: prefixMatcher(invitationsServicePaths), path: "/invitations/apiary"},
+
+		{name: "connect api root", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/api"},
+		{name: "connect api clients", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/api/clients/abc"},
+		{name: "connect authorize", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/authorize"},
+		{name: "connect consent", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/authorize/consent"},
+		{name: "connect token", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/token"},
+		{name: "connect userinfo", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/userinfo"},
+		{name: "connect discovery", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/.well-known/openid-configuration"},
+		{name: "connect jwks", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/.well-known/jwks.json"},
+		{name: "connect session exchange", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/auth/exchange"},
+		{name: "connect app creation", owned: true, matcher: prefixMatcher(connectServicePaths), path: "/connect/clients"},
+		{name: "connect page stays on the dashboard", matcher: prefixMatcher(connectServicePaths), path: "/connect"},
+		{name: "connect authorizations page stays on the dashboard", matcher: prefixMatcher(connectServicePaths), path: "/connect/authorizations"},
+		{name: "connect dashboard page stays on the dashboard", matcher: prefixMatcher(connectServicePaths), path: "/connect/dashboard"},
+		{name: "connect console asset stays on the dashboard", matcher: prefixMatcher(connectServicePaths), path: "/connect/page.js"},
+		{name: "connect sibling path", matcher: prefixMatcher(connectServicePaths), path: "/connections"},
+
+		{name: "ai-bridge api root", owned: true, matcher: prefixMatcher(aiBridgeServicePaths), path: "/ai-bridge/api"},
+		{name: "ai-bridge snapshot", owned: true, matcher: prefixMatcher(aiBridgeServicePaths), path: "/ai-bridge/api/snapshot"},
+		{name: "ai-bridge session exchange", owned: true, matcher: prefixMatcher(aiBridgeServicePaths), path: "/ai-bridge/auth/exchange"},
+		{name: "ai-bridge console stays on the dashboard", matcher: prefixMatcher(aiBridgeServicePaths), path: "/ai-bridge"},
+		{name: "ai-bridge console asset stays on the dashboard", matcher: prefixMatcher(aiBridgeServicePaths), path: "/ai-bridge/admin.js"},
+		{name: "ai-bridge sibling path", matcher: prefixMatcher(aiBridgeServicePaths), path: "/ai-bridge/apiary"},
+
+		{name: "relay v1", owned: true, matcher: relayPathMatcher, path: "/v1/chat/completions"},
+		{name: "relay v1beta", owned: true, matcher: relayPathMatcher, path: "/v1beta/models"},
+		{name: "relay midjourney", owned: true, matcher: relayPathMatcher, path: "/mj/submit/imagine"},
+		{name: "relay midjourney mode", owned: true, matcher: relayPathMatcher, path: "/turbo/mj/submit/imagine"},
+		{name: "relay keeps dashboard api", matcher: relayPathMatcher, path: "/api/status"},
+		{name: "relay v10 is not v1", matcher: relayPathMatcher, path: "/v10/chat/completions"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			path, matched := testCase.rewrite(testCase.path)
-			assert.Equal(t, testCase.wantMatched, matched)
-			if testCase.wantMatched {
-				assert.Equal(t, testCase.wantPath, path)
-			}
+			assert.Equal(t, testCase.owned, testCase.matcher(testCase.path))
 		})
 	}
 }
 
-func TestBundledServicesForwardRequestsAndFallThrough(t *testing.T) {
+func newBundledServiceEngine() *gin.Engine {
 	gin.SetMode(gin.TestMode)
-	received := make(chan string, 1)
+	engine := gin.New()
+	registerBundledServices(engine)
+	// Stand-in for the embedded dashboard, which owns the remaining paths.
+	engine.NoRoute(func(c *gin.Context) {
+		c.String(http.StatusOK, "dashboard:"+c.Request.URL.Path)
+	})
+	return engine
+}
+
+func TestBundledServicesForwardRequests(t *testing.T) {
+	received := make(chan string, 3)
 	service := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		body, _ := io.ReadAll(request.Body)
 		received <- request.Method + " " + request.URL.RequestURI() + " " + string(body)
@@ -57,61 +82,85 @@ func TestBundledServicesForwardRequestsAndFallThrough(t *testing.T) {
 	t.Cleanup(service.Close)
 
 	t.Setenv(envInvitationsServiceURL, service.URL)
+	t.Setenv(envConnectServiceURL, service.URL)
+	t.Setenv(envAIBridgeServiceURL, "")
 
-	engine := gin.New()
-	registerBundledServices(engine)
-	engine.GET("/invitations", func(c *gin.Context) { c.String(http.StatusOK, "dashboard") })
+	engine := newBundledServiceEngine()
 	gateway := httptest.NewServer(engine)
 	t.Cleanup(gateway.Close)
 
+	// invitations: the /invitations prefix is stripped because the service
+	// serves its API under /api.
 	response, err := http.Post(gateway.URL+"/invitations/api/invitations/withdraw?page=2", "application/json", strings.NewReader(`{"amount":1}`))
 	require.NoError(t, err)
 	defer response.Body.Close()
 	body, err := io.ReadAll(response.Body)
 	require.NoError(t, err)
-
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	assert.JSONEq(t, `{"success":true}`, string(body))
 	assert.Equal(t, "POST /api/invitations/withdraw?page=2 {\"amount\":1}", <-received)
 
-	// Paths owned by the gateway keep working when a service is configured.
-	response, err = http.Get(gateway.URL + "/invitations")
+	// connect: the path is forwarded unchanged.
+	response, err = http.Get(gateway.URL + "/connect/api/clients")
 	require.NoError(t, err)
 	defer response.Body.Close()
-	body, err = io.ReadAll(response.Body)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, "dashboard", string(body))
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "GET /connect/api/clients ", <-received)
+
+	// The dashboard keeps the page paths of both services.
+	for _, path := range []string{"/connect", "/connect/dashboard", "/ai-bridge"} {
+		response, err = http.Get(gateway.URL + path)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		page, err := io.ReadAll(response.Body)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "dashboard:"+path, string(page))
+	}
 }
-func TestUnconfiguredServiceKeepsGatewayRouting(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
+func TestUnconfiguredServiceAnswersJSONNotFound(t *testing.T) {
 	t.Setenv(envInvitationsServiceURL, "")
 	t.Setenv(envConnectServiceURL, "")
 	t.Setenv(envAIBridgeServiceURL, "")
 
-	engine := gin.New()
-	registerBundledServices(engine)
-	engine.GET("/invitations", func(c *gin.Context) { c.String(http.StatusOK, "dashboard") })
+	engine := newBundledServiceEngine()
 	gateway := httptest.NewServer(engine)
 	t.Cleanup(gateway.Close)
 
-	response, err := http.Get(gateway.URL + "/invitations")
-	require.NoError(t, err)
-	defer response.Body.Close()
-	assert.Equal(t, http.StatusOK, response.StatusCode)
+	for _, path := range []string{
+		"/invitations/api/invitations/me",
+		"/connect/api/clients",
+		"/connect/authorize",
+		"/ai-bridge/api/snapshot",
+	} {
+		response, err := http.Get(gateway.URL + path)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, response.StatusCode, path)
+		assert.Contains(t, string(body), "service is not configured", path)
+	}
+}
 
-	response, err = http.Get(gateway.URL + "/invitations/api/invitations/me")
+func TestServiceWithInvalidURLIsTreatedAsAbsent(t *testing.T) {
+	t.Setenv(envConnectServiceURL, "127.0.0.1:4000")
+
+	engine := newBundledServiceEngine()
+	gateway := httptest.NewServer(engine)
+	t.Cleanup(gateway.Close)
+
+	response, err := http.Get(gateway.URL + "/connect/api/clients")
 	require.NoError(t, err)
 	defer response.Body.Close()
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 }
 
 func TestConfiguredServiceReturnsBadGatewayWhenUnreachable(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Setenv(envConnectServiceURL, "http://127.0.0.1:1")
 
-	engine := gin.New()
-	registerBundledServices(engine)
+	engine := newBundledServiceEngine()
 	gateway := httptest.NewServer(engine)
 	t.Cleanup(gateway.Close)
 
@@ -125,26 +174,47 @@ func TestConfiguredServiceReturnsBadGatewayWhenUnreachable(t *testing.T) {
 }
 
 func TestRelayRoutingRefusesToLoopBackIntoTheGateway(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Setenv("PORT", "3000")
 	t.Setenv(envAIBridgeRelayEnabled, "true")
 	t.Setenv(envAIBridgeUpstreamBaseURL, "http://127.0.0.1:3000")
 	t.Setenv(envAIBridgeServiceURL, "http://127.0.0.1:1")
 
-	engine := gin.New()
-	registerBundledServices(engine)
+	engine := newBundledServiceEngine()
 	gateway := httptest.NewServer(engine)
 	t.Cleanup(gateway.Close)
 
-	// The relay rule is refused, so the request is not proxied at all.
+	// The relay rule is refused, so relay paths stay on the gateway.
 	response, err := http.Post(gateway.URL+"/v1/chat/completions", "application/json", strings.NewReader("{}"))
 	require.NoError(t, err)
 	defer response.Body.Close()
-	assert.Equal(t, http.StatusNotFound, response.StatusCode)
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "dashboard:/v1/chat/completions", string(body))
+}
+
+func TestRelayRoutingRequiresAConfiguredService(t *testing.T) {
+	t.Setenv("PORT", "3000")
+	t.Setenv(envAIBridgeRelayEnabled, "true")
+	t.Setenv(envAIBridgeServiceURL, "")
+
+	engine := newBundledServiceEngine()
+	gateway := httptest.NewServer(engine)
+	t.Cleanup(gateway.Close)
+
+	// Without a service the relay switch cannot be honored, and relay paths must
+	// keep working on the gateway instead of answering 404.
+	response, err := http.Post(gateway.URL+"/v1/chat/completions", "application/json", strings.NewReader("{}"))
+	require.NoError(t, err)
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "dashboard:/v1/chat/completions", string(body))
 }
 
 func TestRelayRoutingForwardsWhenAIBridgeHasAnotherUpstream(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	service := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = writer.Write([]byte(`{"upstream":"` + request.URL.Path + `"}`))
@@ -156,16 +226,17 @@ func TestRelayRoutingForwardsWhenAIBridgeHasAnotherUpstream(t *testing.T) {
 	t.Setenv(envAIBridgeUpstreamBaseURL, "http://10.0.0.5:3000")
 	t.Setenv(envAIBridgeServiceURL, service.URL)
 
-	engine := gin.New()
-	registerBundledServices(engine)
+	engine := newBundledServiceEngine()
 	gateway := httptest.NewServer(engine)
 	t.Cleanup(gateway.Close)
 
-	response, err := http.Post(gateway.URL+"/v1/chat/completions", "application/json", strings.NewReader("{}"))
-	require.NoError(t, err)
-	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, response.StatusCode)
-	assert.JSONEq(t, `{"upstream":"/v1/chat/completions"}`, string(body))
+	for _, path := range []string{"/v1/chat/completions", "/turbo/mj/submit/imagine"} {
+		response, err := http.Post(gateway.URL+path, "application/json", strings.NewReader("{}"))
+		require.NoError(t, err)
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, response.StatusCode, path)
+		assert.JSONEq(t, `{"upstream":"`+path+`"}`, string(body), path)
+	}
 }
