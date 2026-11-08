@@ -10,4 +10,9 @@ docs
 /web/node_modules
 /web/dist
 !THIRD-PARTY-LICENSES.md
+# Local secrets must never enter the build context.
+.env
+.env.*
+!services/*/.env.example
+!web/.env.example
 /services/*/target
