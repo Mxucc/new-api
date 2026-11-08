@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>AI Bridge Control</title>
+  <link rel="icon" href="/ai-bridge/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ai-bridge/admin.css">
+  <script src="/ai-bridge/admin.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/ai-bridge" aria-label="AI Bridge 控制台首页">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+      <span class="brand-name">AI BRIDGE</span>
+      <span class="brand-context">CONTROL</span>
+    </a>
+    <div class="topbar-status">
+      <span class="live-indicator" id="live-indicator" aria-hidden="true"></span>
+      <span id="connection-label">连接中</span>
+      <span class="divider" aria-hidden="true"></span>
+      <span class="admin-name" id="admin-name">管理员</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="metric-rail" aria-label="实时状态">
+      <div class="metric metric-primary"><span class="metric-label">当前并发</span><strong class="metric-value" id="metric-active">--</strong><span class="metric-note" id="metric-tracked">跟踪 -- 个身份</span></div>
+      <div class="metric"><span class="metric-label">403 冷却</span><strong class="metric-value" id="metric-auth">--</strong><span class="metric-note">Key 与客户端 IP</span></div>
+      <div class="metric"><span class="metric-label">重试冷却</span><strong class="metric-value" id="metric-retry">--</strong><span class="metric-note">上游异常保护</span></div>
+      <div class="metric"><span class="metric-label">黑名单</span><strong class="metric-value" id="metric-blacklist">--</strong><span class="metric-note" id="metric-blacklist-note">Key -- · IP --</span></div>
+      <div class="metric"><span class="metric-label">白名单</span><strong class="metric-value" id="metric-whitelist">--</strong><span class="metric-note">受信任 API Key</span></div>
+      <div class="metric"><span class="metric-label">累计请求</span><strong class="metric-value" id="metric-requests">--</strong><span class="metric-note" id="metric-errors">4xx -- · 5xx --</span></div>
+    </section>
+
+    <section class="workspace-heading">
+      <div><p class="eyebrow">OPERATIONS / LIVE STATE</p><h1>运行控制台</h1></div>
+      <div class="workspace-actions">
+        <label class="search-control">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.8-3.8"></path></svg>
+          <span class="sr-only">搜索当前数据</span>
+          <input id="search-input" type="search" placeholder="搜索指纹或 IP" autocomplete="off" spellcheck="false">
+        </label>
+        <button class="icon-button" id="refresh-button" type="button" title="立即刷新" aria-label="立即刷新">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 4v7h-7"></path></svg>
+        </button>
+        <button class="icon-button secondary-icon-button" id="reload-button" type="button" title="重载配置和名单" aria-label="重载配置和名单">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m8 11 4 4 4-4"></path><path d="M5 20h14"></path></svg>
+        </button>
+      </div>
+    </section>
+
+    <div class="alert" id="alert" role="alert" hidden>
+      <div><strong id="alert-title">数据暂时不可用</strong><span id="alert-message"></span></div>
+      <button id="alert-action" type="button">重试</button>
+    </div>
+
+    <nav class="tabs" role="tablist" aria-label="控制台视图">
+      <button class="tab is-active" id="tab-overview" type="button" role="tab" aria-selected="true" aria-controls="panel-overview" data-view="overview">总览</button>
+      <button class="tab" id="tab-access" type="button" role="tab" aria-selected="false" aria-controls="panel-access" data-view="access">访问控制</button>
+      <button class="tab" id="tab-cooldowns" type="button" role="tab" aria-selected="false" aria-controls="panel-cooldowns" data-view="cooldowns">冷却队列</button>
+      <button class="tab" id="tab-config" type="button" role="tab" aria-selected="false" aria-controls="panel-config" data-view="config">配置</button>
+      <button class="tab" id="tab-logs" type="button" role="tab" aria-selected="false" aria-controls="panel-logs" data-view="logs">日志</button>
+    </nav>
+
+    <div class="loading-state" id="loading-state" aria-live="polite"><span class="loading-line"></span><span class="loading-line"></span><span class="loading-line short"></span></div>
+
+    <section class="panel is-active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+      <div class="overview-grid">
+        <section class="concurrency-block" aria-labelledby="concurrency-title">
+          <div class="section-heading"><div><p class="section-kicker">TRAFFIC</p><h2 id="concurrency-title">并发负载</h2></div><span class="section-count" id="uptime-label">运行 --</span></div>
+          <div class="load-display"><strong id="load-active">--</strong><span>活跃请求与等待者</span></div>
+          <div class="load-track" role="meter" aria-label="当前并发负载" aria-valuemin="0" aria-valuenow="0" id="load-meter"><span id="load-bar"></span></div>
+          <dl class="inline-facts">
+            <div><dt>跟踪身份</dt><dd id="fact-tracked">--</dd></div>
+            <div><dt>本地冷却</dt><dd id="fact-cooldowns">--</dd></div>
+            <div><dt>快照时间</dt><dd id="fact-generated">--</dd></div>
+          </dl>
+        </section>
+
+        <section class="table-section" aria-labelledby="overview-auth-title">
+          <div class="section-heading"><div><p class="section-kicker">AUTH GUARD</p><h2 id="overview-auth-title">最近的 403 冷却</h2></div><button class="text-button" type="button" data-open-view="cooldowns">查看全部</button></div>
+          <div class="table-wrap compact-table"><table><thead><tr><th>范围</th><th>身份</th><th>原因</th><th>状态</th><th class="align-right">剩余</th></tr></thead><tbody id="overview-auth-body"></tbody></table></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-access" role="tabpanel" aria-labelledby="tab-access" hidden>
+      <section class="table-section" aria-labelledby="black-key-title">
+        <div class="section-heading"><div><p class="section-kicker">DENY / API KEY</p><h2 id="black-key-title">黑名单 Key</h2></div><div class="section-actions"><span class="section-count" id="black-key-count">0</span><button class="command-button" type="button" data-create-list="blacklist_key">新增</button></div></div>
+        <div class="table-wrap"><table><thead><tr><th>掩码</th><th>SHA-256 指纹</th><th>策略</th><th class="align-right">操作</th></tr></thead><tbody id="black-key-body"></tbody></table></div>
+      </section>
+      <section class="table-section" aria-labelledby="black-ip-title">
+        <div class="section-heading"><div><p class="section-kicker">DENY / NETWORK</p><h2 id="black-ip-title">黑名单 IP</h2></div><div class="section-actions"><span class="section-count" id="black-ip-count">0</span><button class="command-button" type="button" data-create-list="blacklist_ip">新增</button></div></div>
+        <div class="table-wrap"><table><thead><tr><th>客户端 IP</th><th>类型</th><th>策略</th><th class="align-right">操作</th></tr></thead><tbody id="black-ip-body"></tbody></table></div>
+      </section>
+      <section class="table-section" aria-labelledby="white-key-title">
+        <div class="section-heading"><div><p class="section-kicker">TRUST / API KEY</p><h2 id="white-key-title">白名单 Key</h2></div><div class="section-actions"><span class="section-count" id="white-key-count">0</span><button class="command-button" type="button" data-create-list="whitelist_key">新增</button></div></div>
+        <div class="table-wrap"><table><thead><tr><th>掩码</th><th>SHA-256 指纹</th><th>策略</th><th class="align-right">操作</th></tr></thead><tbody id="white-key-body"></tbody></table></div>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-cooldowns" role="tabpanel" aria-labelledby="tab-cooldowns" hidden>
+      <section class="table-section" aria-labelledby="auth-cooldown-title">
+        <div class="section-heading"><div><p class="section-kicker">AUTHENTICATION</p><h2 id="auth-cooldown-title">403 鉴权冷却</h2></div><span class="section-count" id="auth-cooldown-count">0</span></div>
+        <div class="table-wrap"><table><thead><tr><th>范围</th><th>身份</th><th>原因</th><th>HTTP</th><th class="align-right">剩余</th><th class="align-right">操作</th></tr></thead><tbody id="auth-cooldown-body"></tbody></table></div>
+      </section>
+      <section class="table-section" aria-labelledby="retry-cooldown-title">
+        <div class="section-heading"><div><p class="section-kicker">UPSTREAM RETRY</p><h2 id="retry-cooldown-title">重试冷却</h2></div><span class="section-count" id="retry-cooldown-count">0</span></div>
+        <div class="table-wrap"><table><thead><tr><th>身份指纹</th><th>原因</th><th>来源</th><th class="align-right">剩余</th><th class="align-right">操作</th></tr></thead><tbody id="retry-cooldown-body"></tbody></table></div>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-config" role="tabpanel" aria-labelledby="tab-config" hidden>
+      <section class="config-status" aria-labelledby="config-status-title">
+        <div class="section-heading"><div><p class="section-kicker">POLICY FILES</p><h2 id="config-status-title">策略文件状态</h2></div><span class="section-count" id="override-file-label">--</span></div>
+        <div class="diagnostic-grid" id="diagnostic-grid"></div>
+      </section>
+      <section class="config-editor" aria-labelledby="config-editor-title">
+        <div class="section-heading sticky-heading"><div><p class="section-kicker">RUNTIME CONTROL</p><h2 id="config-editor-title">运行时配置</h2></div><div class="section-actions"><span class="dirty-label" id="config-dirty" hidden>有未保存更改</span><button class="quiet-button" id="config-reset-all" type="button">清除全部覆盖</button><button class="command-button" id="config-save" type="button" disabled>保存并应用</button></div></div>
+        <div class="config-groups" id="config-groups"></div>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-logs" role="tabpanel" aria-labelledby="tab-logs" hidden>
+      <section class="log-metrics" aria-label="累计观测指标">
+        <dl class="observation-facts">
+          <div><dt>请求总数</dt><dd id="obs-requests">--</dd></div>
+          <div><dt>2xx</dt><dd id="obs-2xx">--</dd></div>
+          <div><dt>4xx</dt><dd id="obs-4xx">--</dd></div>
+          <div><dt>5xx</dt><dd id="obs-5xx">--</dd></div>
+          <div><dt>上游重试</dt><dd id="obs-retries">--</dd></div>
+          <div><dt>管理变更</dt><dd id="obs-mutations">--</dd></div>
+        </dl>
+      </section>
+      <section class="table-section" aria-labelledby="event-log-title">
+        <div class="section-heading"><div><p class="section-kicker">SANITIZED EVENT RING</p><h2 id="event-log-title">最近运行日志</h2></div><span class="section-count" id="event-capacity">--</span></div>
+        <div class="table-wrap"><table class="log-table"><thead><tr><th>时间</th><th>级别</th><th>事件</th><th>详情</th></tr></thead><tbody id="event-log-body"></tbody></table></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog class="admin-dialog" id="list-dialog">
+    <form method="dialog" id="list-form">
+      <div class="dialog-heading"><div><p class="section-kicker" id="dialog-kicker">ACCESS CONTROL</p><h2 id="dialog-title">新增条目</h2></div><button class="dialog-close" value="cancel" type="submit" aria-label="关闭" title="关闭">×</button></div>
+      <label class="field-label" for="list-value" id="list-value-label">值</label>
+      <input class="field-input mono" id="list-value" name="value" autocomplete="off" spellcheck="false" required>
+      <p class="field-error" id="list-error" hidden></p>
+      <div class="dialog-actions"><button class="quiet-button" value="cancel" type="submit">取消</button><button class="command-button" id="list-submit" value="default" type="submit">保存</button></div>
+    </form>
+  </dialog>
+
+  <footer><span>AI BRIDGE / ADMIN</span><span id="footer-status">等待首个快照</span></footer>
+</body>
+</html>

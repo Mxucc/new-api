@@ -13,6 +13,9 @@ import (
 )
 
 func SetRouter(router *gin.Engine, assets WebAssets) {
+	// Bundled services (services/) are published through the gateway, so their
+	// routes must exist before the API, relay, and dashboard routes.
+	registerBundledServices(router)
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)

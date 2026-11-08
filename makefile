@@ -9,8 +9,10 @@ DEV_API_SERVICE = new-api
 DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
+SERVICES_DIR = ./services
+SERVICES = ai-bridge invitations connect
 
-.PHONY: all build-web build-web-classic build-all-web start-api dev dev-api dev-api-rebuild dev-web dev-web-classic reset-setup test
+.PHONY: all build-web build-web-classic build-all-web build-services start-api dev dev-api dev-api-rebuild dev-web dev-web-classic reset-setup test
 
 all: build-all-web start-api
 
@@ -25,6 +27,12 @@ build-web-classic:
 	@cd $(WEB_CLASSIC_DIR) && VITE_REACT_APP_VERSION=$$(cat ../../VERSION) bun run build
 
 build-all-web: build-web build-web-classic
+
+build-services:
+	@for service in $(SERVICES); do \
+		echo "Building $$service..."; \
+		(cd $(SERVICES_DIR)/$$service && cargo build --release --locked) || exit 1; \
+	done
 
 start-api:
 	@echo "Starting api dev server..."
