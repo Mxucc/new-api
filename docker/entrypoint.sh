@@ -47,6 +47,8 @@ wait_ready() {
 # process, so a shared environment cannot mount two services on one path.
 run_ai_bridge() {
 	export AI_BRIDGE_ADMIN_CONFIG_FILE="${AI_BRIDGE_ADMIN_CONFIG_FILE:-$DATA_DIR/ai-bridge/admin-config.env}"
+	# ai-bridge forwards to the gateway next to it; PORT is the gateway's port.
+	export AI_BRIDGE_UPSTREAM_BASE_URL="${AI_BRIDGE_UPSTREAM_BASE_URL:-http://127.0.0.1:${PORT:-3000}}"
 	export AI_BRIDGE_CYBER_POLICY_BLACKLIST_FILE="${AI_BRIDGE_CYBER_POLICY_BLACKLIST_FILE:-$DATA_DIR/ai-bridge/black.txt}"
 	export AI_BRIDGE_CYBER_POLICY_BLACK_LOG_FILE="${AI_BRIDGE_CYBER_POLICY_BLACK_LOG_FILE:-$DATA_DIR/ai-bridge/black_log}"
 	export AI_BRIDGE_CYBER_POLICY_IP_BLACKLIST_FILE="${AI_BRIDGE_CYBER_POLICY_IP_BLACKLIST_FILE:-$DATA_DIR/ai-bridge/black_ip}"
@@ -105,6 +107,9 @@ supervise() {
 }
 
 supervisors=""
+if [ -z "$(value_of SESSION_SECRET)" ] && { [ -x "$BIN_DIR/connect" ] || [ -x "$BIN_DIR/ai-bridge" ]; }; then
+	log "SESSION_SECRET is not set: the bundled services cannot decode the dashboard session, so /connect and /ai-bridge answer unauthorized. Set the same SESSION_SECRET for the gateway and the services."
+fi
 
 start_service() {
 	name="$1"
