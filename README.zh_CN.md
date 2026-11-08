@@ -290,6 +290,8 @@ AI_BRIDGE_AUTOSTART=false
 
 完整配置见[环境变量示例](./.env.example)、[环境变量文档](https://docs.newapi.ai/zh/docs/installation/config-maintenance/environment-variables)和[鉴权与登录会话说明](./docs/authentication.md)。容器变量应通过 Compose 的 `environment` 或 `env_file` 注入；只复制 `.env.example` 不会自动将变量传入容器。镜像的工作目录是 `/data`，因此放在 `/data/.env`（使用 Compose 挂载时即 `<仓库>/data/.env`）的文件同样会被网关和内置服务加载；已存在于进程环境中的变量始终优先于该文件。
 
+`/data/.env` 由进程自己读取，`docker/entrypoint.sh` 不读它：决定内置服务是否启动的变量（`SESSION_SECRET`、`ISSUER_URL`、`INVITATIONS_DATABASE_URL`/`DATABASE_URL`、`NEWAPI_DATABASE_URL`）必须由进程环境提供，否则容器日志会出现 `not starting <service>`，该服务不启动。
+
 正式部署时使用 HTTPS，并配置反向代理支持流式响应与 WebSocket 升级。持久化并备份数据库和挂载数据。多节点必须共用主数据库和鉴权密钥；独立 Redis 或内存限流器会按节点分别计数。不同拓扑下的会话传播行为见鉴权文档。
 
 从[发布页](https://github.com/QuantumNous/new-api/releases)选择明确的镜像版本，阅读升级说明并先备份再升级。`latest` 会随发布构建变化；已有实例应按实际版本评估迁移与兼容性。
