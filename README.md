@@ -233,17 +233,21 @@ These three services used to be separate Rust deployments (one container each pl
 
 **When migrating, reorganize the environment variables as follows.** The three services read names that collide but mean different things; the container isolates them per service, so the old nginx rewrites are no longer needed:
 
+**A PostgreSQL deployment only needs `SESSION_SECRET`, `ISSUER_URL` and `SQL_DSN`.** The entrypoint derives the rest: the services listen on `PORT+1` (ai-bridge), `PORT+2` (invitations) and `PORT+3` (connect), their upstream and callback addresses follow `PORT`, the gateway's `*_SERVICE_URL` values follow those ports, and invitations reuses `SQL_DSN`. `ISSUER_URL` is the one value that cannot be derived, because it is the public origin clients reach. Everything can live in a single file: `/data/.env` (`<repo>/data/.env` with the Compose bind mount), which the gateway, the entrypoint and the services all read.
+
 | Old variable (who used it) | How it is read now | What to do |
 | --- | --- | --- |
 | `SESSION_SECRET` (new-api plus all three services, one shared value) | The services still read the same value | Keep it, but it **must be set**; otherwise new-api signs sessions with a random secret and the services cannot decode the dashboard session, so both pages answer unauthorized |
-| `DATABASE_URL` (SQLite for connect, PostgreSQL for invitations) | connect reads `CONNECT_DATABASE_URL`, invitations reads `INVITATIONS_DATABASE_URL`, each falling back to `DATABASE_URL` | **Name collision:** put the invitations PostgreSQL URL in `INVITATIONS_DATABASE_URL`, and set `CONNECT_DATABASE_URL=sqlite:connect.db?mode=rwc` explicitly. If `DATABASE_URL` is PostgreSQL and `CONNECT_DATABASE_URL` is unset, connect refuses to start and says why |
-| `LISTEN_ADDR` (4000 for connect, 6212 for invitations) | `CONNECT_LISTEN_ADDR` / `INVITATIONS_LISTEN_ADDR`, defaulting to `127.0.0.1:4000` / `127.0.0.1:6212` | Usually nothing to set; changing the address also moves `*_SERVICE_URL` and the readiness probe |
+| `SQL_DSN` (new-api's main database) | invitations reuses it as `NEWAPI_DATABASE_URL`, and keeps its own tables in it unless `INVITATIONS_DATABASE_URL` is set | Nothing, as long as it is a PostgreSQL URL: invitations needs PostgreSQL, so a MySQL or SQLite main database cannot serve it |
+| `DATABASE_URL` (SQLite for connect, PostgreSQL for invitations) | connect reads `CONNECT_DATABASE_URL`, invitations reads `INVITATIONS_DATABASE_URL`, each falling back to `DATABASE_URL` | **Name collision:** put the invitations PostgreSQL URL in `INVITATIONS_DATABASE_URL`. `CONNECT_DATABASE_URL` defaults to `sqlite:connect.db?mode=rwc`; a PostgreSQL `DATABASE_URL` is never handed to connect |
+| `LISTEN_ADDR` (4000 for connect, 6212 for invitations) | `CONNECT_LISTEN_ADDR` / `INVITATIONS_LISTEN_ADDR`, defaulting to `PORT+3` / `PORT+2` | Nothing to set: the defaults follow `PORT`, and `*_SERVICE_URL` plus the readiness probe follow the resulting address |
 | `BASE_PATH` (`/connect` for connect, empty for invitations) | `CONNECT_BASE_PATH` / `INVITATIONS_BASE_PATH`, defaulting to `/connect` / empty | **Do not set `BASE_PATH` globally**; it is overridden per service and therefore has no effect |
-| `API_BASE_URL` (connect's upstream) | `CONNECT_API_BASE_URL`, derived from `PORT` | Do not hardcode `http://127.0.0.1:3000`; the derived default follows `PORT` |
+| `API_BASE_URL`, `NEW_API_BASE_URL` (what connect and invitations call back on) | `CONNECT_API_BASE_URL` / `INVITATIONS_NEW_API_BASE_URL`, derived from `PORT` | Do not hardcode `http://127.0.0.1:3000`; the derived default follows `PORT` |
 | `AI_BRIDGE_UPSTREAM_BASE_URL` (ai-bridge's upstream) | Same, defaulting to `http://127.0.0.1:${PORT}` | Do not hardcode the port inside the container |
 | `PRIVATE_KEY_PATH` (connect's OIDC key) | Working directory is `/data`, so the default is `keys/private.pem` | Put the existing key at `/data/keys/private.pem`; otherwise a new key is generated and the JWKS `kid` changes |
 | `AI_BRIDGE_ADMIN_CONFIG_FILE`, `AI_BRIDGE_CYBER_POLICY_*_FILE` | All default to `/data/ai-bridge/` | Copy the console's override file and the black/white lists over |
-| `ISSUER_URL`, `SYNC_SECRET`, `AUTO_SYNC_*`, `NEWAPI_DATABASE_URL`, `ID_TOKEN_*`, `REFRESH_TOKEN_*` and other service-specific names | Unchanged | Copy them as they are |
+| `ISSUER_URL` (connect's OIDC issuer) | Unchanged, and still required | It must be the origin clients reach **without** the `/connect` prefix, because connect appends its `BASE_PATH` itself; the container keeps `BASE_PATH=/connect`, so `https://example.com/connect` would publish `/connect/connect/...` |
+| `SYNC_SECRET`, `AUTO_SYNC_*`, `ID_TOKEN_*`, `REFRESH_TOKEN_*` and the other service-specific names | Unchanged | Copy them as they are |
 
 **Data that has to move with them** (otherwise the pages open but show nothing):
 
@@ -290,7 +294,7 @@ The services can also stay external: set `INVITATIONS_SERVICE_URL` / `CONNECT_SE
 
 See the [environment example](./.env.example), [environment reference](https://docs.newapi.ai/en/docs/installation/config-maintenance/environment-variables), and [authentication and session guide](./docs/authentication.md) for full configuration. Configure container variables in Compose's `environment` or `env_file`; copying `.env.example` alone does not inject variables into the container. The image runs with `/data` as its working directory, so a `.env` placed at `/data/.env` (for example `<repo>/data/.env` with the Compose bind mount) is also loaded by the gateway and the bundled services. The gateway, connect and invitations keep a value that already exists in the process environment; ai-bridge reads its `.env` value first, and the runtime configuration saved by its admin console overrides both.
 
-`/data/.env` is read by the processes, not by `docker/entrypoint.sh`: a variable that decides whether a bundled service starts (`SESSION_SECRET`, `ISSUER_URL`, `INVITATIONS_DATABASE_URL`/`DATABASE_URL`, `NEWAPI_DATABASE_URL`) must be set in the process environment, or the service stays off with a `not starting <service>` line in the container log.
+`docker/entrypoint.sh` loads `/data/.env` as well, so one file configures the whole container; a variable already set in the process environment wins, which is how a Compose-level override takes effect. ai-bridge reads `.env` ahead of the process environment and its console's `admin-config.env` ahead of both.
 
 For production, put the console behind HTTPS and configure your reverse proxy for streaming and WebSocket upgrades. Persist and back up the database and mounted data. Multi-node deployments must share the main database and authentication secrets; separate Redis instances or in-memory rate limiters count limits independently per node. The session guide describes propagation behavior for each topology.
 

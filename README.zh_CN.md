@@ -233,17 +233,21 @@ docker compose logs -f new-api
 
 **从旧版迁移时，环境变量按下面的对应关系整理。**三个服务读同名变量但含义不同，容器已按服务隔离，不再依赖 nginx 改写：
 
+**PostgreSQL 部署只需要 `SESSION_SECRET`、`ISSUER_URL`、`SQL_DSN` 三项。**其余由 entrypoint 推导：服务分别监听 `PORT+1`（ai-bridge）、`PORT+2`（invitations）、`PORT+3`（connect），回源与回调地址跟随 `PORT`，网关的 `*_SERVICE_URL` 跟着这些端口走，invitations 复用 `SQL_DSN`。`ISSUER_URL` 是唯一无法推导的一项，因为它是客户端实际访问的对外地址。这些都可以集中在一份文件里：`/data/.env`（使用 Compose 挂载时即 `<仓库>/data/.env`），网关、entrypoint 和三个服务都会读它。
+
 | 旧变量（谁在用） | 现在怎么读 | 迁移动作 |
 | --- | --- | --- |
 | `SESSION_SECRET`（new-api + 三个服务，同一个值） | 三个服务仍读同一个值 | 保持原值；**必须设置**，否则 new-api 用随机密钥，服务无法解析登录态，两个页面都是未授权 |
-| `DATABASE_URL`（connect 用 SQLite，invitations 用 PostgreSQL） | connect 读 `CONNECT_DATABASE_URL`，invitations 读 `INVITATIONS_DATABASE_URL`，都没有才回退 `DATABASE_URL` | **同名冲突**：invitations 的 PG 串放到 `INVITATIONS_DATABASE_URL`；connect 建议显式写 `CONNECT_DATABASE_URL=sqlite:connect.db?mode=rwc`。若 `DATABASE_URL` 是 PG 且没设 `CONNECT_DATABASE_URL`，connect 会拒绝启动并提示 |
-| `LISTEN_ADDR`（connect 4000，invitations 6212） | `CONNECT_LISTEN_ADDR` / `INVITATIONS_LISTEN_ADDR`，默认 `127.0.0.1:4000` / `127.0.0.1:6212` | 一般不用设；改端口时 `*_SERVICE_URL` 与健康探测会自动跟着变 |
+| `SQL_DSN`（new-api 主库） | invitations 复用它作为 `NEWAPI_DATABASE_URL`，并把自身数据表也放在这个库，除非设置了 `INVITATIONS_DATABASE_URL` | 只要是 PostgreSQL 串就不用动：invitations 只支持 PostgreSQL，MySQL 或 SQLite 主库无法为它提供服务 |
+| `DATABASE_URL`（connect 用 SQLite，invitations 用 PostgreSQL） | connect 读 `CONNECT_DATABASE_URL`，invitations 读 `INVITATIONS_DATABASE_URL`，都没有才回退 `DATABASE_URL` | **同名冲突**：invitations 的 PG 串放到 `INVITATIONS_DATABASE_URL`。`CONNECT_DATABASE_URL` 默认 `sqlite:connect.db?mode=rwc`；PG 串不会被交给 connect |
+| `LISTEN_ADDR`（connect 4000，invitations 6212） | `CONNECT_LISTEN_ADDR` / `INVITATIONS_LISTEN_ADDR`，默认 `PORT+3` / `PORT+2` | 不用设：默认值跟随 `PORT`，`*_SERVICE_URL` 与健康探测跟着实际地址变 |
 | `BASE_PATH`（connect 必须是 `/connect`，invitations 必须是空） | `CONNECT_BASE_PATH` / `INVITATIONS_BASE_PATH`，默认 `/connect` / 空 | **不要在全局设置 `BASE_PATH`**；会被按服务覆盖，设了也不生效 |
-| `API_BASE_URL`（connect 回源 new-api） | `CONNECT_API_BASE_URL`，默认按 `PORT` 推导 | 不要写死 `http://127.0.0.1:3000`；改 `PORT` 后默认值仍然正确 |
+| `API_BASE_URL`、`NEW_API_BASE_URL`（connect 与 invitations 回源 new-api） | `CONNECT_API_BASE_URL` / `INVITATIONS_NEW_API_BASE_URL`，默认按 `PORT` 推导 | 不要写死 `http://127.0.0.1:3000`；改 `PORT` 后默认值仍然正确 |
 | `AI_BRIDGE_UPSTREAM_BASE_URL`（ai-bridge 回源） | 同上，默认 `http://127.0.0.1:${PORT}` | 不要在容器里写死端口 |
 | `PRIVATE_KEY_PATH`（connect 的 OIDC 私钥） | 容器工作目录是 `/data`，默认 `keys/private.pem` | 把旧私钥放到 `/data/keys/private.pem`，否则会生成新私钥、JWKS `kid` 变化 |
 | `AI_BRIDGE_ADMIN_CONFIG_FILE`、`AI_BRIDGE_CYBER_POLICY_*_FILE` | 默认全部在 `/data/ai-bridge/` | 把旧的控制台覆盖配置与黑/白名单文件搬过去 |
-| `ISSUER_URL`、`SYNC_SECRET`、`AUTO_SYNC_*`、`NEWAPI_DATABASE_URL`、`ID_TOKEN_*`、`REFRESH_TOKEN_*` 等专有项 | 原名不变 | 原样搬过来 |
+| `ISSUER_URL`（connect 的 OIDC issuer） | 原名不变，仍然必填 | 必须是客户端访问的源站地址，**不要带 `/connect`**：connect 会自己拼 `BASE_PATH`，而容器固定 `BASE_PATH=/connect`，写成 `https://example.com/connect` 会公布出 `/connect/connect/...` |
+| `SYNC_SECRET`、`AUTO_SYNC_*`、`ID_TOKEN_*`、`REFRESH_TOKEN_*` 等专有项 | 原名不变 | 原样搬过来 |
 
 **必须一起搬走的数据**（否则页面能打开但数据是空的）：
 
@@ -290,7 +294,7 @@ AI_BRIDGE_AUTOSTART=false
 
 完整配置见[环境变量示例](./.env.example)、[环境变量文档](https://docs.newapi.ai/zh/docs/installation/config-maintenance/environment-variables)和[鉴权与登录会话说明](./docs/authentication.md)。容器变量应通过 Compose 的 `environment` 或 `env_file` 注入；只复制 `.env.example` 不会自动将变量传入容器。镜像的工作目录是 `/data`，因此放在 `/data/.env`（使用 Compose 挂载时即 `<仓库>/data/.env`）的文件同样会被网关和内置服务加载。网关、connect、invitations 以进程环境优先于该文件；ai-bridge 相反，`.env` 优先于进程环境，而管理后台保存的运行时配置又优先于两者。
 
-`/data/.env` 由进程自己读取，`docker/entrypoint.sh` 不读它：决定内置服务是否启动的变量（`SESSION_SECRET`、`ISSUER_URL`、`INVITATIONS_DATABASE_URL`/`DATABASE_URL`、`NEWAPI_DATABASE_URL`）必须由进程环境提供，否则容器日志会出现 `not starting <service>`，该服务不启动。
+`docker/entrypoint.sh` 也会读取 `/data/.env`，所以一份文件就能配置整个容器；已存在于进程环境中的变量优先，Compose 层面的覆盖因此依然有效。ai-bridge 例外：它先读 `.env`、后读进程环境，而控制台写入的 `admin-config.env` 又优先于两者。
 
 正式部署时使用 HTTPS，并配置反向代理支持流式响应与 WebSocket 升级。持久化并备份数据库和挂载数据。多节点必须共用主数据库和鉴权密钥；独立 Redis 或内存限流器会按节点分别计数。不同拓扑下的会话传播行为见鉴权文档。
 

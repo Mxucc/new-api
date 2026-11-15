@@ -66,8 +66,8 @@ COPY docker/entrypoint.sh /entrypoint.sh
 COPY LICENSE NOTICE THIRD-PARTY-LICENSES.md /licenses/
 RUN chmod +x /entrypoint.sh
 
-# Bundled services run next to the gateway. The entrypoint derives ai-bridge's
-# upstream from PORT, so nothing has to be restated here.
+# Bundled services run next to the gateway. The entrypoint derives each service's
+# port and callback address from PORT, so nothing has to be restated here.
 ENV AI_BRIDGE_CYBER_POLICY_CONFIRMATION_RULES_FILE=/usr/local/share/ai-bridge/cyber_policy_rules.json
 
 EXPOSE 3000

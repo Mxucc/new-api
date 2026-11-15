@@ -4,9 +4,9 @@
 
 | 目录 | 服务 | 网关转发的路径 | 默认监听 | 状态库 |
 | --- | --- | --- | --- | --- |
-| `ai-bridge/` | 模型协议前置代理、风控与重试 | `/ai-bridge/api/*`、`/ai-bridge/auth/exchange` | `127.0.0.1:8080` | `/data/ai-bridge/*` 文本状态文件 |
-| `invitations/` | 邀请返利、提现审批、小时级订单同步 | `/invitations/api/*` | `127.0.0.1:6212` | 自己的 PostgreSQL |
-| `connect/` | OAuth2 / OIDC 授权服务器 | `/connect/api/*`、`/connect/authorize`、`/connect/token`、`/connect/userinfo`、`/connect/.well-known/*`、`/connect/auth/exchange`、`/connect/clients` | `127.0.0.1:4000` | `/data/connect.db`（SQLite） |
+| `ai-bridge/` | 模型协议前置代理、风控与重试 | `/ai-bridge/api/*`、`/ai-bridge/auth/exchange` | `127.0.0.1:PORT+1` | `/data/ai-bridge/*` 文本状态文件 |
+| `invitations/` | 邀请返利、提现审批、小时级订单同步 | `/invitations/api/*` | `127.0.0.1:PORT+2` | 自己的 PostgreSQL |
+| `connect/` | OAuth2 / OIDC 授权服务器 | `/connect/api/*`、`/connect/authorize`、`/connect/token`、`/connect/userinfo`、`/connect/.well-known/*`、`/connect/auth/exchange`、`/connect/clients` | `127.0.0.1:PORT+3` | `/data/connect.db`（SQLite） |
 
 `/connect` 与 `/ai-bridge` 本身是**前端页面**（`web/src/features/connect`、`web/src/features/ai-bridge`），由网关的嵌入式前端渲染；服务自带的 HTML 控制台只在直接访问服务端口时可用。新增服务接口时，记得把路径加进 `router/service_proxy.go` 的 `connectServicePaths` / `aiBridgeServicePaths`。
 
@@ -26,7 +26,7 @@
 - 必填配置缺失时不启动该服务，并清掉对应的 `*_SERVICE_URL`，避免转发到一个起不来的进程。
 - 服务退出会按指数退避重启，连续失败到上限后停止重启并打日志；网关退出时一起收尾。
 
-必填配置：`invitations` 需要数据库（`INVITATIONS_DATABASE_URL`，未设置时回退 `DATABASE_URL`）、`NEWAPI_DATABASE_URL`、`SESSION_SECRET`；`connect` 需要 `SESSION_SECRET`、`ISSUER_URL`，数据库默认 `sqlite:connect.db`。`SESSION_SECRET` 必须与 new-api 一致，服务靠它解析同域登录态。三个服务都只读 new-api 的 session cookie，不写 new-api 的库（`invitations` 只读订单表）。
+必填配置收敛到三项：`SESSION_SECRET`（与 new-api 同一个值）、`ISSUER_URL`（connect 用，客户端访问的源站地址）、`SQL_DSN`（PostgreSQL）。`docker/entrypoint.sh` 由它们推导其余配置：`NEWAPI_DATABASE_URL` 取 `SQL_DSN`，`INVITATIONS_DATABASE_URL` 未设置时也取 `SQL_DSN`（返利表建在 new-api 库里），监听端口取 `PORT+1/2/3`，回源与回调地址取 `127.0.0.1:${PORT}`。`SESSION_SECRET` 必须与 new-api 一致，服务靠它解析同域登录态。三个服务都只读 new-api 的 session cookie，不写 new-api 的库（`invitations` 只读订单表）。
 
 ### 容器内的变量隔离
 
@@ -34,14 +34,14 @@
 
 | 变量 | connect | invitations | ai-bridge |
 | --- | --- | --- | --- |
-| 数据库 | `CONNECT_DATABASE_URL` → `DATABASE_URL` → `sqlite:connect.db?mode=rwc` | `INVITATIONS_DATABASE_URL` → `DATABASE_URL` | — |
-| 监听 | `CONNECT_LISTEN_ADDR`（默认 `127.0.0.1:4000`，不继承全局 `LISTEN_ADDR`） | `INVITATIONS_LISTEN_ADDR`（默认 `127.0.0.1:6212`，不继承全局 `LISTEN_ADDR`） | `AI_BRIDGE_LISTEN_ADDR`（默认 `127.0.0.1:8080`） |
+| 数据库 | `CONNECT_DATABASE_URL` →（仅 `sqlite:` 形式的）`DATABASE_URL` → `sqlite:connect.db?mode=rwc` | `INVITATIONS_DATABASE_URL` →（非 `sqlite:` 的）`DATABASE_URL` → `NEWAPI_DATABASE_URL` | — |
+| 监听 | `CONNECT_LISTEN_ADDR`（默认 `PORT+3`，不继承全局 `LISTEN_ADDR`） | `INVITATIONS_LISTEN_ADDR`（默认 `PORT+2`，不继承全局 `LISTEN_ADDR`） | `AI_BRIDGE_LISTEN_ADDR`（默认 `PORT+1`） |
 | 路径前缀 | `CONNECT_BASE_PATH`（默认 `/connect`） | `INVITATIONS_BASE_PATH`（默认空） | — |
-| 回源 new-api | `CONNECT_API_BASE_URL` → `http://127.0.0.1:${PORT}` | — | `AI_BRIDGE_UPSTREAM_BASE_URL` → `http://127.0.0.1:${PORT}` |
+| 回源 new-api | `CONNECT_API_BASE_URL` → `http://127.0.0.1:${PORT}` | `INVITATIONS_NEW_API_BASE_URL` → `NEW_API_BASE_URL` → `http://127.0.0.1:${PORT}` | `AI_BRIDGE_UPSTREAM_BASE_URL` → `http://127.0.0.1:${PORT}` |
 
-`*_SERVICE_URL` 与启动探测地址都按上面的监听端口推导，改端口不需要再手写地址。若 `DATABASE_URL` 是 PostgreSQL 而 `CONNECT_DATABASE_URL` 未设置，connect 会拒绝启动并提示改用 `CONNECT_DATABASE_URL`，避免把返利库的 DSN 当作 SQLite 路径。
+`*_SERVICE_URL` 与启动探测地址都按上面的监听端口推导，改 `PORT` 或改监听地址都不需要再手写地址。PostgreSQL 形式的 `DATABASE_URL` 不会被交给 connect（它只用 SQLite），因此改端口或共用 `DATABASE_URL` 都不会让 connect 拿错库。
 
-各服务自己的配置见同名 `.env.example`。
+各服务自己的配置见同名 `.env.example`。整份配置可以只写一个 `/data/.env`（容器工作目录就是 `/data`）：网关、entrypoint 和三个服务都会读它，已存在于进程环境中的变量优先；ai-bridge 例外，它先读 `.env`，控制台写入的 `admin-config.env` 又优先于两者。
 
 ### 关于 /v1 经 ai-bridge 转发
 
