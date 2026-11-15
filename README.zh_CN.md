@@ -288,7 +288,7 @@ AI_BRIDGE_AUTOSTART=false
 | `SESSION_COOKIE_TRUSTED_URL` | Secure 模式必填：以逗号分隔的精确 HTTPS Origin，不含路径或通配符；本地 HTTP 模式不设置 |
 | `TRUSTED_PROXIES` | 可信反向代理 IP/CIDR，或 `none`；按实际网络显式配置 |
 
-完整配置见[环境变量示例](./.env.example)、[环境变量文档](https://docs.newapi.ai/zh/docs/installation/config-maintenance/environment-variables)和[鉴权与登录会话说明](./docs/authentication.md)。容器变量应通过 Compose 的 `environment` 或 `env_file` 注入；只复制 `.env.example` 不会自动将变量传入容器。镜像的工作目录是 `/data`，因此放在 `/data/.env`（使用 Compose 挂载时即 `<仓库>/data/.env`）的文件同样会被网关和内置服务加载；已存在于进程环境中的变量始终优先于该文件。
+完整配置见[环境变量示例](./.env.example)、[环境变量文档](https://docs.newapi.ai/zh/docs/installation/config-maintenance/environment-variables)和[鉴权与登录会话说明](./docs/authentication.md)。容器变量应通过 Compose 的 `environment` 或 `env_file` 注入；只复制 `.env.example` 不会自动将变量传入容器。镜像的工作目录是 `/data`，因此放在 `/data/.env`（使用 Compose 挂载时即 `<仓库>/data/.env`）的文件同样会被网关和内置服务加载。网关、connect、invitations 以进程环境优先于该文件；ai-bridge 相反，`.env` 优先于进程环境，而管理后台保存的运行时配置又优先于两者。
 
 `/data/.env` 由进程自己读取，`docker/entrypoint.sh` 不读它：决定内置服务是否启动的变量（`SESSION_SECRET`、`ISSUER_URL`、`INVITATIONS_DATABASE_URL`/`DATABASE_URL`、`NEWAPI_DATABASE_URL`）必须由进程环境提供，否则容器日志会出现 `not starting <service>`，该服务不启动。
 
