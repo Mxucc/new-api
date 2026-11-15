@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
+  Brain,
   ClipboardList,
   CreditCard,
   FileText,
@@ -96,6 +97,11 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('Dashboard'),
             url: '/dashboard/models',
             icon: LayoutDashboard,
+          },
+          {
+            title: t('Model IQ'),
+            url: '/model-iq',
+            icon: Brain,
           },
           {
             title: t('API Keys'),

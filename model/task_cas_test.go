@@ -56,6 +56,7 @@ func TestMain(m *testing.M) {
 		&UserSubscription{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&PelicanTestResult{},
 		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},

@@ -41,6 +41,18 @@ type testResult struct {
 	context     *gin.Context
 	localErr    error
 	newAPIError *types.NewAPIError
+	// responseBody 是站点对外格式（OpenAI）的响应体，只有需要读取模型输出的探针会用它。
+	responseBody []byte
+}
+
+// channelTestOptions 让同一个探针既跑默认的 “hi” 健康检查，
+// 也跑鹈鹕测智这种需要较长输出、且不写消费日志的固定题面。
+type channelTestOptions struct {
+	Prompt string
+	// MaxTokens 为 0 时沿用按模型类型推断的默认值。
+	MaxTokens uint
+	// SkipConsumeLog 为真时不为本次探针写消费日志。
+	SkipConsumeLog bool
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
@@ -100,6 +112,10 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 }
 
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+	return testChannelWithOptions(ctx, channel, testUserID, testModel, endpointType, isStream, channelTestOptions{})
+}
+
+func testChannelWithOptions(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, opts channelTestOptions) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -270,7 +286,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
-	request := buildTestRequest(testModel, endpointType, channel, isStream)
+	request := buildTestRequest(testModel, endpointType, channel, isStream, opts)
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -541,29 +557,30 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 	info.SetEstimatePromptTokens(usage.PromptTokens)
 
-	quota, tieredResult := settleTestQuota(info, priceData, usage)
-	tok := time.Now()
-	milliseconds := tok.Sub(tik).Milliseconds()
-	consumedTime := float64(milliseconds) / 1000.0
-	other := buildTestLogOther(c, info, priceData, usage, tieredResult)
-	model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
-		ChannelId:        channel.Id,
-		PromptTokens:     usage.PromptTokens,
-		CompletionTokens: usage.CompletionTokens,
-		ModelName:        info.OriginModelName,
-		TokenName:        "Model test",
-		Quota:            quota,
-		Content:          []*common.Message{common.NewMessage("Model test")},
-		UseTimeSeconds:   int(consumedTime),
-		IsStream:         info.IsStream,
-		Group:            info.UsingGroup,
-		Other:            other,
-	})
+	// 鹈鹕测智这类探针只想拿到模型输出，不写消费日志，避免刷出假的测试账单记录。
+	if !opts.SkipConsumeLog {
+		milliseconds := time.Since(tik).Milliseconds()
+		consumedTime := float64(milliseconds) / 1000.0
+		quota, tieredResult := settleTestQuota(info, priceData, usage)
+		other := buildTestLogOther(c, info, priceData, usage, tieredResult)
+		model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
+			ChannelId:        channel.Id,
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			ModelName:        info.OriginModelName,
+			TokenName:        "Model test",
+			Quota:            quota,
+			Content:          []*common.Message{common.NewMessage("Model test")},
+			UseTimeSeconds:   int(consumedTime),
+			IsStream:         info.IsStream,
+			Group:            info.UsingGroup,
+			Other:            other,
+		})
+	}
 	common.SysLog(common.LogText("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
-		context:     c,
-		localErr:    nil,
-		newAPIError: nil,
+		context:      c,
+		responseBody: respBody,
 	}
 }
 
@@ -742,10 +759,26 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
-func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
-	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
-
-	// 根据端点类型构建不同的测试请求
+func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool, opts channelTestOptions) dto.Request {
+	prompt := strings.TrimSpace(opts.Prompt)
+	if prompt == "" {
+		prompt = "hi"
+	}
+	// 题面里可能有引号或换行，Responses 的 input 必须真正 JSON 化后再嵌入。
+	quotedPrompt, err := common.Marshal(prompt)
+	if err != nil {
+		quotedPrompt = []byte(`"hi"`)
+	}
+	testResponsesInput := json.RawMessage(`[{"role":"user","content":` + string(quotedPrompt) + `}]`)
+	// 探针默认只验证通路，输出上限很小；需要完整交付的题面通过 opts.MaxTokens 指定预算。
+	shortTokens := opts.MaxTokens
+	if shortTokens == 0 {
+		shortTokens = 16
+	}
+	geminiTokens := opts.MaxTokens
+	if geminiTokens == 0 {
+		geminiTokens = 3000
+	}
 	if endpointType != "" {
 		switch constant.EndpointType(endpointType) {
 		case constant.EndpointTypeEmbeddings:
@@ -774,7 +807,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			// 返回 OpenAIResponsesRequest
 			return &dto.OpenAIResponsesRequest{
 				Model:  model,
-				Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
+				Input:  testResponsesInput,
 				Stream: lo.ToPtr(isStream),
 			}
 		case constant.EndpointTypeOpenAIResponseCompact:
@@ -787,11 +820,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			return &dto.ClaudeRequest{
 				Model:     model,
 				Stream:    lo.ToPtr(isStream),
-				MaxTokens: lo.ToPtr(uint(16)),
+				MaxTokens: lo.ToPtr(shortTokens),
 				Messages: []dto.ClaudeMessage{
 					{
 						Role:    "user",
-						Content: "hi",
+						Content: prompt,
 					},
 				},
 			}
@@ -800,11 +833,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Contents: []dto.GeminiChatContent{
 					{
 						Role:  "user",
-						Parts: []dto.GeminiPart{{Text: "hi"}},
+						Parts: []dto.GeminiPart{{Text: prompt}},
 					},
 				},
 				GenerationConfig: dto.GeminiChatGenerationConfig{
-					MaxOutputTokens: lo.ToPtr(uint(3000)),
+					MaxOutputTokens: lo.ToPtr(geminiTokens),
 				},
 			}
 		case constant.EndpointTypeOpenAI:
@@ -814,10 +847,10 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Messages: []dto.Message{
 					{
 						Role:    "user",
-						Content: "hi",
+						Content: prompt,
 					},
 				},
-				MaxTokens: lo.ToPtr(uint(16)),
+				MaxTokens: lo.ToPtr(shortTokens),
 			}
 			if isStream {
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
@@ -851,7 +884,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	if strings.Contains(strings.ToLower(model), "codex") {
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
-			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
+			Input:  testResponsesInput,
 			Stream: lo.ToPtr(isStream),
 		}
 	}
@@ -863,7 +896,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		Messages: []dto.Message{
 			{
 				Role:    "user",
-				Content: "hi",
+				Content: prompt,
 			},
 		},
 	}
@@ -871,16 +904,25 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		testRequest.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 	}
 
-	if dto.IsOpenAIReasoningOModel(model) {
-		testRequest.MaxCompletionTokens = lo.ToPtr(uint(16))
-	} else if strings.Contains(model, "thinking") {
-		if !strings.Contains(model, "claude") {
-			testRequest.MaxTokens = lo.ToPtr(uint(50))
+	tokenBudget := opts.MaxTokens
+	if tokenBudget == 0 {
+		switch {
+		case dto.IsOpenAIReasoningOModel(model):
+			tokenBudget = 16
+		case strings.Contains(model, "thinking") && !strings.Contains(model, "claude"):
+			tokenBudget = 50
+		case strings.Contains(model, "gemini"):
+			tokenBudget = 3000
+		default:
+			tokenBudget = 16
 		}
-	} else if strings.Contains(model, "gemini") {
-		testRequest.MaxTokens = lo.ToPtr(uint(3000))
-	} else {
-		testRequest.MaxTokens = lo.ToPtr(uint(16))
+	}
+	// claude 的 thinking 变体一直不设置输出上限；只有题面显式给了预算时才补上。
+	skipMaxTokens := opts.MaxTokens == 0 && strings.Contains(model, "thinking") && strings.Contains(model, "claude")
+	if dto.IsOpenAIReasoningOModel(model) {
+		testRequest.MaxCompletionTokens = lo.ToPtr(tokenBudget)
+	} else if !skipMaxTokens {
+		testRequest.MaxTokens = lo.ToPtr(tokenBudget)
 	}
 
 	return testRequest

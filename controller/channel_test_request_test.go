@@ -98,7 +98,7 @@ func TestChannelTestOpenAIChatCompatibility(t *testing.T) {
 		{name: "o series", model: "o3-mini", upstream: "o3-mini", channelType: constant.ChannelTypeAzure, wantLimit: "max_completion_tokens"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			request, ok := buildTestRequest(tt.model, tt.endpoint, &model.Channel{}, tt.stream).(*dto.GeneralOpenAIRequest)
+			request, ok := buildTestRequest(tt.model, tt.endpoint, &model.Channel{}, tt.stream, channelTestOptions{}).(*dto.GeneralOpenAIRequest)
 			require.True(t, ok)
 			encoded := convertChatCompatibilityRequest(t, request, tt.channelType, map[string]string{tt.model: tt.upstream})
 			want := map[string]any{
@@ -309,4 +309,33 @@ func TestCloudflareEmbeddingResponseCompatibility(t *testing.T) {
 			assert.JSONEq(t, tt.body, w.Body.String())
 		})
 	}
+}
+
+// 鹈鹕测智复用同一个探针构造，自定义题面与输出预算必须真的进到上游请求里。
+func TestBuildTestRequestCarriesProbePromptAndBudget(t *testing.T) {
+	prompt := "创建一个 HTML，内容是 SVG 绘制一个鹈鹕骑自行车的 2D 动画"
+
+	chat, ok := buildTestRequest("gpt-4.1", "", &model.Channel{}, false, channelTestOptions{
+		Prompt:    prompt,
+		MaxTokens: pelicanProbeMaxTokens,
+	}).(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, chat.Messages, 1)
+	assert.Equal(t, prompt, chat.Messages[0].Content)
+	require.NotNil(t, chat.MaxTokens)
+	assert.Equal(t, uint(pelicanProbeMaxTokens), *chat.MaxTokens)
+
+	// 不带题面时保持健康检查的默认 “hi” 与 16 token 预算。
+	plain, ok := buildTestRequest("gpt-4.1", "", &model.Channel{}, false, channelTestOptions{}).(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	assert.Equal(t, "hi", plain.Messages[0].Content)
+	require.NotNil(t, plain.MaxTokens)
+	assert.Equal(t, uint(16), *plain.MaxTokens)
+
+	// Responses 端点要把题面 JSON 化后嵌进 input。
+	responses, ok := buildTestRequest("gpt-5.1-codex", "", &model.Channel{}, false, channelTestOptions{
+		Prompt: prompt,
+	}).(*dto.OpenAIResponsesRequest)
+	require.True(t, ok)
+	assert.Contains(t, string(responses.Input), prompt)
 }

@@ -43,6 +43,19 @@ func SetApiRouter(router *gin.Engine) {
 			perfMetricsRoute.GET("", controller.GetPerfMetrics)
 		}
 		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
+		// 鹈鹕测智：站点模型状态与各自的智商，登录用户可读，管理员可触发巡视。
+		pelicanRoute := apiRouter.Group("/pelican")
+		pelicanRoute.Use(middleware.UserAuth())
+		{
+			pelicanRoute.GET("/overview", controller.GetPelicanOverview)
+			pelicanRoute.GET("/results/:id", controller.GetPelicanResult)
+		}
+		pelicanAdminRoute := apiRouter.Group("/pelican")
+		pelicanAdminRoute.Use(middleware.AdminAuth())
+		{
+			pelicanAdminRoute.POST("/test", middleware.CriticalRateLimit(), controller.RunPelicanTest)
+			pelicanAdminRoute.POST("/test-all", middleware.CriticalRateLimit(), controller.RunAllPelicanTests)
+		}
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
