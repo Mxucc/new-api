@@ -37,6 +37,8 @@ export interface ModelIqTableProps {
   isAdmin: boolean
   /** 正在跑的模型名，用来禁用重复触发。 */
   busyModel: string | null
+  /** 整轮巡视进行中时，逐行触发也要一起禁用。 */
+  sweepRunning: boolean
   onPreview: (status: ModelIqStatus) => void
   onRun: (modelName: string) => void
 }
@@ -45,6 +47,7 @@ function ModelIqActions(props: {
   status: ModelIqStatus
   isAdmin: boolean
   busyModel: string | null
+  sweepRunning: boolean
   onPreview: (status: ModelIqStatus) => void
   onRun: (modelName: string) => void
 }) {
@@ -65,7 +68,7 @@ function ModelIqActions(props: {
         <Button
           variant='outline'
           size='sm'
-          disabled={props.busyModel !== null}
+          disabled={props.busyModel !== null || props.sweepRunning}
           onClick={() => props.onRun(props.status.model_name)}
         >
           <Play data-icon='inline-start' />
@@ -146,6 +149,7 @@ export function ModelIqTable(props: ModelIqTableProps) {
                 status={model}
                 isAdmin={props.isAdmin}
                 busyModel={props.busyModel}
+                sweepRunning={props.sweepRunning}
                 onPreview={props.onPreview}
                 onRun={props.onRun}
               />
@@ -193,6 +197,7 @@ export function ModelIqTable(props: ModelIqTableProps) {
                 status={model}
                 isAdmin={props.isAdmin}
                 busyModel={props.busyModel}
+                sweepRunning={props.sweepRunning}
                 onPreview={props.onPreview}
                 onRun={props.onRun}
               />

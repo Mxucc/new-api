@@ -90,6 +90,10 @@ export function ModelIq() {
   const summary = summarizeModelIq(models)
 
   const handleRun = (modelName: string) => {
+    // 整轮巡视已在跑时不再接受单模型触发，避免同一模型被并发探两次。
+    if (allRun.isPending) {
+      return
+    }
     setBusyModel(modelName)
     singleRun.mutate(modelName)
   }
@@ -121,6 +125,7 @@ export function ModelIq() {
         models={models}
         isAdmin={isAdmin}
         busyModel={busyModel}
+        sweepRunning={allRun.isPending}
         onPreview={setPreview}
         onRun={handleRun}
       />
