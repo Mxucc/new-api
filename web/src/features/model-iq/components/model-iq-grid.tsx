@@ -51,8 +51,9 @@ export interface ModelIqGridProps {
 }
 
 /**
- * 格子里的小格子：最近 24 小时按 30 分钟采样，共 48 格，和状态页一样。
- * 只有真正采到样的格子着色，没采样的格子留灰——一次失败只红它自己那一格。
+ * 格子里的小格子：最近 24 小时按巡视间隔切片（30 分钟 48 格、1 小时 24 格）。
+ * 采到样的格子显示那次的判定；没采到样的格子沿用上一次成功的结果（默认是绿的），
+ * 只有真正拿到输出的降智才变色——所以上游 502 不会把整条染红。
  */
 function ModelIqStrip(props: { status: ModelIqStatus }) {
   const { t, i18n } = useTranslation()
@@ -63,22 +64,26 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
   }
   return (
     <span
-      className='flex shrink-0 items-stretch gap-[2px]'
+      className='flex min-w-0 flex-1 items-stretch gap-[2px]'
       data-testid={`model-iq-strip-${props.status.group}-${props.status.model_name}`}
     >
       {cells.map((cell) => {
         const when = formatTimestampRelative(cell.start, 'seconds', locale)
         const verdict =
           cell.verdict === 'pending'
-            ? t('No sample')
+            ? t('Not tested')
             : t(iqVerdictLabelKey(cell.verdict))
+        const detail = cell.sampled
+          ? `${when} · ${verdict}`
+          : `${when} · ${verdict} · ${t('Carried over from the last successful run')}`
         return (
           <span
             key={cell.start}
-            title={`${when} · ${verdict}`}
+            title={detail}
             className={cn(
-              'h-4 w-1.5 rounded-[2px]',
-              iqStripCellClass(cell.verdict)
+              'h-4 min-w-0 flex-1 rounded-[2px]',
+              iqStripCellClass(cell.verdict),
+              cell.sampled ? undefined : 'opacity-60'
             )}
           />
         )
@@ -86,6 +91,7 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
     </span>
   )
 }
+
 interface ModelIqRowCellProps {
   status: ModelIqStatus
   isAdmin: boolean

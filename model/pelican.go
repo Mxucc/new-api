@@ -67,12 +67,24 @@ const PelicanPromptMaxRunes = 4000
 // PelicanMaxIntervalMinutes 是巡视间隔上限（一天）：再长就没有巡视的意义了。
 const PelicanMaxIntervalMinutes = 1440
 
-// 智商时间条的时间窗与格数：24 小时按 30 分钟采样，共 48 格，和状态页一样画成一排小格子。
-// 只有真正采样到的格子着色，没采样的格子留空——一次失败只影响它自己那一格。
-const (
-	PelicanStripHours = 24
-	PelicanStripCells = 48
-)
+// 智商时间条按巡视间隔切片：24 小时里放 24*60/interval 格，一格就是一次巡视。
+// 没采到样的格子沿用上一次成功的结果（默认是绿的），只有真失败才变色。
+const PelicanStripHours = 24
+
+// 没有配置间隔（不自动巡视）时按 30 分钟切片，一天 48 格。
+const PelicanDefaultIntervalMinutes = 30
+
+// PelicanStripCellsFor 返回 24 小时按给定间隔切出的格数。
+func PelicanStripCellsFor(intervalMinutes int) int {
+	if intervalMinutes <= 0 {
+		intervalMinutes = PelicanDefaultIntervalMinutes
+	}
+	cells := PelicanStripHours * 60 / intervalMinutes
+	if cells < 1 {
+		return 1
+	}
+	return cells
+}
 
 // EffectivePrompt 返回实际发给模型的题面（含交付约定）。
 func (cfg PelicanTestConfig) EffectivePrompt() string {
@@ -256,6 +268,40 @@ func GetPelicanResultsSince(since int64) ([]PelicanTestResult, error) {
 		Order("id DESC").
 		Find(&results).Error
 	return results, err
+}
+
+// GetPelicanSuccessfulResults 返回 since 之后的成功记录（不含动画源码），最新的在前。
+// 时间条只认成功的结果：上游 502 之类的传输失败算「这次没采到样」，不算降智。
+func GetPelicanSuccessfulResults(since int64) ([]PelicanTestResult, error) {
+	var results []PelicanTestResult
+	err := DB.Model(&PelicanTestResult{}).
+		Select("id, model_name, "+commonGroupCol+", channel_id, status, verdict, score, latency_ms, created_at").
+		Where("created_at >= ? AND status = ?", since, "success").
+		Order("id DESC").
+		Find(&results).Error
+	return results, err
+}
+
+// GetLatestPelicanSuccesses 返回每个（分组, 模型）组合最近一次成功的结果。
+func GetLatestPelicanSuccesses() (map[PelicanProbeTarget]*PelicanTestResult, error) {
+	latestIds := DB.Model(&PelicanTestResult{}).
+		Select("MAX(id)").
+		Where("status = ?", "success").
+		Group("model_name").
+		Group(commonGroupCol)
+	var results []PelicanTestResult
+	err := DB.Model(&PelicanTestResult{}).
+		Where("id IN (?)", latestIds).
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	latest := make(map[PelicanProbeTarget]*PelicanTestResult, len(results))
+	for i := range results {
+		key := PelicanProbeTarget{Group: results[i].Group, Model: results[i].ModelName}
+		latest[key] = &results[i]
+	}
+	return latest, nil
 }
 
 // GetPelicanTestResultById 读取单条记录，用于预览。

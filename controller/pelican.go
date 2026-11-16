@@ -68,13 +68,14 @@ type pelicanModelStatus struct {
 	Strip []pelicanStripCell `json:"strip"`
 }
 
-// pelicanStripCell 是智商时间条上的一小格：只代表它自己那 30 分钟。
-// 没采样到的格子 verdict 是 pending，界面留空——不会借用邻近结果。
+// pelicanStripCell 是智商时间条上的一小格：一格对应一次巡视间隔。
+// Sampled 为真表示这一格真的跑过一次并拿到了输出；否则判定沿用上一次成功的结果。
 type pelicanStripCell struct {
 	Start    int64  `json:"start"`
 	Verdict  string `json:"verdict"`
 	Score    int    `json:"score"`
 	TestedAt int64  `json:"tested_at"`
+	Sampled  bool   `json:"sampled"`
 }
 
 // isPelicanChatModel 判断模型是否属于可以回答题面的对话模型。
@@ -163,23 +164,25 @@ func pelicanStatusOf(target model.PelicanProbeTarget, available bool, result *mo
 	return status
 }
 
-// pelicanStripWindows 给每个组合切出最近 PelicanStripHours 小时的时间格子。
-// 每格只代表它自己那 30 分钟：采到了就显示那次判定，没采到就留空（pending）。
-// 不把邻近结果涂到空格子上——否则一次失败会把整条时间线染红，看着像 24 小时全挂。
-func pelicanStripWindows(targets []model.PelicanProbeTarget, recent []model.PelicanTestResult, now int64) map[model.PelicanProbeTarget][]pelicanStripCell {
-	cellSeconds := int64(model.PelicanStripHours*3600) / model.PelicanStripCells
-	windowStart := now - int64(model.PelicanStripHours*3600)
+// pelicanStripWindows 按巡视间隔把最近 24 小时切成小格（30 分钟 = 48 格，1 小时 = 24 格）。
+// 一格对应一次巡视：采到了就显示那次判定；没采到（含上游 502 这类传输失败）就沿用
+// 上一次成功的结果——默认是绿的，只有真正拿到输出的降智才变色。
+func pelicanStripWindows(targets []model.PelicanProbeTarget, intervalMinutes int, successes []model.PelicanTestResult, latestSuccess map[model.PelicanProbeTarget]*model.PelicanTestResult, now int64) map[model.PelicanProbeTarget][]pelicanStripCell {
+	cellCount := model.PelicanStripCellsFor(intervalMinutes)
+	windowSeconds := int64(model.PelicanStripHours * 3600)
+	cellSeconds := windowSeconds / int64(cellCount)
+	windowStart := now - windowSeconds
 	slots := make(map[model.PelicanProbeTarget][]*model.PelicanTestResult, len(targets))
-	for i := range recent {
-		record := &recent[i]
+	for i := range successes {
+		record := &successes[i]
 		index := int((record.CreatedAt - windowStart) / cellSeconds)
-		if index < 0 || index >= model.PelicanStripCells {
+		if index < 0 || index >= cellCount {
 			continue
 		}
 		target := model.PelicanProbeTarget{Group: record.Group, Model: record.ModelName}
 		// 查询按 id 倒序：先落到某个时段的记录就是该时段最新的一条。
 		if slots[target] == nil {
-			slots[target] = make([]*model.PelicanTestResult, model.PelicanStripCells)
+			slots[target] = make([]*model.PelicanTestResult, cellCount)
 		}
 		if slots[target][index] == nil {
 			slots[target][index] = record
@@ -188,18 +191,29 @@ func pelicanStripWindows(targets []model.PelicanProbeTarget, recent []model.Peli
 	strips := make(map[model.PelicanProbeTarget][]pelicanStripCell, len(targets))
 	for _, target := range targets {
 		observed := slots[target]
-		cells := make([]pelicanStripCell, model.PelicanStripCells)
+		cells := make([]pelicanStripCell, cellCount)
+		// 从左往右走一遍，记住「截至这一格最近一次成功」，用来补没采样的格子。
+		carry := latestSuccess[target]
 		for i := range cells {
 			cells[i] = pelicanStripCell{
 				Start:   windowStart + int64(i)*cellSeconds,
 				Verdict: service.PelicanVerdictPending,
 			}
-			if observed == nil || observed[i] == nil {
+			if observed != nil && observed[i] != nil {
+				// 这一格真的采到了：观测到的成功优先，并成为后面格子的沿用值。
+				carry = observed[i]
+				cells[i].Verdict = observed[i].Verdict
+				cells[i].Score = observed[i].Score
+				cells[i].TestedAt = observed[i].CreatedAt
+				cells[i].Sampled = true
 				continue
 			}
-			cells[i].Verdict = observed[i].Verdict
-			cells[i].Score = observed[i].Score
-			cells[i].TestedAt = observed[i].CreatedAt
+			if carry == nil {
+				continue
+			}
+			cells[i].Verdict = carry.Verdict
+			cells[i].Score = carry.Score
+			cells[i].TestedAt = carry.CreatedAt
 		}
 		strips[target] = cells
 	}
@@ -221,7 +235,13 @@ func GetPelicanOverview(c *gin.Context) {
 		return
 	}
 	now := time.Now().Unix()
-	recent, err := model.GetPelicanResultsSince(now - int64(model.PelicanStripHours*3600))
+	// 时间条只认成功的结果：上游 502 之类算「这次没采到样」，不算降智。
+	successes, err := model.GetPelicanSuccessfulResults(now - int64(model.PelicanStripHours*3600))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	latestSuccess, err := model.GetLatestPelicanSuccesses()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -230,12 +250,16 @@ func GetPelicanOverview(c *gin.Context) {
 	for _, target := range pelicanAvailableTargets(probes) {
 		serveable[target] = struct{}{}
 	}
-	strips := pelicanStripWindows(cfg.Targets, recent, now)
+	strips := pelicanStripWindows(cfg.Targets, cfg.IntervalMinutes, successes, latestSuccess, now)
 	// 只上报配置里的探测项：用户看到的行数就等于管理员配置的分组数。
 	statuses := make([]pelicanModelStatus, 0, len(cfg.Targets))
 	for _, target := range cfg.Targets {
 		_, served := serveable[target]
-		status := pelicanStatusOf(target, served, latest[target])
+		status := pelicanStatusOf(target, served, latestSuccess[target])
+		// 最近一次如果只是传输失败（502 之类），不改变判定，只把错误留给排查用。
+		if newest := latest[target]; newest != nil && newest.Status == "failed" {
+			status.LastError = newest.Error
+		}
 		status.Testing = pelicanProbeActive(target)
 		status.Strip = strips[target]
 		statuses = append(statuses, status)

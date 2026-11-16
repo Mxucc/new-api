@@ -39,15 +39,17 @@ const api = vi.hoisted(() => ({
 
 vi.mock('../api', () => api)
 
-/** 四格时间条：最后一格是真实采样，其余没采到样（灰格）。 */
+/** 四格时间条：最后一格是真实采样，其余沿用上一次成功的结果。 */
 function stripCells(verdict: ModelIqStatus['verdict']): ModelIqStripCell[] {
   return Array.from({ length: 4 }, (_, index) => {
     const sampled = verdict !== 'pending' && index === 3
     return {
       start: 1700000000 + index * 1800,
-      verdict: sampled ? verdict : 'pending',
-      score: sampled ? 100 : 0,
+      // 没采到样的格子沿用上一次成功结果，判定与最后一次成功相同。
+      verdict,
+      score: verdict === 'pending' ? 0 : 100,
       tested_at: sampled ? 1700000000 + index * 1800 : 0,
+      sampled,
     }
   })
 }
@@ -244,18 +246,20 @@ describe('model IQ grid', () => {
     ).toBeInTheDocument()
   })
 
-  it('paints only the sampled square and leaves the rest empty', async () => {
+  it('paints the sampled square and carries the last success into the rest', async () => {
     renderPage(ROLE.USER)
 
     const strip = await screen.findByTestId('model-iq-strip-default-gpt-4.1')
     const squares = strip.querySelectorAll('span')
     expect(squares).toHaveLength(4)
-    // 最后一格是真测过的，其余三格没有采样：留灰，不借用邻近结果。
+    // 最后一格是真测过的；前面三格沿用上一次成功结果（绿），并标注沿用。
     expect(squares[3]?.className).toContain('bg-success')
-    expect(squares[0]?.className).toContain('bg-muted')
+    expect(squares[3]?.className).not.toContain('opacity-60')
+    expect(squares[0]?.className).toContain('bg-success')
+    expect(squares[0]?.className).toContain('opacity-60')
     expect(squares[0]).toHaveAttribute(
       'title',
-      expect.stringContaining('No sample')
+      expect.stringContaining('Carried over from the last successful run')
     )
   })
 

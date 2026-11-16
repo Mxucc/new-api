@@ -141,15 +141,15 @@ export function buildIqRows(models: ModelIqStatus[]): IqRow[] {
 }
 
 /**
- * 降智率：时间条里「不健康」的采样格占已采样格的比例（0–1）。
- * 只统计真正采到样的格子，没采样的格子不参与——否则一次失败会被摊薄成整天的结论。
+ * 降智率：真正采到样的格子里「不健康」的占比（0–1）。
+ * 沿用上一次成功结果的格子不参与统计——上游 502 只是没采到样，不算降智。
  * 一次采样都没有时返回 null，界面显示「—」。
  */
 export function iqDegradedRate(cells: ModelIqStatus['strip']): number | null {
   let sampled = 0
   let degraded = 0
   for (const cell of cells) {
-    if (cell.verdict === 'pending') {
+    if (!cell.sampled) {
       continue
     }
     sampled += 1

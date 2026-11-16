@@ -8370,12 +8370,12 @@
     "Test {{group}} now": "Проверить {{group}} сейчас",
     "Degraded {{percent}}": "Деградация {{percent}}",
     "Channel {{id}}": "Канал {{id}}",
-    "No sample": "Нет замера",
     "Probe prompt": "Задание проверки",
     "Delivery instruction": "Требование к ответу",
     "Description shown to users": "Описание для пользователей",
     "Leave empty to use the built-in question.": "Оставьте пустым, чтобы использовать встроенный вопрос.",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Добавляется к заданию. Оставьте пустым для встроенного требования.",
-    "Leave empty to use the translated default description.": "Оставьте пустым, чтобы использовать переведённое описание по умолчанию."
+    "Leave empty to use the translated default description.": "Оставьте пустым, чтобы использовать переведённое описание по умолчанию.",
+    "Carried over from the last successful run": "По последней успешной проверке"
   }
 }

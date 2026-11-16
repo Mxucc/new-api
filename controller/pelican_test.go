@@ -82,48 +82,57 @@ func TestPelicanProbeRegistrationExpiresAndIsTakenOver(t *testing.T) {
 	assert.False(t, pelicanProbeActive(target))
 }
 
-func TestPelicanStripWindowsPaintsOnlyTheSampledCell(t *testing.T) {
+func TestPelicanStripCellsFollowTheSweepInterval(t *testing.T) {
+	// 设置 30 分钟就是 48 格，设置 1 小时就是 24 格。
+	assert.Equal(t, 48, model.PelicanStripCellsFor(30))
+	assert.Equal(t, 24, model.PelicanStripCellsFor(60))
+	assert.Equal(t, 12, model.PelicanStripCellsFor(120))
+	// 不自动巡视时按 30 分钟切。
+	assert.Equal(t, 48, model.PelicanStripCellsFor(0))
+	assert.Equal(t, 1, model.PelicanStripCellsFor(model.PelicanMaxIntervalMinutes))
+}
+
+func TestPelicanStripWindowsCarriesTheLastSuccessIntoUnsampledCells(t *testing.T) {
 	now := int64(1_800_000_000)
-	cellSeconds := int64(model.PelicanStripHours*3600) / model.PelicanStripCells
+	interval := 60 // 24 格
+	cellCount := model.PelicanStripCellsFor(interval)
+	cellSeconds := int64(model.PelicanStripHours*3600) / int64(cellCount)
 	target := model.PelicanProbeTarget{Group: "default", Model: "gpt-4.1"}
-	record := model.PelicanTestResult{
+	success := model.PelicanTestResult{
 		Id:        1,
 		Group:     "default",
 		ModelName: "gpt-4.1",
-		Verdict:   "failed",
+		Status:    "success",
+		Verdict:   "healthy",
+		Score:     92,
 		CreatedAt: now - cellSeconds/2,
 	}
 
-	cells := pelicanStripWindows([]model.PelicanProbeTarget{target}, []model.PelicanTestResult{record}, now)[target]
-	require.Len(t, cells, model.PelicanStripCells)
-	// 一次失败只染红它自己那 30 分钟：其余格子留空，不会把整条时间线刷成红色。
-	failed := 0
+	cells := pelicanStripWindows(
+		[]model.PelicanProbeTarget{target},
+		interval,
+		[]model.PelicanTestResult{success},
+		map[model.PelicanProbeTarget]*model.PelicanTestResult{target: &success},
+		now,
+	)[target]
+
+	require.Len(t, cells, cellCount)
 	for i, cell := range cells {
-		if cell.Verdict == "failed" {
-			failed++
-			assert.Equal(t, model.PelicanStripCells-1, i)
-			continue
-		}
-		assert.Equal(t, "pending", cell.Verdict, "cell %d", i)
+		// 只有最后一格真采到了样，其余沿用这一次成功的结果：整条是绿的，不是红的。
+		assert.Equal(t, "healthy", cell.Verdict, "cell %d", i)
+		assert.Equal(t, i == cellCount-1, cell.Sampled, "cell %d", i)
 	}
-	assert.Equal(t, 1, failed)
 }
 
-func TestPelicanStripWindowsIgnoresResultsOutsideTheWindow(t *testing.T) {
+func TestPelicanStripWindowsKeepsTransportFailuresOutOfTheStrip(t *testing.T) {
 	now := int64(1_800_000_000)
 	target := model.PelicanProbeTarget{Group: "default", Model: "gpt-4.1"}
-	record := model.PelicanTestResult{
-		Id:        9,
-		Group:     "default",
-		ModelName: "gpt-4.1",
-		Verdict:   "degraded",
-		CreatedAt: now - 72*3600,
-	}
-
-	cells := pelicanStripWindows([]model.PelicanProbeTarget{target}, []model.PelicanTestResult{record}, now)[target]
-	require.Len(t, cells, model.PelicanStripCells)
+	// 只有传输失败（上游 502 之类）时没有任何成功结果可沿用：格子留空，
+	// 界面按默认绿渲染，不会因为一次 502 把整条染红。
+	cells := pelicanStripWindows([]model.PelicanProbeTarget{target}, 30, nil, nil, now)[target]
+	require.Len(t, cells, model.PelicanStripCellsFor(30))
 	for i, cell := range cells {
-		// 窗口外的旧结果不涂到今天的格子上，整条留空。
 		assert.Equal(t, "pending", cell.Verdict, "cell %d", i)
+		assert.False(t, cell.Sampled, "cell %d", i)
 	}
 }

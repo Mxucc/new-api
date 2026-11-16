@@ -8370,12 +8370,12 @@
     "Test {{group}} now": "Test {{group}} now",
     "Degraded {{percent}}": "Degraded {{percent}}",
     "Channel {{id}}": "Channel {{id}}",
-    "No sample": "No sample",
     "Probe prompt": "Probe prompt",
     "Delivery instruction": "Delivery instruction",
     "Description shown to users": "Description shown to users",
     "Leave empty to use the built-in question.": "Leave empty to use the built-in question.",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Appended to the prompt. Leave empty to use the built-in instruction.",
-    "Leave empty to use the translated default description.": "Leave empty to use the translated default description."
+    "Leave empty to use the translated default description.": "Leave empty to use the translated default description.",
+    "Carried over from the last successful run": "Carried over from the last successful run"
   }
 }

@@ -51,12 +51,13 @@ function status(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
   }
 }
 
-function stripCell(verdict: ModelIqVerdict): ModelIqStripCell {
+function stripCell(verdict: ModelIqVerdict, sampled = true): ModelIqStripCell {
   return {
     start: 1700000000,
     verdict,
     score: verdict === 'pending' ? 0 : 100,
     tested_at: 1700000000,
+    sampled,
   }
 }
 
@@ -157,11 +158,18 @@ describe('summarizeModelIq', () => {
       ).toBe(0.5)
     })
 
-    it('ignores segments without any verdict', () => {
+    it('counts only the segments that really ran', () => {
+      // 沿用值不算新样本：只有真采到样的格子参与统计。
       expect(
-        iqDegradedRate([stripCell('pending'), stripCell('pending')])
+        iqDegradedRate([
+          stripCell('degraded', false),
+          stripCell('degraded', false),
+        ])
       ).toBeNull()
-      expect(iqDegradedRate([stripCell('pending'), stripCell('poor')])).toBe(1)
+      expect(iqDegradedRate([stripCell('pending', false)])).toBeNull()
+      expect(
+        iqDegradedRate([stripCell('degraded'), stripCell('healthy')])
+      ).toBe(0.5)
     })
   })
 

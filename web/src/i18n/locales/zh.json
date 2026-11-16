@@ -8370,12 +8370,12 @@
     "Test {{group}} now": "立即测试 {{group}}",
     "Degraded {{percent}}": "降智 {{percent}}",
     "Channel {{id}}": "渠道 {{id}}",
-    "No sample": "未采样",
     "Probe prompt": "探测题面",
     "Delivery instruction": "交付约定",
     "Description shown to users": "给用户看的说明",
     "Leave empty to use the built-in question.": "留空使用内置题目。",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "追加在题面之后；留空使用内置交付约定。",
-    "Leave empty to use the translated default description.": "留空使用翻译好的默认说明。"
+    "Leave empty to use the translated default description.": "留空使用翻译好的默认说明。",
+    "Carried over from the last successful run": "沿用上一次成功结果"
   }
 }

@@ -8370,12 +8370,12 @@
     "Test {{group}} now": "Kiểm tra {{group}} ngay",
     "Degraded {{percent}}": "Suy giảm {{percent}}",
     "Channel {{id}}": "Kênh {{id}}",
-    "No sample": "Chưa lấy mẫu",
     "Probe prompt": "Đề bài kiểm tra",
     "Delivery instruction": "Yêu cầu đầu ra",
     "Description shown to users": "Mô tả hiển thị cho người dùng",
     "Leave empty to use the built-in question.": "Để trống để dùng câu hỏi mặc định.",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Được nối sau đề bài. Để trống để dùng yêu cầu mặc định.",
-    "Leave empty to use the translated default description.": "Để trống để dùng mô tả mặc định đã dịch."
+    "Leave empty to use the translated default description.": "Để trống để dùng mô tả mặc định đã dịch.",
+    "Carried over from the last successful run": "Kế thừa lần kiểm tra thành công gần nhất"
   }
 }

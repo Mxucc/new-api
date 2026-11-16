@@ -40,12 +40,14 @@ export type PelicanTarget = {
   model: string
 }
 
-/** 时间条上一小格：只代表它自己那 30 分钟，没采到样时 verdict 是 pending。 */
+/** 时间条上一小格：一格对应一次巡视间隔。没采到样时判定沿用上一次成功的结果。 */
 export type ModelIqStripCell = {
   start: number
   verdict: ModelIqVerdict
   score: number
   tested_at: number
+  /** 这一格真的跑过一次并拿到了输出；false 表示判定沿用上一次成功的结果。 */
+  sampled: boolean
 }
 
 export type ModelIqStatus = {

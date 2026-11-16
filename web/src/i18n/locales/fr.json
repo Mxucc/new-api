@@ -8370,12 +8370,12 @@
     "Test {{group}} now": "Tester {{group}} maintenant",
     "Degraded {{percent}}": "Dégradé {{percent}}",
     "Channel {{id}}": "Canal {{id}}",
-    "No sample": "Aucun échantillon",
     "Probe prompt": "Consigne de test",
     "Delivery instruction": "Consigne de rendu",
     "Description shown to users": "Description affichée aux utilisateurs",
     "Leave empty to use the built-in question.": "Laissez vide pour utiliser la question intégrée.",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Ajoutée à la consigne. Laissez vide pour utiliser la consigne intégrée.",
-    "Leave empty to use the translated default description.": "Laissez vide pour utiliser la description traduite par défaut."
+    "Leave empty to use the translated default description.": "Laissez vide pour utiliser la description traduite par défaut.",
+    "Carried over from the last successful run": "Repris du dernier test réussi"
   }
 }

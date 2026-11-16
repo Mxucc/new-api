@@ -8370,12 +8370,12 @@
     "Test {{group}} now": "{{group}} を今すぐテスト",
     "Degraded {{percent}}": "性能低下 {{percent}}",
     "Channel {{id}}": "チャネル {{id}}",
-    "No sample": "未計測",
     "Probe prompt": "テストのプロンプト",
     "Delivery instruction": "出力の指示",
     "Description shown to users": "ユーザーに表示する説明",
     "Leave empty to use the built-in question.": "空欄の場合は組み込みの設問を使います。",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "プロンプトの後ろに追加されます。空欄の場合は組み込みの指示を使います。",
-    "Leave empty to use the translated default description.": "空欄の場合は翻訳済みの既定の説明を使います。"
+    "Leave empty to use the translated default description.": "空欄の場合は翻訳済みの既定の説明を使います。",
+    "Carried over from the last successful run": "前回の成功結果を流用"
   }
 }
