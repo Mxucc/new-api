@@ -8355,6 +8355,14 @@
     "© 2025 Your Company. All rights reserved.": "© 2025 Votre entreprise. Tous droits réservés.",
     "、": ", ",
     "，": ", ",
-    "，and ": " et "
+    "，and ": " et ",
+    "Test started for {{target}}": "Test lancé pour {{target}}",
+    "The test for this group and model is already running": "Un test est déjà en cours pour ce groupe et ce modèle",
+    "Sweep started for {{count}} models": "Balayage lancé pour {{count}} modèles",
+    "The sweep is already running": "Le balayage est déjà en cours",
+    "Sweep in progress since {{time}}": "Balayage en cours depuis {{time}}",
+    "Sweep in progress": "Balayage en cours",
+    "Recent scores": "Scores récents",
+    "No test results yet. Run a pelican test to fill the grid.": "Aucun résultat pour le moment. Lancez un test du pélican pour remplir la grille."
   }
 }

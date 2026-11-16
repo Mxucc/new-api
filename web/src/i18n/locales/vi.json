@@ -8355,6 +8355,14 @@
     "© 2025 Your Company. All rights reserved.": "© 2025 Công ty của bạn. Mọi quyền được bảo lưu.",
     "、": ", ",
     "，": ", ",
-    "，and ": " và "
+    "，and ": " và ",
+    "Test started for {{target}}": "Đã bắt đầu kiểm tra {{target}}",
+    "The test for this group and model is already running": "Bài kiểm tra cho nhóm và mô hình này đang chạy",
+    "Sweep started for {{count}} models": "Đã bắt đầu quét {{count}} mô hình",
+    "The sweep is already running": "Lượt quét đang chạy",
+    "Sweep in progress since {{time}}": "Đang quét từ {{time}}",
+    "Sweep in progress": "Đang quét",
+    "Recent scores": "Điểm gần đây",
+    "No test results yet. Run a pelican test to fill the grid.": "Chưa có kết quả. Hãy chạy bài kiểm tra bồ nông để lấp đầy lưới."
   }
 }

@@ -21,11 +21,10 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 
 import type {
   ModelIqOverview,
-  ModelIqStatus,
   PelicanConfig,
   PelicanHistory,
   PelicanResult,
-  PelicanRunSummary,
+  PelicanStartAck,
   PelicanTarget,
 } from './types'
 
@@ -50,26 +49,32 @@ export async function getPelicanResult(id: number): Promise<PelicanResult> {
 /** 历史记录按（分组, 模型）查询：两个参数都是必填。 */
 export async function getPelicanHistory(
   group: string,
-  model: string
+  model: string,
+  limit?: number
 ): Promise<PelicanHistory> {
   const res = await api.get<Envelope<PelicanHistory>>('/api/pelican/history', {
-    params: { group, model },
+    params: { group, model, limit },
   })
   return requireServerSuccess(res.data).data
 }
 
+/**
+ * 触发一次探测。后端只做登记就返回，探测在后台跑满三分钟也不需要页面等着，
+ * 结果靠轮询 overview 取回。
+ */
 export async function runPelicanTest(
   target: PelicanTarget
-): Promise<ModelIqStatus> {
-  const res = await api.post<Envelope<ModelIqStatus>>(
+): Promise<PelicanStartAck> {
+  const res = await api.post<Envelope<PelicanStartAck>>(
     '/api/pelican/test',
     target
   )
   return requireServerSuccess(res.data).data
 }
 
-export async function runAllPelicanTests(): Promise<PelicanRunSummary> {
-  const res = await api.post<Envelope<PelicanRunSummary>>(
+/** 触发整轮巡视，同样只登记就返回。 */
+export async function runAllPelicanTests(): Promise<PelicanStartAck> {
+  const res = await api.post<Envelope<PelicanStartAck>>(
     '/api/pelican/test-all'
   )
   return requireServerSuccess(res.data).data

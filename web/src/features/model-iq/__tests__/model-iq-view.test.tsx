@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,16 +50,38 @@ function modelStatus(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
     tested_at: 1700000000,
     result_id: 11,
     dimensions: ['drawing', 'subject'],
+    testing: false,
     ...overrides,
   }
 }
 
-function overview(models: ModelIqStatus[]): ModelIqOverview {
+function overview(
+  models: ModelIqStatus[],
+  overrides: Partial<ModelIqOverview> = {}
+): ModelIqOverview {
   return {
     models,
     total: models.length,
     latest_tested_at: 1700000000,
     prompt: '创建一个 HTML，内容是 SVG 绘制一个鹈鹕骑自行车的 2D 动画',
+    sweeping: false,
+    sweeping_since: 0,
+    ...overrides,
+  }
+}
+
+function historyPoint(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 12,
+    group: 'vip',
+    status: 'success' as const,
+    verdict: 'degraded' as const,
+    score: 65,
+    latency_ms: 900,
+    dimensions: ['drawing'],
+    error: '',
+    created_at: 1700000000,
+    ...overrides,
   }
 }
 
@@ -121,19 +143,7 @@ beforeEach(() => {
   api.getPelicanHistory.mockResolvedValue({
     group: 'vip',
     model_name: 'gpt-4.1',
-    history: [
-      {
-        id: 12,
-        group: 'vip',
-        status: 'success',
-        verdict: 'degraded',
-        score: 65,
-        latency_ms: 900,
-        dimensions: ['drawing'],
-        error: '',
-        created_at: 1700000000,
-      },
-    ],
+    history: [historyPoint(), historyPoint({ id: 13, score: 40 })],
   })
   api.getPelicanConfig.mockResolvedValue({
     targets: [{ group: 'default', model: 'gpt-4.1' }],
@@ -148,88 +158,93 @@ beforeEach(() => {
     targets: [{ group: 'default', model: 'gpt-4.1' }],
     interval_minutes: 30,
   })
-  api.runPelicanTest.mockResolvedValue(modelStatus())
+  api.runPelicanTest.mockResolvedValue({ started: true })
+  api.runAllPelicanTests.mockResolvedValue({ started: true, targets: 3 })
 })
 
 afterEach(() => {
   client.clear()
   useAuthStore.setState({ auth: originalAuth })
+  vi.useRealTimers()
 })
 
-describe('model IQ page', () => {
-  it('shows every group and model with its own status and IQ score', async () => {
+describe('model IQ grid', () => {
+  it('shows a cell with its own score for every group and model pair', async () => {
     renderPage(ROLE.USER)
 
-    await waitFor(() => {
-      expect(
-        screen.getAllByTestId('model-iq-score-default-gpt-4.1').length
-      ).toBeGreaterThan(0)
-    })
-    expect(
-      screen.getAllByTestId('model-iq-score-default-gpt-4.1')[0]
-    ).toHaveTextContent('100')
-    // 同一模型在 vip 分组是另一行，分数不同。
-    expect(
-      screen.getAllByTestId('model-iq-score-vip-gpt-4.1')[0]
-    ).toHaveTextContent('65')
+    const cell = await screen.findByTestId('model-iq-cell-default-gpt-4.1')
+    expect(cell).toHaveTextContent('100')
+    // 同一模型在 vip 分组是另一格，分数不同。
+    expect(screen.getByTestId('model-iq-cell-vip-gpt-4.1')).toHaveTextContent(
+      '65'
+    )
     expect(screen.getAllByText('default').length).toBeGreaterThan(0)
     expect(screen.getAllByText('vip').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Healthy').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Degraded').length).toBeGreaterThan(0)
   })
 
-  it('leaves an unprobed combination without a fake score', async () => {
+  it('explains the empty grid when nothing has been tested yet', async () => {
+    api.getModelIqOverview.mockResolvedValue(
+      overview([
+        modelStatus({
+          model_name: 'never-probed',
+          verdict: 'pending',
+          score: 0,
+          result_id: 0,
+          tested_at: 0,
+          latency_ms: 0,
+        }),
+      ])
+    )
     renderPage(ROLE.USER)
 
-    await waitFor(() => {
-      expect(
-        screen.getAllByTestId('model-iq-score-default-never-probed').length
-      ).toBeGreaterThan(0)
-    })
-    expect(
-      screen.getAllByTestId('model-iq-score-default-never-probed')[0]
-    ).toHaveTextContent('—')
-    expect(screen.getAllByText('Not tested').length).toBeGreaterThan(0)
+    expect(await screen.findByTestId('model-iq-grid-empty')).toBeInTheDocument()
+    expect(screen.queryByTestId('model-iq-grid')).toBeNull()
   })
 
-  it('hides the run and sweep controls from a regular user', async () => {
+  it('leaves a combination that was never probed out of the grid', async () => {
     renderPage(ROLE.USER)
 
-    await waitFor(() => {
-      expect(
-        screen.getAllByTestId('model-iq-score-default-gpt-4.1').length
-      ).toBeGreaterThan(0)
-    })
+    await screen.findByTestId('model-iq-cell-default-gpt-4.1')
+    expect(screen.queryByTestId('model-iq-cell-default-never-probed')).toBeNull()
+    expect(screen.queryByText('Not tested')).toBeNull()
+  })
+
+  it('shows a loading cell, without a stale score, while a combination is being tested', async () => {
+    api.getModelIqOverview.mockResolvedValue(
+      overview([
+        modelStatus({ model_name: 'claude', testing: true, score: 40 }),
+      ])
+    )
+    renderPage(ROLE.USER)
+
+    const cell = await screen.findByTestId('model-iq-cell-default-claude')
+    // 正在测的格子不拿上一次的分数冒充结论，只显示加载态。
+    expect(cell).toHaveTextContent('')
+    expect(cell.querySelector('svg')).not.toBeNull()
+    expect(cell).toHaveAccessibleName('default · claude Healthy')
+  })
+})
+
+describe('model IQ actions', () => {
+  it('hides the sweep controls from a regular user', async () => {
+    renderPage(ROLE.USER)
+
+    await screen.findByTestId('model-iq-cell-default-gpt-4.1')
     expect(screen.queryByRole('button', { name: 'Test all models' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Sweep settings' })).toBeNull()
-    expect(screen.queryAllByRole('button', { name: 'Run test' })).toHaveLength(
-      0
-    )
+    expect(screen.queryAllByRole('button', { name: 'Run test' })).toHaveLength(0)
   })
 
-  it('offers the run controls to an administrator', async () => {
-    renderPage(ROLE.ADMIN)
-
-    await waitFor(() => {
-      expect(
-        screen.getAllByTestId('model-iq-score-default-gpt-4.1').length
-      ).toBeGreaterThan(0)
-    })
-    expect(screen.getByRole('button', { name: 'Test all models' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Sweep settings' })).toBeTruthy()
-    expect(
-      screen.getAllByRole('button', { name: 'Run test' }).length
-    ).toBeGreaterThan(0)
-  })
-
-  it('runs the pelican test for the clicked group and model', async () => {
+  it('offers a run control to an administrator and starts one probe', async () => {
     const user = userEvent.setup()
     renderPage(ROLE.ADMIN)
 
-    const runButtons = await screen.findAllByRole('button', {
-      name: 'Run test',
-    })
-    await user.click(runButtons[0])
+    await screen.findByTestId('model-iq-cell-default-gpt-4.1')
+    expect(screen.getByRole('button', { name: 'Test all models' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sweep settings' })).toBeTruthy()
+
+    await user.hover(screen.getByTestId('model-iq-cell-default-gpt-4.1'))
+    await user.click(await screen.findByRole('button', { name: 'Run test' }))
 
     await waitFor(() => {
       expect(api.runPelicanTest).toHaveBeenCalledWith(
@@ -239,20 +254,27 @@ describe('model IQ page', () => {
     })
   })
 
-  it('opens the history of the clicked group and model', async () => {
+  it('starts a sweep without waiting for its results', async () => {
     const user = userEvent.setup()
-    renderPage(ROLE.USER)
+    renderPage(ROLE.ADMIN)
 
-    const historyButtons = await screen.findAllByRole('button', {
-      name: 'History',
-    })
-    // 第二行是 vip 分组：历史请求必须带上它自己的分组。
-    await user.click(historyButtons[1])
+    await screen.findByTestId('model-iq-cell-default-gpt-4.1')
+    await user.click(screen.getByRole('button', { name: 'Test all models' }))
 
     await waitFor(() => {
-      expect(api.getPelicanHistory).toHaveBeenCalledWith('vip', 'gpt-4.1')
+      expect(api.runAllPelicanTests).toHaveBeenCalled()
     })
-    expect(await screen.findByText('Test history')).toBeVisible()
+  })
+
+  it('marks a running sweep and refuses to start a second one', async () => {
+    api.getModelIqOverview.mockResolvedValue(
+      overview([modelStatus()], { sweeping: true, sweeping_since: 1700000000 })
+    )
+    renderPage(ROLE.ADMIN)
+
+    expect(await screen.findByTestId('model-iq-sweeping')).toBeInTheDocument()
+    const sweepButton = screen.getByRole('button', { name: 'Testing…' })
+    expect(sweepButton).toBeDisabled()
   })
 
   it('loads the sweep settings for an administrator', async () => {
@@ -271,19 +293,88 @@ describe('model IQ page', () => {
       await screen.findByLabelText('Sweep interval (minutes)')
     ).toHaveValue(30)
   })
+})
 
-  it('disables preview for a combination that was never probed', async () => {
+describe('model IQ hover card', () => {
+  it('lazily loads the last five runs of the hovered pair', async () => {
+    const user = userEvent.setup()
     renderPage(ROLE.USER)
 
+    const cell = await screen.findByTestId('model-iq-cell-vip-gpt-4.1')
+    expect(api.getPelicanHistory).not.toHaveBeenCalled()
+
+    await user.hover(cell)
+
     await waitFor(() => {
-      expect(
-        screen.getAllByTestId('model-iq-card-default-never-probed').length
-      ).toBeGreaterThan(0)
+      expect(api.getPelicanHistory).toHaveBeenCalledWith('vip', 'gpt-4.1', 5)
     })
-    const cards = screen.getAllByTestId('model-iq-card-default-never-probed')
-    const previewButtons = cards[0].querySelectorAll('button')
-    // 第一个按钮是历史（永远可用），第二个是预览。
-    expect(previewButtons[0]).toBeEnabled()
-    expect(previewButtons[1]).toBeDisabled()
+    expect(
+      await screen.findByTestId('model-iq-sparkline-vip-gpt-4.1')
+    ).toBeInTheDocument()
+  })
+
+  it('reuses the loaded history when the same pair is hovered again', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.USER)
+
+    const cell = await screen.findByTestId('model-iq-cell-default-gpt-4.1')
+    await user.hover(cell)
+    await screen.findByTestId('model-iq-hover-default-gpt-4.1')
+    await user.unhover(cell)
+    await user.hover(cell)
+
+    await screen.findByTestId('model-iq-hover-default-gpt-4.1')
+    const recentCalls = api.getPelicanHistory.mock.calls.filter(
+      (call) => call[0] === 'default' && call[1] === 'gpt-4.1'
+    )
+    expect(recentCalls).toHaveLength(1)
+  })
+
+  it('opens the history dialog of the clicked cell', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.USER)
+
+    await user.click(await screen.findByTestId('model-iq-cell-vip-gpt-4.1'))
+
+    await waitFor(() => {
+      expect(api.getPelicanHistory.mock.calls).toContainEqual([
+        'vip',
+        'gpt-4.1',
+      ])
+    })
+    expect(await screen.findByText('Test history')).toBeVisible()
+  })
+})
+
+describe('model IQ polling', () => {
+  it('refreshes the overview every five seconds while a sweep runs, then stops', async () => {
+    vi.useFakeTimers()
+    api.getModelIqOverview.mockResolvedValue(
+      overview([modelStatus()], { sweeping: true })
+    )
+    const view = renderPage(ROLE.USER)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.getModelIqOverview).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(api.getModelIqOverview.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+    // 巡视结束：下一轮不再排期，页面安静下来。
+    api.getModelIqOverview.mockResolvedValue(overview([modelStatus()]))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    const stoppedAt = api.getModelIqOverview.mock.calls.length
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000)
+    })
+    expect(api.getModelIqOverview).toHaveBeenCalledTimes(stoppedAt)
+
+    view.unmount()
   })
 })

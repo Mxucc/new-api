@@ -8355,6 +8355,14 @@
     "© 2025 Your Company. All rights reserved.": "© 2025 您的公司。保留所有权利。",
     "、": "、",
     "，": "，",
-    "，and ": "，并"
+    "，and ": "，并",
+    "Test started for {{target}}": "已开始测试 {{target}}",
+    "The test for this group and model is already running": "该分组模型的测试已在运行",
+    "Sweep started for {{count}} models": "已开始巡视 {{count}} 个模型",
+    "The sweep is already running": "巡视已在运行",
+    "Sweep in progress since {{time}}": "巡视自 {{time}} 起进行中",
+    "Sweep in progress": "巡视进行中",
+    "Recent scores": "近期分数",
+    "No test results yet. Run a pelican test to fill the grid.": "还没有测试结果，运行一次鹈鹕测智就会填满格子。"
   }
 }

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Brain, Play, RefreshCw, Settings2 } from 'lucide-react'
+import { Brain, Loader2, Play, RefreshCw, Settings2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -27,28 +27,41 @@ import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatTimestampRelative } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { getModelIqOverview, runAllPelicanTests, runPelicanTest } from './api'
-import { ModelIqTable } from './components/model-iq-table'
+import { ModelIqGrid } from './components/model-iq-grid'
 import { PelicanConfigDialog } from './components/pelican-config-dialog'
 import { PelicanHistoryDialog } from './components/pelican-history-dialog'
 import { PelicanPreviewDialog } from './components/pelican-preview-dialog'
-import { pelicanTargetValue, summarizeModelIq } from './lib/iq'
+import {
+  iqNeedsPolling,
+  pelicanTargetLabel,
+  summarizeModelIq,
+} from './lib/iq'
 import type { ModelIqStatus, PelicanTarget } from './types'
+
+/**
+ * 探测在后台跑，页面只在有活干时每 5 秒看一次进度；全部空闲就停，
+ * 不留一个永远转的定时器。
+ */
+const MODEL_IQ_POLL_INTERVAL_MS = 5000
 
 /**
  * 模型智商页：把每个（分组, 模型）组合的状态和鹈鹕测智（SVG 画一只骑自行车的鹈鹕）
  * 的分数放在一起，登录用户都能看到；只有管理员能触发新的测试与调整巡视设置。
+ * 触发即返回，进度和结果都来自 overview 的轮询。
  */
 export function ModelIq() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const queryClient = useQueryClient()
   const role = useAuthStore((state) => state.auth.user?.role ?? 0)
   const isAdmin = role >= ROLE.ADMIN
-  const [busyTarget, setBusyTarget] = useState<string | null>(null)
   const [preview, setPreview] = useState<ModelIqStatus | null>(null)
   const [historyTarget, setHistoryTarget] = useState<PelicanTarget | null>(null)
   const [configOpen, setConfigOpen] = useState(false)
@@ -56,6 +69,9 @@ export function ModelIq() {
   const overview = useQuery({
     queryKey: ['model-iq', 'overview'],
     queryFn: getModelIqOverview,
+    // 整轮巡视在跑，或任一格子还在测时继续轮询；两件都停了就不再请求。
+    refetchInterval: (query) =>
+      iqNeedsPolling(query.state.data) ? MODEL_IQ_POLL_INTERVAL_MS : false,
   })
 
   const invalidate = () =>
@@ -63,29 +79,27 @@ export function ModelIq() {
 
   const singleRun = useMutation({
     mutationFn: runPelicanTest,
-    onSuccess: (status) => {
+    onSuccess: (ack, target) => {
       void invalidate()
       toast.success(
-        t('{{group}} · {{model}} scored {{score}}', {
-          group: status.group,
-          model: status.model_name,
-          score: status.score,
-        })
+        ack.started
+          ? t('Test started for {{target}}', {
+              target: pelicanTargetLabel(target),
+            })
+          : t('The test for this group and model is already running')
       )
     },
     onError: (error) => handleServerError(error, t('Failed to run the test')),
-    onSettled: () => setBusyTarget(null),
   })
 
   const allRun = useMutation({
     mutationFn: runAllPelicanTests,
-    onSuccess: (summary) => {
+    onSuccess: (ack) => {
       void invalidate()
       toast.success(
-        t('{{tested}} models tested, {{failed}} failed', {
-          tested: summary.tested,
-          failed: summary.failed,
-        })
+        ack.started
+          ? t('Sweep started for {{count}} models', { count: ack.targets ?? 0 })
+          : t('The sweep is already running')
       )
     },
     onError: (error) => handleServerError(error, t('Failed to run the test')),
@@ -93,14 +107,10 @@ export function ModelIq() {
 
   const models = overview.data?.models ?? []
   const summary = summarizeModelIq(models)
+  const sweeping = overview.data?.sweeping ?? false
+  const sweepingSince = overview.data?.sweeping_since ?? 0
 
-  const handleRun = (status: ModelIqStatus) => {
-    // 整轮巡视已在跑时不再接受单组合触发，避免同一组合被并发探两次。
-    if (allRun.isPending) {
-      return
-    }
-    const target = { group: status.group, model: status.model_name }
-    setBusyTarget(pelicanTargetValue(target))
+  const handleRun = (target: PelicanTarget) => {
     singleRun.mutate(target)
   }
 
@@ -127,11 +137,9 @@ export function ModelIq() {
     )
   } else {
     listContent = (
-      <ModelIqTable
+      <ModelIqGrid
         models={models}
         isAdmin={isAdmin}
-        busyTarget={busyTarget}
-        sweepRunning={allRun.isPending}
         onPreview={setPreview}
         onHistory={(status) =>
           setHistoryTarget({ group: status.group, model: status.model_name })
@@ -159,13 +167,11 @@ export function ModelIq() {
               <Button
                 variant='outline'
                 size='sm'
-                disabled={
-                  allRun.isPending || busyTarget !== null || !models.length
-                }
+                disabled={sweeping || allRun.isPending || !models.length}
                 onClick={() => allRun.mutate()}
               >
                 <Play data-icon='inline-start' />
-                {allRun.isPending ? t('Testing…') : t('Test all models')}
+                {sweeping ? t('Testing…') : t('Test all models')}
               </Button>
             </>
           ) : null}
@@ -209,6 +215,26 @@ export function ModelIq() {
                     {t('{{count}} unavailable', {
                       count: summary.unavailable,
                     })}
+                  </span>
+                ) : null}
+                {sweeping ? (
+                  <span
+                    className='text-info inline-flex items-center gap-1'
+                    data-testid='model-iq-sweeping'
+                  >
+                    <Loader2
+                      className='size-3 animate-spin'
+                      aria-hidden='true'
+                    />
+                    {sweepingSince
+                      ? t('Sweep in progress since {{time}}', {
+                          time: formatTimestampRelative(
+                            sweepingSince,
+                            'seconds',
+                            locale
+                          ),
+                        })
+                      : t('Sweep in progress')}
                   </span>
                 ) : null}
               </div>

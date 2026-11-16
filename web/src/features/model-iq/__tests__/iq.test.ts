@@ -19,8 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildIqGrid,
+  iqCellClass,
   iqDimensionLabelKey,
   iqHasScore,
+  iqNeedsPolling,
   iqVerdictLabelKey,
   iqVerdictVariant,
   pelicanTargetFromValue,
@@ -41,6 +44,7 @@ function status(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
     tested_at: 1700000000,
     result_id: 1,
     dimensions: ['drawing'],
+    testing: false,
     ...overrides,
   }
 }
@@ -119,4 +123,72 @@ describe('summarizeModelIq', () => {
       unavailable: 0,
     })
   })
+
+describe('buildIqGrid', () => {
+  it('lays out groups as rows and probed models as columns', () => {
+    const grid = buildIqGrid([
+      status({ model_name: 'gpt-4.1' }),
+      status({ model_name: 'claude', verdict: 'degraded', score: 65 }),
+      status({ group: 'vip', model_name: 'claude', verdict: 'poor' }),
+    ])
+
+    expect(grid.columns).toEqual(['claude', 'gpt-4.1'])
+    expect(grid.rows.map((row) => row.group)).toEqual(['default', 'vip'])
+    expect(grid.rows[0].cells.map((cell) => cell?.model_name)).toEqual([
+      'claude',
+      'gpt-4.1',
+    ])
+    // vip 分组没有 gpt-4.1 的结果：这一列留空，列才对得上。
+    expect(
+      grid.rows[1].cells.map((cell) => cell?.model_name ?? null)
+    ).toEqual(['claude', null])
+    expect(grid.total).toBe(3)
+  })
+
+  it('skips a combination that was never probed', () => {
+    const grid = buildIqGrid([
+      status(),
+      status({ model_name: 'never-probed', verdict: 'pending', score: 0 }),
+    ])
+    expect(grid.columns).toEqual(['gpt-4.1'])
+    expect(grid.total).toBe(1)
+  })
+
+  it('keeps an unprobed combination that is being tested right now', () => {
+    const grid = buildIqGrid([
+      status({
+        model_name: 'never-probed',
+        verdict: 'pending',
+        score: 0,
+        testing: true,
+      }),
+    ])
+    expect(grid.columns).toEqual(['never-probed'])
+    expect(grid.total).toBe(1)
+  })
+})
+
+describe('iqCellClass', () => {
+  it('maps every verdict onto a semantic colour token', () => {
+    expect(iqCellClass('healthy')).toContain('success')
+    expect(iqCellClass('degraded')).toContain('warning')
+    expect(iqCellClass('poor')).toContain('destructive')
+    expect(iqCellClass('failed')).toContain('destructive')
+    expect(iqCellClass('pending')).toContain('muted')
+  })
+})
+
+describe('iqNeedsPolling', () => {
+  it('polls while a sweep or a single probe is running', () => {
+    expect(iqNeedsPolling({ sweeping: true, models: [status()] })).toBe(true)
+    expect(
+      iqNeedsPolling({ sweeping: false, models: [status({ testing: true })] })
+    ).toBe(true)
+  })
+
+  it('stops polling once everything is idle or nothing was loaded', () => {
+    expect(iqNeedsPolling({ sweeping: false, models: [status()] })).toBe(false)
+    expect(iqNeedsPolling(undefined)).toBe(false)
+  })
+})
 })

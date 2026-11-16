@@ -8355,6 +8355,14 @@
     "© 2025 Your Company. All rights reserved.": "© 2025 Ваша Компания. Все права защищены.",
     "、": ", ",
     "，": ", ",
-    "，and ": " и "
+    "，and ": " и ",
+    "Test started for {{target}}": "Тест запущен для {{target}}",
+    "The test for this group and model is already running": "Тест для этой группы и модели уже выполняется",
+    "Sweep started for {{count}} models": "Обход запущен для {{count}} моделей",
+    "The sweep is already running": "Обход уже выполняется",
+    "Sweep in progress since {{time}}": "Обход выполняется с {{time}}",
+    "Sweep in progress": "Обход выполняется",
+    "Recent scores": "Последние оценки",
+    "No test results yet. Run a pelican test to fill the grid.": "Результатов пока нет. Запустите тест «пеликан», чтобы заполнить сетку."
   }
 }

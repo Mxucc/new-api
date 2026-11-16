@@ -112,3 +112,73 @@ export function summarizeModelIq(models: ModelIqStatus[]): {
   }
   return { tested, healthy, untested, unavailable }
 }
+
+/**
+ * 格子底色：沿用状态语义色，但用半透明填充而不是实心块，
+ * 好让格子里的分数保持正文对比度（实心 success 上放数字读不清）。
+ */
+const VERDICT_CELL_CLASSES: Record<ModelIqVerdict, string> = {
+  healthy: 'border-success/30 bg-success/15 text-success',
+  degraded: 'border-warning/30 bg-warning/15 text-warning',
+  poor: 'border-destructive/30 bg-destructive/15 text-destructive',
+  failed: 'border-destructive/25 bg-destructive/10 text-destructive',
+  pending: 'border-border bg-muted text-muted-foreground',
+}
+
+export function iqCellClass(verdict: ModelIqVerdict): string {
+  return VERDICT_CELL_CLASSES[verdict] ?? VERDICT_CELL_CLASSES.pending
+}
+
+export type IqGridRow = {
+  group: string
+  /** 与 columns 一一对应：该分组在这个模型上没有记录时留空。 */
+  cells: (ModelIqStatus | null)[]
+}
+
+export type IqGrid = {
+  /** 列 = 出现过测试结果的模型，按名称排序，使各行对齐。 */
+  columns: string[]
+  rows: IqGridRow[]
+  /** 真正画出来的组合数。 */
+  total: number
+}
+
+/**
+ * 格子网格只画有结果的组合，外加正在测的组合（那种组合还没有新分数）。
+ * 从没测过的组合不占格子：一排空壳会把真实成绩埋掉。
+ */
+export function buildIqGrid(models: ModelIqStatus[]): IqGrid {
+  const shown = models.filter(
+    (status) => status.verdict !== 'pending' || status.testing
+  )
+  const columns = [...new Set(shown.map((status) => status.model_name))].sort(
+    (a, b) => a.localeCompare(b)
+  )
+  const byGroup = new Map<string, Map<string, ModelIqStatus>>()
+  for (const status of shown) {
+    const byModel = byGroup.get(status.group) ?? new Map()
+    byModel.set(status.model_name, status)
+    byGroup.set(status.group, byModel)
+  }
+  const rows = [...byGroup.keys()]
+    .sort((a, b) => a.localeCompare(b))
+    .map((group) => {
+      const byModel = byGroup.get(group)
+      return {
+        group,
+        cells: columns.map((name) => byModel?.get(name) ?? null),
+      }
+    })
+  return { columns, rows, total: shown.length }
+}
+
+/** 有探测在跑才继续轮询：整轮巡视或者任一格子还在测。 */
+export function iqNeedsPolling(overview: {
+  sweeping: boolean
+  models: ModelIqStatus[]
+} | undefined): boolean {
+  if (!overview) {
+    return false
+  }
+  return overview.sweeping || overview.models.some((model) => model.testing)
+}

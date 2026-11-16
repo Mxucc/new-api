@@ -8355,6 +8355,14 @@
     "© 2025 Your Company. All rights reserved.": "© 2025 Your Company. All rights reserved.",
     "、": ", ",
     "，": ", ",
-    "，and ": ", and "
+    "，and ": ", and ",
+    "Test started for {{target}}": "Test started for {{target}}",
+    "The test for this group and model is already running": "The test for this group and model is already running",
+    "Sweep started for {{count}} models": "Sweep started for {{count}} models",
+    "The sweep is already running": "The sweep is already running",
+    "Sweep in progress since {{time}}": "Sweep in progress since {{time}}",
+    "Sweep in progress": "Sweep in progress",
+    "Recent scores": "Recent scores",
+    "No test results yet. Run a pelican test to fill the grid.": "No test results yet. Run a pelican test to fill the grid."
   }
 }

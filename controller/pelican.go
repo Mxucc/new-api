@@ -56,6 +56,8 @@ type pelicanModelStatus struct {
 	ResultId   int64    `json:"result_id"`
 	Dimensions []string `json:"dimensions"`
 	LastError  string   `json:"last_error,omitempty"`
+	// Testing 表示这个组合此刻正有一次探测在跑：页面据此显示加载态并保持轮询。
+	Testing bool `json:"testing"`
 }
 
 // isPelicanChatModel 判断模型是否属于可以回答题面的对话模型。
@@ -168,14 +170,18 @@ func GetPelicanOverview(c *gin.Context) {
 	statuses := make([]pelicanModelStatus, 0, len(available)+len(latest))
 	for _, target := range available {
 		served[target] = struct{}{}
-		statuses = append(statuses, pelicanStatusOf(target, true, latest[target]))
+		status := pelicanStatusOf(target, true, latest[target])
+		status.Testing = pelicanProbeActive(target)
+		statuses = append(statuses, status)
 	}
 	// 曾经测过、但现在没有渠道的组合也要展示：历史分数对用户依然有意义。
 	for target, result := range latest {
 		if _, ok := served[target]; ok {
 			continue
 		}
-		statuses = append(statuses, pelicanStatusOf(target, false, result))
+		status := pelicanStatusOf(target, false, result)
+		status.Testing = pelicanProbeActive(target)
+		statuses = append(statuses, status)
 	}
 	slices.SortFunc(statuses, func(a, b pelicanModelStatus) int {
 		if byGroup := strings.Compare(a.Group, b.Group); byGroup != 0 {
@@ -189,6 +195,7 @@ func GetPelicanOverview(c *gin.Context) {
 			latestTestedAt = status.TestedAt
 		}
 	}
+	sweeping, sweepingSince := pelicanSweepState()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -196,6 +203,9 @@ func GetPelicanOverview(c *gin.Context) {
 			"total":            len(statuses),
 			"latest_tested_at": latestTestedAt,
 			"prompt":           service.PelicanPrompt,
+			// 页面据此决定是否继续轮询：整轮巡视或任一个格子还在测就每 5 秒刷一次。
+			"sweeping":       sweeping,
+			"sweeping_since": sweepingSince,
 		},
 	})
 }
@@ -289,9 +299,29 @@ type pelicanTestRequest struct {
 	Model string `json:"model"`
 }
 
-// triggerPelicanTest 是 RunPelicanTest 与 RunAllPelicanTests 共用的单组合入口。
-// ctx 由调用方给出：单组合测试跟随请求，整轮巡视则用独立上下文，
-// 免得管理员关掉页面就把巡视打断在半路。
+// pelicanProbeRunning 登记正在探测的（分组, 模型）组合，值是开始时间（Unix 秒）。
+// 单组合触发与整轮巡视都先在这里登记，同一组合不会被并发探测两次；
+// overview 也用它告诉页面哪些格子正在测。
+var pelicanProbeRunning sync.Map
+
+// pelicanProbeBegin 登记一个组合；返回 false 表示该组合已经在跑。
+func pelicanProbeBegin(target model.PelicanProbeTarget) bool {
+	_, loaded := pelicanProbeRunning.LoadOrStore(target, time.Now().Unix())
+	return !loaded
+}
+
+func pelicanProbeEnd(target model.PelicanProbeTarget) {
+	pelicanProbeRunning.Delete(target)
+}
+
+// pelicanProbeActive 报告该组合此刻是否有一次探测在跑。
+func pelicanProbeActive(target model.PelicanProbeTarget) bool {
+	_, ok := pelicanProbeRunning.Load(target)
+	return ok
+}
+
+// triggerPelicanTest 是单组合探测本身的入口：校验组合、选渠道、跑一次、落库。
+// ctx 由调用方给出：异步触发与整轮巡视都用独立上下文，免得请求结束就打断探测。
 func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, testUserID int) (pelicanModelStatus, error) {
 	group := strings.TrimSpace(target.Group)
 	modelName := strings.TrimSpace(target.Model)
@@ -315,7 +345,18 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 	return pelicanStatusOf(model.PelicanProbeTarget{Group: group, Model: modelName}, true, record), nil
 }
 
+// runPelicanProbeTarget 跑一次探测并把失败原因写进系统日志：探测改成异步之后
+// 已经没有调用方能收到错误，日志是唯一还能查到原因的地方。
+func runPelicanProbeTarget(ctx context.Context, target model.PelicanProbeTarget, testUserID int) error {
+	_, err := triggerPelicanTest(ctx, target, testUserID)
+	if err != nil {
+		common.SysLog(common.LogText("pelican probe failed for %s/%s: %s", target.Group, target.Model, err))
+	}
+	return err
+}
+
 // RunPelicanTest 让管理员按需给一个（分组, 模型）组合测智商。
+// 一次探测最长三分钟，所以这里只登记后就返回 202，结果由页面轮询 overview 取回。
 func RunPelicanTest(c *gin.Context) {
 	testUserID := c.GetInt("id")
 	if testUserID <= 0 {
@@ -328,16 +369,30 @@ func RunPelicanTest(c *gin.Context) {
 		return
 	}
 	// 分组由请求给出，而不是取触发者自己的分组：管理员所在分组没有该组合时
-	// 应当明确报错，而不是悄悄测到别的分组上。
-	status, err := triggerPelicanTest(c.Request.Context(), model.PelicanProbeTarget{
-		Group: request.Group,
-		Model: request.Model,
-	}, testUserID)
-	if err != nil {
-		common.ApiError(c, err)
+	// 应当明确报错，而不是悄悄测到别的分组上。空值属于请求本身有误，同步返回。
+	target := model.PelicanProbeTarget{
+		Group: strings.TrimSpace(request.Group),
+		Model: strings.TrimSpace(request.Model),
+	}
+	if target.Group == "" || target.Model == "" {
+		common.ApiErrorMsg(c, "group and model are required")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": status})
+	if !pelicanProbeBegin(target) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    gin.H{"started": false, "running": true},
+		})
+		return
+	}
+	go func() {
+		defer pelicanProbeEnd(target)
+		runPelicanProbeTarget(context.Background(), target, testUserID)
+	}()
+	c.JSON(http.StatusAccepted, gin.H{
+		"success": true,
+		"data":    gin.H{"started": true},
+	})
 }
 
 // pelicanSweepConcurrency 是一次巡视的并发数：串行在组合多时要占住几分钟。
@@ -356,7 +411,12 @@ func runPelicanSweep(ctx context.Context, testUserID int, targets []model.Pelica
 		slots <- struct{}{}
 		wg.Go(func() {
 			defer func() { <-slots }()
-			_, err := triggerPelicanTest(ctx, target, testUserID)
+			// 同一组合已经被单次触发抢占时不重复探测，也不计为失败。
+			if !pelicanProbeBegin(target) {
+				return
+			}
+			defer pelicanProbeEnd(target)
+			err := runPelicanProbeTarget(ctx, target, testUserID)
 			counters.Lock()
 			defer counters.Unlock()
 			if err != nil {
@@ -371,6 +431,7 @@ func runPelicanSweep(ctx context.Context, testUserID int, targets []model.Pelica
 }
 
 // RunAllPelicanTests 让管理员一次巡视后台配置的组合（未配置时为全部可测组合）。
+// 整轮要好几分钟，所以这里和单组合一样只做登记，结果由页面轮询 overview 取回。
 func RunAllPelicanTests(c *gin.Context) {
 	testUserID := c.GetInt("id")
 	if testUserID <= 0 {
@@ -382,11 +443,22 @@ func RunAllPelicanTests(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !pelicanSweepBegin() {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    gin.H{"started": false, "running": true, "targets": len(targets)},
+		})
+		return
+	}
 	// 巡视用独立上下文：管理员关掉页面不应该把一轮巡视打断在半路。
-	tested, failed := runPelicanSweep(context.Background(), testUserID, targets)
-	c.JSON(http.StatusOK, gin.H{
+	go func() {
+		defer pelicanSweepEnd()
+		tested, failed := runPelicanSweep(context.Background(), testUserID, targets)
+		common.SysLog(common.LogText("pelican sweep finished: %d tested, %d failed", tested, failed))
+	}()
+	c.JSON(http.StatusAccepted, gin.H{
 		"success": true,
-		"data":    gin.H{"tested": tested, "failed": failed},
+		"data":    gin.H{"started": true, "targets": len(targets)},
 	})
 }
 
@@ -535,9 +607,33 @@ func UpdatePelicanConfig(c *gin.Context) {
 const pelicanSchedulerUserId = 1
 
 var (
-	pelicanSweepRunning atomic.Bool
-	pelicanLastSweepAt  atomic.Int64
+	pelicanSweepRunning   atomic.Bool
+	pelicanSweepStartedAt atomic.Int64
+	pelicanLastSweepAt    atomic.Int64
 )
+
+// pelicanSweepBegin 抢占巡视守卫并记下开始时间：手动巡视与定时巡视共用这把锁，
+// 两个入口不会把同一组合同时铺开跑两遍。
+func pelicanSweepBegin() bool {
+	if !pelicanSweepRunning.CompareAndSwap(false, true) {
+		return false
+	}
+	pelicanSweepStartedAt.Store(time.Now().Unix())
+	return true
+}
+
+func pelicanSweepEnd() {
+	pelicanSweepStartedAt.Store(0)
+	pelicanSweepRunning.Store(false)
+}
+
+// pelicanSweepState 报告整轮巡视是否在跑，以及开始时间（0 表示没在跑）。
+func pelicanSweepState() (bool, int64) {
+	if !pelicanSweepRunning.Load() {
+		return false, 0
+	}
+	return true, pelicanSweepStartedAt.Load()
+}
 
 // StartPelicanScheduler 按后台配置的间隔自动巡视。只在主节点上跑：
 // 从节点跟着主节点的数据库同步结果即可，不需要各跑一遍。
@@ -563,10 +659,10 @@ func runPelicanScheduledSweep() {
 	if time.Since(time.Unix(pelicanLastSweepAt.Load(), 0)) < time.Duration(interval)*time.Minute {
 		return
 	}
-	if !pelicanSweepRunning.CompareAndSwap(false, true) {
+	if !pelicanSweepBegin() {
 		return
 	}
-	defer pelicanSweepRunning.Store(false)
+	defer pelicanSweepEnd()
 	targets, err := pelicanSweepPlan()
 	if err != nil {
 		common.SysLog(common.LogText("pelican sweep skipped: %s", err.Error()))

@@ -53,6 +53,8 @@ export type ModelIqStatus = {
   result_id: number
   dimensions: string[]
   last_error?: string
+  /** 该组合当前有一次探测在跑：格子显示加载态，页面保持轮询。 */
+  testing: boolean
 }
 
 export type ModelIqOverview = {
@@ -60,6 +62,10 @@ export type ModelIqOverview = {
   total: number
   latest_tested_at: number
   prompt: string
+  /** 整轮巡视是否在跑。 */
+  sweeping: boolean
+  /** 巡视开始时间，0 表示没在跑。 */
+  sweeping_since: number
 }
 
 export type PelicanResult = {
@@ -102,8 +108,13 @@ export type PelicanConfig = {
   available_targets: PelicanTarget[]
   missing_targets: PelicanTarget[]
 }
-
-export type PelicanRunSummary = {
-  tested: number
-  failed: number
+/**
+ * 异步触发的回执：探测在后台跑，页面只知道自己有没有真的启动一次。
+ * `running` 为真表示已有一次同类探测在跑，这次没有重复触发。
+ */
+export type PelicanStartAck = {
+  started: boolean
+  running?: boolean
+  /** 整轮巡视本轮要测的组合数，单组合触发时不返回。 */
+  targets?: number
 }

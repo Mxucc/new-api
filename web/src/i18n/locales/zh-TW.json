@@ -8355,6 +8355,14 @@
     "© 2025 Your Company. All rights reserved.": "© 2025 您的公司。保留所有權利。",
     "、": "、",
     "，": "，",
-    "，and ": "，並"
+    "，and ": "，並",
+    "Test started for {{target}}": "已開始測試 {{target}}",
+    "The test for this group and model is already running": "該分組模型的測試已在執行",
+    "Sweep started for {{count}} models": "已開始巡視 {{count}} 個模型",
+    "The sweep is already running": "巡視已在執行",
+    "Sweep in progress since {{time}}": "巡視自 {{time}} 起進行中",
+    "Sweep in progress": "巡視進行中",
+    "Recent scores": "近期分數",
+    "No test results yet. Run a pelican test to fill the grid.": "還沒有測試結果，執行一次鵜鶘測智就會填滿格子。"
   }
 }
