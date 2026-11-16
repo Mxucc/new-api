@@ -8366,6 +8366,7 @@
     "An administrator picks one model per group in the sweep settings. Everyone sees the same results here.": "管理員在巡視設定裡為每個分組指定一個模型，所有使用者在這裡看到同一份結果。",
     "Choose the model each group should be probed with, and how often the sweep runs.": "為每個分組選擇要探測的模型，以及巡視多久跑一次。",
     "No probe targets are configured yet": "還沒有設定探測目標",
-    "No test results yet. Results appear here after the next sweep.": "還沒有測試結果，下一輪巡視完成後會顯示在這裡。"
+    "No test results yet. Results appear here after the next sweep.": "還沒有測試結果，下一輪巡視完成後會顯示在這裡。",
+    "Test {{group}} now": "立即測試 {{group}}"
   }
 }

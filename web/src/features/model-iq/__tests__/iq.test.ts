@@ -137,13 +137,15 @@ describe('buildIqGrid', () => {
     expect(grid.total).toBe(3)
   })
 
-  it('skips a combination that was never probed', () => {
+  it('keeps a configured combination that was never probed', () => {
     const grid = buildIqGrid([
       status(),
       status({ model_name: 'never-probed', verdict: 'pending', score: 0 }),
     ])
-    expect(grid.columns).toEqual(['gpt-4.1'])
-    expect(grid.total).toBe(1)
+    // 未测过的组合也要占一格：管理员就在那一行点「立即测试」。
+    expect(grid.columns).toEqual(['gpt-4.1', 'never-probed'])
+    expect(grid.total).toBe(2)
+    expect(grid.rows[0].cells[1]?.verdict).toBe('pending')
   })
 
   it('keeps an unprobed combination that is being tested right now', () => {

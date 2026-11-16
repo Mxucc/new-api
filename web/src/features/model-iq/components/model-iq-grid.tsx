@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CircleX, Loader2 } from 'lucide-react'
+import { CircleX, Loader2, Play } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { GroupBadge } from '@/components/group-badge'
+import { Button } from '@/components/ui/button'
 import {
   HoverCard,
   HoverCardContent,
@@ -110,14 +111,15 @@ function ModelIqCell(props: ModelIqCellProps) {
 }
 
 /**
- * 行 = 分组，列 = 该分组下出现过测试结果的模型。铺开成网格而不是表格，
- * 是为了让一屏内的对比靠颜色就够，细节留给悬停与点击。
+ * 行 = 分组，列 = 分组配置的模型。铺开成网格而不是表格，
+ * 是为了让一屏内的对比靠颜色就够，细节留给悬停与点击；
+ * 管理员每行末尾还有一个「立即测试」按钮，点了就在后台跑一次，不用等整轮巡视。
  */
 export function ModelIqGrid(props: ModelIqGridProps) {
   const { t } = useTranslation()
   const grid = useMemo(() => buildIqGrid(props.models), [props.models])
-  // 列宽随模型名伸缩，网格模板只能按当前列数动态生成。
-  const templateColumns = `minmax(5.5rem, max-content) repeat(${grid.columns.length}, minmax(4.5rem, 1fr))`
+  // 列宽随模型名伸缩，网格模板只能按当前列数动态生成；管理员多一列动作。
+  const templateColumns = `minmax(5.5rem, max-content) repeat(${grid.columns.length}, minmax(4.5rem, 1fr))${props.isAdmin ? ' minmax(2rem, max-content)' : ''}`
 
   // 一个结果都没有时不留空网格：空壳子会被误读成「全挂了」。
   if (grid.total === 0) {
@@ -150,37 +152,74 @@ export function ModelIqGrid(props: ModelIqGridProps) {
               {modelName}
             </span>
           ))}
+          {props.isAdmin ? <span aria-hidden='true' /> : null}
         </div>
 
-        {grid.rows.map((row) => (
-          <div
-            key={row.group}
-            className='grid items-center gap-1'
-            style={{ gridTemplateColumns: templateColumns }}
-            data-testid={`model-iq-row-${row.group}`}
-          >
-            <GroupBadge group={row.group} copyable={false} />
-            {row.cells.map((status, index) =>
-              status ? (
-                <ModelIqCell
-                  key={status.model_name}
-                  status={status}
-                  isAdmin={props.isAdmin}
-                  onPreview={props.onPreview}
-                  onHistory={props.onHistory}
-                  onRun={props.onRun}
-                />
-              ) : (
-                // 该分组没有这个模型的结果：留一个空槽，列才对得上。
-                <span
-                  key={grid.columns[index]}
-                  aria-hidden='true'
-                  className='border-border/50 h-10 rounded-md border border-dashed'
-                />
-              )
-            )}
-          </div>
-        ))}
+        {grid.rows.map((row) => {
+          // 每行只配一个模型：动作按钮落在这个分组真正要探测的目标上。
+          const target = row.cells.find(
+            (status): status is ModelIqStatus => status !== null
+          )
+          return (
+            <div
+              key={row.group}
+              className='grid items-center gap-1'
+              style={{ gridTemplateColumns: templateColumns }}
+              data-testid={`model-iq-row-${row.group}`}
+            >
+              <GroupBadge group={row.group} copyable={false} />
+              {row.cells.map((status, index) =>
+                status ? (
+                  <ModelIqCell
+                    key={status.model_name}
+                    status={status}
+                    isAdmin={props.isAdmin}
+                    onPreview={props.onPreview}
+                    onHistory={props.onHistory}
+                    onRun={props.onRun}
+                  />
+                ) : (
+                  // 该分组没有这个模型的结果：留一个空槽，列才对得上。
+                  <span
+                    key={grid.columns[index]}
+                    aria-hidden='true'
+                    className='border-border/50 h-10 rounded-md border border-dashed'
+                  />
+                )
+              )}
+              {props.isAdmin ? (
+                <div className='flex justify-end'>
+                  {target ? (
+                    <Button
+                      variant='ghost'
+                      size='icon-sm'
+                      title={t('Test {{group}} now', { group: row.group })}
+                      aria-label={t('Test {{group}} now', {
+                        group: row.group,
+                      })}
+                      disabled={target.testing}
+                      onClick={() =>
+                        props.onRun({
+                          group: target.group,
+                          model: target.model_name,
+                        })
+                      }
+                    >
+                      {target.testing ? (
+                        <Loader2
+                          className='size-3.5 animate-spin'
+                          aria-hidden='true'
+                        />
+                      ) : (
+                        <Play className='size-3.5' aria-hidden='true' />
+                      )}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

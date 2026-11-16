@@ -8366,6 +8366,7 @@
     "An administrator picks one model per group in the sweep settings. Everyone sees the same results here.": "An administrator picks one model per group in the sweep settings. Everyone sees the same results here.",
     "Choose the model each group should be probed with, and how often the sweep runs.": "Choose the model each group should be probed with, and how often the sweep runs.",
     "No probe targets are configured yet": "No probe targets are configured yet",
-    "No test results yet. Results appear here after the next sweep.": "No test results yet. Results appear here after the next sweep."
+    "No test results yet. Results appear here after the next sweep.": "No test results yet. Results appear here after the next sweep.",
+    "Test {{group}} now": "Test {{group}} now"
   }
 }

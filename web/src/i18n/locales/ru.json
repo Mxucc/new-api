@@ -8366,6 +8366,7 @@
     "An administrator picks one model per group in the sweep settings. Everyone sees the same results here.": "Администратор выбирает по одной модели для каждой группы в настройках обхода. Все видят здесь одни и те же результаты.",
     "Choose the model each group should be probed with, and how often the sweep runs.": "Выберите модель для проверки каждой группы и период обхода.",
     "No probe targets are configured yet": "Цели проверки ещё не настроены",
-    "No test results yet. Results appear here after the next sweep.": "Результатов пока нет. Они появятся здесь после следующего обхода."
+    "No test results yet. Results appear here after the next sweep.": "Результатов пока нет. Они появятся здесь после следующего обхода.",
+    "Test {{group}} now": "Проверить {{group}} сейчас"
   }
 }

@@ -117,7 +117,7 @@ export type IqGridRow = {
 }
 
 export type IqGrid = {
-  /** 列 = 出现过测试结果的模型，按名称排序，使各行对齐。 */
+  /** 列 = 分组配置的模型，按名称排序，使各行对齐。 */
   columns: string[]
   rows: IqGridRow[]
   /** 真正画出来的组合数。 */
@@ -125,18 +125,15 @@ export type IqGrid = {
 }
 
 /**
- * 格子网格只画有结果的组合，外加正在测的组合（那种组合还没有新分数）。
- * 从没测过的组合不占格子：一排空壳会把真实成绩埋掉。
+ * 每个配置的分组都占一行：没测过的组合留一个空槽，管理员可以直接在那一行点「立即测试」。
+ * 以前没测过的组合不占格子，但探测现在只覆盖配置项，藏起来就再也没法触发。
  */
 export function buildIqGrid(models: ModelIqStatus[]): IqGrid {
-  const shown = models.filter(
-    (status) => status.verdict !== 'pending' || status.testing
-  )
-  const columns = [...new Set(shown.map((status) => status.model_name))].sort(
+  const columns = [...new Set(models.map((status) => status.model_name))].sort(
     (a, b) => a.localeCompare(b)
   )
   const byGroup = new Map<string, Map<string, ModelIqStatus>>()
-  for (const status of shown) {
+  for (const status of models) {
     const byModel = byGroup.get(status.group) ?? new Map()
     byModel.set(status.model_name, status)
     byGroup.set(status.group, byModel)
@@ -150,7 +147,7 @@ export function buildIqGrid(models: ModelIqStatus[]): IqGrid {
         cells: columns.map((name) => byModel?.get(name) ?? null),
       }
     })
-  return { columns, rows, total: shown.length }
+  return { columns, rows, total: models.length }
 }
 
 /** 有探测在跑才继续轮询：整轮巡视或者任一格子还在测。 */

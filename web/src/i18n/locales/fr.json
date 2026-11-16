@@ -8366,6 +8366,7 @@
     "An administrator picks one model per group in the sweep settings. Everyone sees the same results here.": "Un administrateur choisit un modèle par groupe dans les réglages de la tournée. Tout le monde voit les mêmes résultats ici.",
     "Choose the model each group should be probed with, and how often the sweep runs.": "Choisissez le modèle à tester pour chaque groupe et la fréquence de la tournée.",
     "No probe targets are configured yet": "Aucune cible de test n'est encore configurée",
-    "No test results yet. Results appear here after the next sweep.": "Pas encore de résultats. Ils apparaîtront ici après la prochaine tournée."
+    "No test results yet. Results appear here after the next sweep.": "Pas encore de résultats. Ils apparaîtront ici après la prochaine tournée.",
+    "Test {{group}} now": "Tester {{group}} maintenant"
   }
 }

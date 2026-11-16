@@ -8366,6 +8366,7 @@
     "An administrator picks one model per group in the sweep settings. Everyone sees the same results here.": "管理者が巡回設定でグループごとにモデルを 1 つ選びます。ここには全員が同じ結果を表示します。",
     "Choose the model each group should be probed with, and how often the sweep runs.": "グループごとにテストするモデルと、巡回の実行間隔を選びます。",
     "No probe targets are configured yet": "テスト対象がまだ設定されていません",
-    "No test results yet. Results appear here after the next sweep.": "テスト結果はまだありません。次回の巡回後にここに表示されます。"
+    "No test results yet. Results appear here after the next sweep.": "テスト結果はまだありません。次回の巡回後にここに表示されます。",
+    "Test {{group}} now": "{{group}} を今すぐテスト"
   }
 }

@@ -186,7 +186,7 @@ describe('model IQ grid', () => {
     expect(screen.getAllByText('vip').length).toBeGreaterThan(0)
   })
 
-  it('explains the empty grid when nothing has been tested yet', async () => {
+  it('keeps a configured group that was never tested, with an empty cell', async () => {
     api.getModelIqOverview.mockResolvedValue(
       overview([
         modelStatus({
@@ -201,16 +201,19 @@ describe('model IQ grid', () => {
     )
     renderPage(ROLE.USER)
 
-    expect(await screen.findByTestId('model-iq-grid-empty')).toBeInTheDocument()
-    expect(screen.queryByTestId('model-iq-grid')).toBeNull()
+    // 配置了但还没测过的分组照样留一格：它就是管理员要触发的那一行。
+    const cell = await screen.findByTestId('model-iq-cell-default-never-probed')
+    expect(cell).toHaveTextContent('—')
+    expect(cell).toHaveAccessibleName('default · never-probed Not tested')
   })
 
-  it('leaves a combination that was never probed out of the grid', async () => {
+  it('keeps an untested combination inside its group row', async () => {
     renderPage(ROLE.USER)
 
     await screen.findByTestId('model-iq-cell-default-gpt-4.1')
-    expect(screen.queryByTestId('model-iq-cell-default-never-probed')).toBeNull()
-    expect(screen.queryByText('Not tested')).toBeNull()
+    expect(
+      screen.getByTestId('model-iq-cell-default-never-probed')
+    ).toBeInTheDocument()
   })
 
   it('shows a loading cell, without a stale score, while a combination is being tested', async () => {
@@ -258,6 +261,29 @@ describe('model IQ actions', () => {
     })
   })
 
+  it('starts one probe straight from the row button', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.ADMIN)
+
+    // 每行一个「立即测试」：不必等整轮巡视。
+    await user.click(
+      await screen.findByRole('button', { name: 'Test vip now' })
+    )
+
+    await waitFor(() => {
+      expect(api.runPelicanTest).toHaveBeenCalledWith(
+        { group: 'vip', model: 'gpt-4.1' },
+        expect.anything()
+      )
+    })
+  })
+
+  it('does not offer the row button to a regular user', async () => {
+    renderPage(ROLE.USER)
+
+    await screen.findByTestId('model-iq-cell-default-gpt-4.1')
+    expect(screen.queryByRole('button', { name: 'Test default now' })).toBeNull()
+  })
   it('starts a sweep without waiting for its results', async () => {
     const user = userEvent.setup()
     renderPage(ROLE.ADMIN)
