@@ -231,6 +231,7 @@ func main() {
 	server.Use(middleware.I18n())
 	middleware.SetUpLogger(server)
 	InjectUmamiAnalytics()
+	InjectEmbeddedFrameOrigins()
 	InjectGoogleAnalytics()
 
 	// 设置路由

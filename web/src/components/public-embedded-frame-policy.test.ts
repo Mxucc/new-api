@@ -49,4 +49,29 @@ describe('public embedded frame sandbox', () => {
       expect(getPublicEmbeddedFrameSandbox(url), url).toBe(STRICT_SANDBOX)
     }
   })
+
+  test('restores the origin declared by the deployment', () => {
+    const meta = document.createElement('meta')
+    meta.setAttribute('name', 'embedded-frame-origins')
+    meta.setAttribute(
+      'content',
+      'https://cdn.example.com, https://assets.example.com'
+    )
+    document.head.appendChild(meta)
+    try {
+      for (const url of [
+        'https://cdn.example.com/embed',
+        'https://assets.example.com/app',
+      ]) {
+        expect(getPublicEmbeddedFrameSandbox(url), url).toBe(
+          SAME_ORIGIN_SANDBOX
+        )
+      }
+      expect(getPublicEmbeddedFrameSandbox('https://other.example.com/')).toBe(
+        STRICT_SANDBOX
+      )
+    } finally {
+      meta.remove()
+    }
+  })
 })
