@@ -126,7 +126,9 @@ export function ModelIqHoverCard(props: ModelIqHoverCardProps) {
       <div className='flex items-center justify-between gap-2'>
         <ModelIqScore status={status} />
         <span className='text-muted-foreground text-xs tabular-nums'>
-          {status.latency_ms ? formatLatency(status.latency_ms) : t('Not tested')}
+          {status.latency_ms
+            ? formatLatency(status.latency_ms)
+            : t('Not tested')}
         </span>
       </div>
 

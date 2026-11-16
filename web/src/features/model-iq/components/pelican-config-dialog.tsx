@@ -57,7 +57,9 @@ export interface PelicanConfigDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-function draftFromConfig(config: PelicanConfig | undefined): PelicanConfigDraft {
+function draftFromConfig(
+  config: PelicanConfig | undefined
+): PelicanConfigDraft {
   const models: Record<string, string> = {}
   for (const target of config?.targets ?? []) {
     models[target.group] = target.model
@@ -73,7 +75,9 @@ function draftFromConfig(config: PelicanConfig | undefined): PelicanConfigDraft 
 export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const currentUsername = useAuthStore((state) => state.auth.user?.username ?? '')
+  const currentUsername = useAuthStore(
+    (state) => state.auth.user?.username ?? ''
+  )
   const [editing, setEditing] = useState<PelicanConfigDraft | null>(null)
 
   const query = useQuery({

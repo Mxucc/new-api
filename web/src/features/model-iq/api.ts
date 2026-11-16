@@ -75,9 +75,7 @@ export async function runPelicanTest(
 
 /** 触发整轮巡视，同样只登记就返回。 */
 export async function runAllPelicanTests(): Promise<PelicanStartAck> {
-  const res = await api.post<Envelope<PelicanStartAck>>(
-    '/api/pelican/test-all'
-  )
+  const res = await api.post<Envelope<PelicanStartAck>>('/api/pelican/test-all')
   return requireServerSuccess(res.data).data
 }
 

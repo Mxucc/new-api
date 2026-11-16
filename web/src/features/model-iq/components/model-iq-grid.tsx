@@ -49,7 +49,11 @@ export interface ModelIqGridProps {
 }
 
 interface ModelIqCellProps {
+  /** 这一格所在的分组（行）；借用数据时它与 status.group 不同。 */
+  rowGroup: string
   status: ModelIqStatus
+  /** 有值表示这一格是借用「旁边」的最近一份结果补上的，只做视觉补齐。 */
+  borrowedFrom?: string
   isAdmin: boolean
   onPreview: (status: ModelIqStatus) => void
   onHistory: (status: ModelIqStatus) => void
@@ -70,6 +74,22 @@ function ModelIqCell(props: ModelIqCellProps) {
     cellContent = <span>{formatNumber(status.score)}</span>
   } else if (status.verdict === 'failed') {
     cellContent = <CircleX className='size-4' aria-hidden='true' />
+  }
+
+  // 借来的格子只补视觉：不弹卡片、不跳历史，免得把别的分组的数据当成自己的。
+  if (props.borrowedFrom) {
+    return (
+      <div
+        data-testid={`model-iq-borrowed-${props.rowGroup}-${status.model_name}`}
+        title={t('Copied from {{group}}', { group: props.borrowedFrom })}
+        className={cn(
+          'flex h-10 min-w-0 items-center justify-center gap-1 rounded-md border border-dashed text-sm font-semibold tabular-nums opacity-45',
+          iqCellClass(status.verdict)
+        )}
+      >
+        {scored ? <span>{formatNumber(status.score)}</span> : cellContent}
+      </div>
+    )
   }
 
   return (
@@ -156,10 +176,9 @@ export function ModelIqGrid(props: ModelIqGridProps) {
         </div>
 
         {grid.rows.map((row) => {
-          // 每行只配一个模型：动作按钮落在这个分组真正要探测的目标上。
-          const target = row.cells.find(
-            (status): status is ModelIqStatus => status !== null
-          )
+          // 每行只配一个模型：动作按钮落在这个分组自己配置的目标上，
+          // 即使这一行的格子显示的是借来的数据。
+          const own = row.own
           return (
             <div
               key={row.group}
@@ -168,18 +187,20 @@ export function ModelIqGrid(props: ModelIqGridProps) {
               data-testid={`model-iq-row-${row.group}`}
             >
               <GroupBadge group={row.group} copyable={false} />
-              {row.cells.map((status, index) =>
-                status ? (
+              {row.cells.map((cell, index) =>
+                cell ? (
                   <ModelIqCell
-                    key={status.model_name}
-                    status={status}
+                    key={`${cell.borrowedFrom ?? cell.status.group}-${cell.status.model_name}`}
+                    rowGroup={row.group}
+                    status={cell.status}
+                    borrowedFrom={cell.borrowedFrom}
                     isAdmin={props.isAdmin}
                     onPreview={props.onPreview}
                     onHistory={props.onHistory}
                     onRun={props.onRun}
                   />
                 ) : (
-                  // 该分组没有这个模型的结果：留一个空槽，列才对得上。
+                  // 这一格既没有自己的结果，旁边也借不到数据：留一个空槽，列才对得上。
                   <span
                     key={grid.columns[index]}
                     aria-hidden='true'
@@ -189,7 +210,7 @@ export function ModelIqGrid(props: ModelIqGridProps) {
               )}
               {props.isAdmin ? (
                 <div className='flex justify-end'>
-                  {target ? (
+                  {own ? (
                     <Button
                       variant='ghost'
                       size='icon-sm'
@@ -197,15 +218,15 @@ export function ModelIqGrid(props: ModelIqGridProps) {
                       aria-label={t('Test {{group}} now', {
                         group: row.group,
                       })}
-                      disabled={target.testing}
+                      disabled={own.testing}
                       onClick={() =>
                         props.onRun({
-                          group: target.group,
-                          model: target.model_name,
+                          group: own.group,
+                          model: own.model_name,
                         })
                       }
                     >
-                      {target.testing ? (
+                      {own.testing ? (
                         <Loader2
                           className='size-3.5 animate-spin'
                           aria-hidden='true'

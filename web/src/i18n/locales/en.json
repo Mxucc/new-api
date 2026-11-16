@@ -8367,6 +8367,7 @@
     "Choose the model each group should be probed with, and how often the sweep runs.": "Choose the model each group should be probed with, and how often the sweep runs.",
     "No probe targets are configured yet": "No probe targets are configured yet",
     "No test results yet. Results appear here after the next sweep.": "No test results yet. Results appear here after the next sweep.",
-    "Test {{group}} now": "Test {{group}} now"
+    "Test {{group}} now": "Test {{group}} now",
+    "Copied from {{group}}": "Copied from {{group}}"
   }
 }

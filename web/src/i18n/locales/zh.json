@@ -8367,6 +8367,7 @@
     "Choose the model each group should be probed with, and how often the sweep runs.": "为每个分组选择要探测的模型，以及巡视多久跑一次。",
     "No probe targets are configured yet": "还没有配置探测目标",
     "No test results yet. Results appear here after the next sweep.": "还没有测试结果，下一轮巡视完成后会显示在这里。",
-    "Test {{group}} now": "立即测试 {{group}}"
+    "Test {{group}} now": "立即测试 {{group}}",
+    "Copied from {{group}}": "沿用 {{group}} 的最近结果"
   }
 }

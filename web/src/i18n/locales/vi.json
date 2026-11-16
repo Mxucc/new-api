@@ -8367,6 +8367,7 @@
     "Choose the model each group should be probed with, and how often the sweep runs.": "Chọn mô hình kiểm tra cho mỗi nhóm và tần suất chạy lượt kiểm tra.",
     "No probe targets are configured yet": "Chưa cấu hình mục tiêu kiểm tra",
     "No test results yet. Results appear here after the next sweep.": "Chưa có kết quả kiểm tra. Kết quả sẽ xuất hiện sau lượt kiểm tra tiếp theo.",
-    "Test {{group}} now": "Kiểm tra {{group}} ngay"
+    "Test {{group}} now": "Kiểm tra {{group}} ngay",
+    "Copied from {{group}}": "Sao chép từ {{group}}"
   }
 }

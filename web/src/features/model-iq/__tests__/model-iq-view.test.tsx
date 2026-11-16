@@ -216,6 +216,30 @@ describe('model IQ grid', () => {
     ).toBeInTheDocument()
   })
 
+  it('pads an empty cell with the nearest group result', async () => {
+    api.getModelIqOverview.mockResolvedValue(
+      overview([
+        modelStatus(),
+        modelStatus({
+          group: 'vip',
+          verdict: 'pending',
+          score: 0,
+          result_id: 0,
+          tested_at: 0,
+          latency_ms: 0,
+        }),
+      ])
+    )
+    renderPage(ROLE.USER)
+
+    // vip 自己还没测过：用同列最近一格的分数补上，并淡显标出来源。
+    const borrowed = await screen.findByTestId('model-iq-borrowed-vip-gpt-4.1')
+    expect(borrowed).toHaveTextContent('100')
+    expect(borrowed).toHaveAttribute('title', 'Copied from default')
+    // 借来的格子不承担交互，免得把别的分组的分数当成自己的结论。
+    expect(borrowed.tagName).not.toBe('BUTTON')
+  })
+
   it('shows a loading cell, without a stale score, while a combination is being tested', async () => {
     api.getModelIqOverview.mockResolvedValue(
       overview([
@@ -239,7 +263,9 @@ describe('model IQ actions', () => {
     await screen.findByTestId('model-iq-cell-default-gpt-4.1')
     expect(screen.queryByRole('button', { name: 'Test all models' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Sweep settings' })).toBeNull()
-    expect(screen.queryAllByRole('button', { name: 'Run test' })).toHaveLength(0)
+    expect(screen.queryAllByRole('button', { name: 'Run test' })).toHaveLength(
+      0
+    )
   })
 
   it('offers a run control to an administrator and starts one probe', async () => {
@@ -282,7 +308,9 @@ describe('model IQ actions', () => {
     renderPage(ROLE.USER)
 
     await screen.findByTestId('model-iq-cell-default-gpt-4.1')
-    expect(screen.queryByRole('button', { name: 'Test default now' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Test default now' })
+    ).toBeNull()
   })
   it('starts a sweep without waiting for its results', async () => {
     const user = userEvent.setup()
@@ -328,7 +356,9 @@ describe('model IQ actions', () => {
     const user = userEvent.setup()
     renderPage(ROLE.ADMIN)
 
-    await user.click(await screen.findByRole('button', { name: 'Sweep settings' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Sweep settings' })
+    )
 
     // 行 = 分组：两个可测分组各一行下拉，而不是一串（分组, 模型）多选。
     expect(

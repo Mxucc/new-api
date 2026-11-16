@@ -38,11 +38,7 @@ import { ModelIqGrid } from './components/model-iq-grid'
 import { PelicanConfigDialog } from './components/pelican-config-dialog'
 import { PelicanHistoryDialog } from './components/pelican-history-dialog'
 import { PelicanPreviewDialog } from './components/pelican-preview-dialog'
-import {
-  iqNeedsPolling,
-  pelicanTargetLabel,
-  summarizeModelIq,
-} from './lib/iq'
+import { iqNeedsPolling, pelicanTargetLabel, summarizeModelIq } from './lib/iq'
 import type { ModelIqStatus, PelicanTarget } from './types'
 
 /**
@@ -262,10 +258,7 @@ export function ModelIq() {
       />
 
       {isAdmin ? (
-        <PelicanConfigDialog
-          open={configOpen}
-          onOpenChange={setConfigOpen}
-        />
+        <PelicanConfigDialog open={configOpen} onOpenChange={setConfigOpen} />
       ) : null}
 
       <PelicanPreviewDialog
