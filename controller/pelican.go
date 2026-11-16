@@ -46,14 +46,16 @@ var pelicanNonChatMarkers = []string{
 }
 
 type pelicanModelStatus struct {
-	Group      string   `json:"group"`
-	ModelName  string   `json:"model_name"`
-	Available  bool     `json:"available"`
-	Verdict    string   `json:"verdict"`
-	Score      int      `json:"score"`
-	LatencyMs  int64    `json:"latency_ms"`
-	TestedAt   int64    `json:"tested_at"`
-	ResultId   int64    `json:"result_id"`
+	Group     string `json:"group"`
+	ModelName string `json:"model_name"`
+	Available bool   `json:"available"`
+	Verdict   string `json:"verdict"`
+	Score     int    `json:"score"`
+	LatencyMs int64  `json:"latency_ms"`
+	TestedAt  int64  `json:"tested_at"`
+	ResultId  int64  `json:"result_id"`
+	// ChannelId 是这次结果来自哪条渠道：上游报 502 之类时据此定位是哪条渠道。
+	ChannelId  int      `json:"channel_id"`
 	Dimensions []string `json:"dimensions"`
 	LastError  string   `json:"last_error,omitempty"`
 	// Testing 表示这个组合此刻正有一次探测在跑：页面据此显示加载态并保持轮询。
@@ -153,6 +155,7 @@ func pelicanStatusOf(target model.PelicanProbeTarget, available bool, result *mo
 	status.LatencyMs = result.LatencyMs
 	status.TestedAt = result.CreatedAt
 	status.ResultId = result.Id
+	status.ChannelId = result.ChannelId
 	status.Dimensions = splitPelicanDimensions(result.Dimensions)
 	status.LastError = result.Error
 	return status
@@ -307,6 +310,7 @@ func GetPelicanResult(c *gin.Context) {
 			"verdict":    result.Verdict,
 			"score":      result.Score,
 			"latency_ms": result.LatencyMs,
+			"channel_id": result.ChannelId,
 			"dimensions": splitPelicanDimensions(result.Dimensions),
 			"output":     result.Output,
 			"error":      result.Error,
@@ -612,6 +616,7 @@ func GetPelicanHistory(c *gin.Context) {
 			"verdict":    record.Verdict,
 			"score":      record.Score,
 			"latency_ms": record.LatencyMs,
+			"channel_id": record.ChannelId,
 			"dimensions": splitPelicanDimensions(record.Dimensions),
 			"error":      record.Error,
 			"created_at": record.CreatedAt,

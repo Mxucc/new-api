@@ -43,6 +43,7 @@ function status(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
     latency_ms: 1200,
     tested_at: 1700000000,
     result_id: 1,
+    channel_id: 3,
     dimensions: ['drawing'],
     testing: false,
     strip: [],

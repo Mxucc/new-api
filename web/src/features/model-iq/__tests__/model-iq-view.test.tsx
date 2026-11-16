@@ -61,6 +61,7 @@ function modelStatus(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
     latency_ms: 1200,
     tested_at: 1700000000,
     result_id: 11,
+    channel_id: 7,
     dimensions: ['drawing', 'subject'],
     testing: false,
     strip: stripCells(verdict),
@@ -452,6 +453,14 @@ describe('model IQ hover card', () => {
       ])
     })
     expect(await screen.findByText('Test history')).toBeVisible()
+  })
+
+  it('names the channel behind the result so an upstream error can be traced', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.USER)
+
+    await user.hover(await screen.findByTestId('model-iq-cell-default-gpt-4.1'))
+    expect(await screen.findByText('Channel 7')).toBeVisible()
   })
 })
 

@@ -138,6 +138,13 @@ export function ModelIqHoverCard(props: ModelIqHoverCardProps) {
         </p>
       ) : null}
 
+      {/* 上游报 502 之类的错误时，这一行说明是哪条渠道测出来的。 */}
+      {status.channel_id > 0 ? (
+        <p className='text-muted-foreground text-xs'>
+          {t('Channel {{id}}', { id: status.channel_id })}
+        </p>
+      ) : null}
+
       <RecentScoreSparkline
         group={status.group}
         modelName={status.model_name}

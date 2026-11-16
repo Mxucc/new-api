@@ -61,6 +61,8 @@ export type ModelIqStatus = {
   latency_ms: number
   tested_at: number
   result_id: number
+  /** 这次结果来自哪条渠道：上游报 502 时据此定位。 */
+  channel_id: number
   dimensions: string[]
   last_error?: string
   /** 该组合当前有一次探测在跑：格子显示加载态，页面保持轮询。 */
@@ -88,6 +90,7 @@ export type PelicanResult = {
   verdict: ModelIqVerdict
   score: number
   latency_ms: number
+  channel_id: number
   dimensions: string[]
   output: string
   error: string
@@ -102,6 +105,7 @@ export type PelicanHistoryPoint = {
   verdict: ModelIqVerdict
   score: number
   latency_ms: number
+  channel_id: number
   dimensions: string[]
   error: string
   created_at: number

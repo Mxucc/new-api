@@ -8369,6 +8369,7 @@
     "No test results yet. Results appear here after the next sweep.": "Результатов пока нет. Они появятся здесь после следующего обхода.",
     "Test {{group}} now": "Проверить {{group}} сейчас",
     "Based on the latest result": "По последнему результату",
-    "Degraded {{percent}}": "Деградация {{percent}}"
+    "Degraded {{percent}}": "Деградация {{percent}}",
+    "Channel {{id}}": "Канал {{id}}"
   }
 }

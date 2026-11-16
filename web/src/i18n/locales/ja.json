@@ -8369,6 +8369,7 @@
     "No test results yet. Results appear here after the next sweep.": "テスト結果はまだありません。次回の巡回後にここに表示されます。",
     "Test {{group}} now": "{{group}} を今すぐテスト",
     "Based on the latest result": "最新の結果を流用",
-    "Degraded {{percent}}": "性能低下 {{percent}}"
+    "Degraded {{percent}}": "性能低下 {{percent}}",
+    "Channel {{id}}": "チャネル {{id}}"
   }
 }

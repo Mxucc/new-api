@@ -8369,6 +8369,7 @@
     "No test results yet. Results appear here after the next sweep.": "Chưa có kết quả kiểm tra. Kết quả sẽ xuất hiện sau lượt kiểm tra tiếp theo.",
     "Test {{group}} now": "Kiểm tra {{group}} ngay",
     "Based on the latest result": "Theo kết quả gần nhất",
-    "Degraded {{percent}}": "Suy giảm {{percent}}"
+    "Degraded {{percent}}": "Suy giảm {{percent}}",
+    "Channel {{id}}": "Kênh {{id}}"
   }
 }

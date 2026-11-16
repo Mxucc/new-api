@@ -8369,6 +8369,7 @@
     "No test results yet. Results appear here after the next sweep.": "还没有测试结果，下一轮巡视完成后会显示在这里。",
     "Test {{group}} now": "立即测试 {{group}}",
     "Based on the latest result": "沿用最近一次结果",
-    "Degraded {{percent}}": "降智 {{percent}}"
+    "Degraded {{percent}}": "降智 {{percent}}",
+    "Channel {{id}}": "渠道 {{id}}"
   }
 }
