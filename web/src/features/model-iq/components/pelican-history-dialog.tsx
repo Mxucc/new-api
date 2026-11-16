@@ -50,6 +50,8 @@ const RECENT_RUNS = 5
 
 export interface PelicanHistoryDialogProps {
   target: PelicanTarget | null
+  /** 点某一条记录就看它当时的动画：历史里每条都能预览。 */
+  onPreview: (resultId: number) => void
   onOpenChange: (open: boolean) => void
 }
 
@@ -159,26 +161,31 @@ export function PelicanHistoryDialog(props: PelicanHistoryDialogProps) {
 
         <ul className='divide-y' data-testid='pelican-history-recent'>
           {recentRuns.map((run) => (
-            <li
-              key={run.id}
-              className='flex flex-wrap items-center justify-between gap-2 py-1.5 text-xs'
-            >
-              <span className='text-muted-foreground'>
-                {formatTimestamp(run.created_at)}
-              </span>
-              <span className='flex items-center gap-3'>
-                <StatusBadge
-                  label={t(iqVerdictLabelKey(run.verdict))}
-                  variant={iqVerdictVariant(run.verdict)}
-                  copyable={false}
-                />
-                <span className='tabular-nums'>
-                  {t('IQ score')} {run.score}
+            <li key={run.id}>
+              <button
+                type='button'
+                data-testid={`pelican-history-run-${run.id}`}
+                title={t('Preview')}
+                onClick={() => props.onPreview(run.id)}
+                className='hover:bg-muted flex w-full flex-wrap items-center justify-between gap-2 rounded px-1 py-1.5 text-left text-xs transition-colors'
+              >
+                <span className='text-muted-foreground'>
+                  {formatTimestamp(run.created_at)}
                 </span>
-                <span className='text-muted-foreground tabular-nums'>
-                  {formatLatency(run.latency_ms)}
+                <span className='flex items-center gap-3'>
+                  <StatusBadge
+                    label={t(iqVerdictLabelKey(run.verdict))}
+                    variant={iqVerdictVariant(run.verdict)}
+                    copyable={false}
+                  />
+                  <span className='tabular-nums'>
+                    {t('IQ score')} {run.score}
+                  </span>
+                  <span className='text-muted-foreground tabular-nums'>
+                    {formatLatency(run.latency_ms)}
+                  </span>
                 </span>
-              </span>
+              </button>
             </li>
           ))}
         </ul>

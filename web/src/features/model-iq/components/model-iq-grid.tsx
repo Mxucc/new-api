@@ -63,7 +63,7 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
   }
   return (
     <span
-      className='flex w-full items-stretch gap-[2px]'
+      className='flex shrink-0 items-stretch gap-[3px]'
       data-testid={`model-iq-strip-${props.status.group}-${props.status.model_name}`}
     >
       {cells.map((cell) => {
@@ -78,7 +78,7 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
                 : `${when} · ${verdict}`
             }
             className={cn(
-              'h-3 min-w-[3px] flex-1 rounded-[2px]',
+              'h-4 w-2.5 rounded-[2px]',
               iqStripCellClass(cell.verdict, cell.filled)
             )}
           />
@@ -132,23 +132,21 @@ function ModelIqRowCell(props: ModelIqRowCellProps) {
             })} ${t(iqVerdictLabelKey(status.verdict))}`}
             onClick={() => props.onHistory(status)}
             className={cn(
-              'flex w-full min-w-0 flex-col gap-1 rounded-md border px-2 py-1.5 text-left transition-colors',
+              'flex w-full min-w-0 items-center gap-3 rounded-md border px-2 py-1.5 text-left transition-colors',
               'hover:brightness-105 focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
               iqCellClass(status.verdict)
             )}
           >
-            <span className='flex min-w-0 items-center justify-between gap-2 text-xs'>
-              <span className='min-w-0 truncate font-medium'>
-                {status.model_name}
-              </span>
-              <span className='shrink-0 tabular-nums'>{summary}</span>
+            <span className='min-w-0 flex-1 truncate text-xs font-medium'>
+              {status.model_name}
             </span>
             <ModelIqStrip status={status} />
+            <span className='shrink-0 text-xs tabular-nums'>{summary}</span>
           </button>
         }
       />
       {open ? (
-        <HoverCardContent className='w-64'>
+        <HoverCardContent className='w-64' side='bottom' align='start'>
           <ModelIqHoverCard
             status={status}
             isAdmin={props.isAdmin}

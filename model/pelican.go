@@ -50,11 +50,11 @@ type PelicanTestConfig struct {
 // PelicanMaxIntervalMinutes 是巡视间隔上限（一天）：再长就没有巡视的意义了。
 const PelicanMaxIntervalMinutes = 1440
 
-// 智商时间条的时间窗与格数：格子按时间切片画，和状态页一样，
-// 只测过一次的组合也能铺成一整条，而不是孤零零一个色块。
+// 智商时间条的时间窗与格数：24 小时切成 24 格（每格 1 小时），和状态页一样画成一排小格子；
+// 没测过的格子用最近一次结果补上，只测过一次的组合也能看到一整条。
 const (
 	PelicanStripHours = 24
-	PelicanStripCells = 12
+	PelicanStripCells = 24
 )
 
 // pelicanRetentionPerModel 限制单个模型保留的历史记录条数：趋势图靠这些元数据。

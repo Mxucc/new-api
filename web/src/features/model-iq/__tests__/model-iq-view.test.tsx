@@ -455,6 +455,19 @@ describe('model IQ hover card', () => {
     expect(await screen.findByText('Test history')).toBeVisible()
   })
 
+  it('previews a run straight from the history list', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.USER)
+
+    await user.click(await screen.findByTestId('model-iq-cell-default-gpt-4.1'))
+    // 历史里每条记录都能点开当时的画面，不用先猜是哪一条。
+    await user.click(await screen.findByTestId('pelican-history-run-12'))
+
+    await waitFor(() => {
+      expect(api.getPelicanResult).toHaveBeenCalledWith(12)
+    })
+  })
+
   it('names the channel behind the result so an upstream error can be traced', async () => {
     const user = userEvent.setup()
     renderPage(ROLE.USER)

@@ -39,13 +39,23 @@ import { PelicanConfigDialog } from './components/pelican-config-dialog'
 import { PelicanHistoryDialog } from './components/pelican-history-dialog'
 import { PelicanPreviewDialog } from './components/pelican-preview-dialog'
 import { iqNeedsPolling, pelicanTargetLabel, summarizeModelIq } from './lib/iq'
-import type { ModelIqStatus, PelicanTarget } from './types'
+import type { PelicanTarget } from './types'
 
 /**
  * 探测在后台跑，页面只在有活干时每 5 秒看一次进度；全部空闲就停，
  * 不留一个永远转的定时器。
  */
 const MODEL_IQ_POLL_INTERVAL_MS = 5000
+
+/**
+ * 预览弹窗需要的东西：哪个组合的第几条结果。
+ * 格子上的「预览」和历史上任意一条记录都能打开它。
+ */
+type PreviewTarget = {
+  group: string
+  modelName: string
+  resultId: number
+}
 
 /**
  * 模型智商页：把每个（分组, 模型）组合的状态和鹈鹕测智（SVG 画一只骑自行车的鹈鹕）
@@ -58,7 +68,7 @@ export function ModelIq() {
   const queryClient = useQueryClient()
   const role = useAuthStore((state) => state.auth.user?.role ?? 0)
   const isAdmin = role >= ROLE.ADMIN
-  const [preview, setPreview] = useState<ModelIqStatus | null>(null)
+  const [preview, setPreview] = useState<PreviewTarget | null>(null)
   const [historyTarget, setHistoryTarget] = useState<PelicanTarget | null>(null)
   const [configOpen, setConfigOpen] = useState(false)
 
@@ -145,7 +155,13 @@ export function ModelIq() {
       <ModelIqGrid
         models={models}
         isAdmin={isAdmin}
-        onPreview={setPreview}
+        onPreview={(status) =>
+          setPreview({
+            group: status.group,
+            modelName: status.model_name,
+            resultId: status.result_id,
+          })
+        }
         onHistory={(status) =>
           setHistoryTarget({ group: status.group, model: status.model_name })
         }
@@ -252,6 +268,15 @@ export function ModelIq() {
 
       <PelicanHistoryDialog
         target={historyTarget}
+        onPreview={(resultId) => {
+          // 历史里点一条就看它当时的画面：先关掉历史，别把两个弹窗叠在一起。
+          setPreview({
+            group: historyTarget?.group ?? '',
+            modelName: historyTarget?.model ?? '',
+            resultId,
+          })
+          setHistoryTarget(null)
+        }}
         onOpenChange={(open) => {
           if (!open) setHistoryTarget(null)
         }}
@@ -264,8 +289,8 @@ export function ModelIq() {
       <PelicanPreviewDialog
         open={preview !== null}
         group={preview?.group ?? ''}
-        modelName={preview?.model_name ?? ''}
-        resultId={preview?.result_id ?? 0}
+        modelName={preview?.modelName ?? ''}
+        resultId={preview?.resultId ?? 0}
         onOpenChange={(open) => {
           if (!open) setPreview(null)
         }}
