@@ -20,16 +20,15 @@ For commercial licensing, please contact support@quantumnous.com
 const STRICT_PUBLIC_FRAME_SANDBOX =
   'allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts'
 
-// The opaque-origin sandbox blocks Vite module assets on this deployment-owned site.
-const TRUSTED_SAME_ORIGIN_FRAME_ORIGINS = new Set(['https://static.dli.li'])
-
+// 只有与站点自身同源的嵌入地址才放开 same-origin：它加载的是本站资源；
+// 其它来源（含子域、其它端口与 blob:）一律留在严格沙箱里，
+// 这样仓库里不再需要登记任何私有部署域名。
 export function getPublicEmbeddedFrameSandbox(src: string): string {
   try {
+    // 只接受绝对地址：相对路径无法判定来源，一律留在严格沙箱里。
     const url = new URL(src)
-    if (
-      url.protocol === 'https:' &&
-      TRUSTED_SAME_ORIGIN_FRAME_ORIGINS.has(url.origin)
-    ) {
+    const isHttp = url.protocol === 'http:' || url.protocol === 'https:'
+    if (isHttp && url.origin === window.location.origin) {
       return `${STRICT_PUBLIC_FRAME_SANDBOX} allow-same-origin`
     }
   } catch {

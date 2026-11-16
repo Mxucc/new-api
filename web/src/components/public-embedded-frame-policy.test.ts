@@ -22,32 +22,30 @@ import { getPublicEmbeddedFrameSandbox } from './public-embedded-frame-policy'
 
 const STRICT_SANDBOX =
   'allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts'
-const TRUSTED_SANDBOX = `${STRICT_SANDBOX} allow-same-origin`
+const SAME_ORIGIN_SANDBOX = `${STRICT_SANDBOX} allow-same-origin`
 
 describe('public embedded frame sandbox', () => {
-  test('restores the origin only for the trusted static site', () => {
-    const trustedUrls = [
-      'https://static.dli.li/?embed=1&theme=dark',
-      'https://static.dli.li:443/about/',
-    ]
+  test('restores the origin only for an embed served by this site', () => {
+    // jsdom 的页面来源是 http://localhost:3000。
+    // jsdom 的页面来源是 http://localhost:3000。
+    const sameOriginUrls = ['http://localhost:3000/embed']
 
-    for (const url of trustedUrls) {
-      expect(getPublicEmbeddedFrameSandbox(url), url).toBe(TRUSTED_SANDBOX)
+    for (const url of sameOriginUrls) {
+      expect(getPublicEmbeddedFrameSandbox(url), url).toBe(SAME_ORIGIN_SANDBOX)
     }
   })
 
-  test('keeps arbitrary and deceptive URLs in the strict sandbox', () => {
-    const untrustedUrls = [
+  test('keeps other sources in the strict sandbox', () => {
+    const otherOriginUrls = [
       'https://example.com/',
-      'https://dli.li/',
-      'https://static.dli.li.example.com/',
-      'http://static.dli.li/',
-      'blob:https://static.dli.li/frame-id',
-      'https://static.dli.li:444/',
+      'https://cdn.example.com/?embed=1',
+      'http://localhost:3001/embed',
+      'https://localhost:3000/embed',
+      'blob:http://localhost:3000/frame-id',
       'not-a-url',
     ]
 
-    for (const url of untrustedUrls) {
+    for (const url of otherOriginUrls) {
       expect(getPublicEmbeddedFrameSandbox(url), url).toBe(STRICT_SANDBOX)
     }
   })
