@@ -24,10 +24,11 @@ import { Dialog } from '@/components/dialog'
 import { LoadingState } from '@/components/loading-state'
 
 import { getPelicanResult } from '../api'
-import { iqDimensionLabelKey } from '../lib/iq'
+import { iqDimensionLabelKey, pelicanTargetLabel } from '../lib/iq'
 
 export interface PelicanPreviewDialogProps {
   open: boolean
+  group: string
   modelName: string
   resultId: number
   onOpenChange: (open: boolean) => void
@@ -90,7 +91,10 @@ export function PelicanPreviewDialog(props: PelicanPreviewDialogProps) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       title={t('Pelican IQ test')}
-      description={props.modelName}
+      description={pelicanTargetLabel({
+        group: props.group,
+        model: props.modelName,
+      })}
       contentClassName='sm:max-w-3xl'
     >
       {body}

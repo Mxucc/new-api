@@ -16,45 +16,61 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Play, Sparkles } from 'lucide-react'
+import { History, Play, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
 } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { formatLatency } from '@/features/performance-metrics/lib/format'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampRelative } from '@/lib/format'
 
+import { pelicanTargetValue } from '../lib/iq'
 import type { ModelIqStatus } from '../types'
 import { ModelIqScore } from './model-iq-score'
 
 export interface ModelIqTableProps {
   models: ModelIqStatus[]
   isAdmin: boolean
-  /** 正在跑的模型名，用来禁用重复触发。 */
-  busyModel: string | null
+  /** 正在跑的组合（`分组/模型`），用来禁用重复触发。 */
+  busyTarget: string | null
   /** 整轮巡视进行中时，逐行触发也要一起禁用。 */
   sweepRunning: boolean
   onPreview: (status: ModelIqStatus) => void
-  onRun: (modelName: string) => void
+  onHistory: (status: ModelIqStatus) => void
+  onRun: (status: ModelIqStatus) => void
 }
 
 function ModelIqActions(props: {
   status: ModelIqStatus
   isAdmin: boolean
-  busyModel: string | null
+  busyTarget: string | null
   sweepRunning: boolean
   onPreview: (status: ModelIqStatus) => void
-  onRun: (modelName: string) => void
+  onHistory: (status: ModelIqStatus) => void
+  onRun: (status: ModelIqStatus) => void
 }) {
   const { t } = useTranslation()
-  const running = props.busyModel === props.status.model_name
+  const key = pelicanTargetValue({
+    group: props.status.group,
+    model: props.status.model_name,
+  })
+  const running = props.busyTarget === key
   return (
     <div className='flex items-center justify-end gap-1.5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={() => props.onHistory(props.status)}
+      >
+        <History data-icon='inline-start' />
+        {t('History')}
+      </Button>
       <Button
         variant='ghost'
         size='sm'
@@ -68,8 +84,8 @@ function ModelIqActions(props: {
         <Button
           variant='outline'
           size='sm'
-          disabled={props.busyModel !== null || props.sweepRunning}
-          onClick={() => props.onRun(props.status.model_name)}
+          disabled={props.busyTarget !== null || props.sweepRunning}
+          onClick={() => props.onRun(props.status)}
         >
           <Play data-icon='inline-start' />
           {running ? t('Testing…') : t('Run test')}
@@ -79,7 +95,7 @@ function ModelIqActions(props: {
   )
 }
 
-/** 站点模型状态与各自的智商。桌面用表格，窄屏用卡片，信息一致。 */
+/** 站点每个（分组, 模型）组合的状态与智商。桌面用表格，窄屏用卡片。 */
 export function ModelIqTable(props: ModelIqTableProps) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
@@ -88,20 +104,36 @@ export function ModelIqTable(props: ModelIqTableProps) {
     <>
       <StaticDataTable
         className='hidden md:block'
-        tableClassName='min-w-[760px] text-sm'
+        tableClassName='min-w-[880px] text-sm'
         headerRowClassName={tableStyles.compactHeaderRow}
         data={props.models}
-        getRowKey={(model) => model.model_name}
+        getRowKey={(status) =>
+          pelicanTargetValue({
+            group: status.group,
+            model: status.model_name,
+          })
+        }
         columns={[
+          {
+            id: 'group',
+            header: t('Group'),
+            className: tableStyles.compactHeaderCell,
+            cellClassName: tableStyles.compactCell,
+            cell: (status) => (
+              <GroupBadge group={status.group} copyable={false} />
+            ),
+          },
           {
             id: 'model',
             header: t('Model'),
             className: tableStyles.compactHeaderCell,
             cellClassName: tableStyles.compactCell,
-            cell: (model) => (
+            cell: (status) => (
               <div className='flex min-w-0 items-center gap-2'>
-                <span className='truncate font-medium'>{model.model_name}</span>
-                {model.available ? null : (
+                <span className='truncate font-medium'>
+                  {status.model_name}
+                </span>
+                {status.available ? null : (
                   <StatusBadge
                     label={t('Unavailable')}
                     variant='neutral'
@@ -116,9 +148,9 @@ export function ModelIqTable(props: ModelIqTableProps) {
             header: t('IQ score'),
             className: tableStyles.compactHeaderCellRight,
             cellClassName: tableStyles.compactCell,
-            cell: (model) => (
+            cell: (status) => (
               <div className='flex justify-end'>
-                <ModelIqScore status={model} />
+                <ModelIqScore status={status} />
               </div>
             ),
           },
@@ -127,16 +159,16 @@ export function ModelIqTable(props: ModelIqTableProps) {
             header: t('Latency'),
             className: tableStyles.compactHeaderCellRight,
             cellClassName: tableStyles.compactMutedNumericCell,
-            cell: (model) => formatLatency(model.latency_ms),
+            cell: (status) => formatLatency(status.latency_ms),
           },
           {
             id: 'tested_at',
             header: t('Tested at'),
             className: tableStyles.compactHeaderCellRight,
             cellClassName: tableStyles.compactMutedNumericCell,
-            cell: (model) =>
-              model.tested_at
-                ? formatTimestampRelative(model.tested_at, 'seconds', locale)
+            cell: (status) =>
+              status.tested_at
+                ? formatTimestampRelative(status.tested_at, 'seconds', locale)
                 : '—',
           },
           {
@@ -144,13 +176,14 @@ export function ModelIqTable(props: ModelIqTableProps) {
             header: '',
             className: tableStyles.actionHeaderCell,
             cellClassName: tableStyles.compactCell,
-            cell: (model) => (
+            cell: (status) => (
               <ModelIqActions
-                status={model}
+                status={status}
                 isAdmin={props.isAdmin}
-                busyModel={props.busyModel}
+                busyTarget={props.busyTarget}
                 sweepRunning={props.sweepRunning}
                 onPreview={props.onPreview}
+                onHistory={props.onHistory}
                 onRun={props.onRun}
               />
             ),
@@ -159,31 +192,37 @@ export function ModelIqTable(props: ModelIqTableProps) {
       />
 
       <ul className='space-y-2 md:hidden' aria-label={t('Model IQ')}>
-        {props.models.map((model) => (
+        {props.models.map((status) => (
           <li
-            key={model.model_name}
+            key={pelicanTargetValue({
+              group: status.group,
+              model: status.model_name,
+            })}
             className='bg-card rounded-lg border p-3'
-            data-testid={`model-iq-card-${model.model_name}`}
+            data-testid={`model-iq-card-${status.group}-${status.model_name}`}
           >
             <div className='flex items-start justify-between gap-2'>
               <div className='min-w-0'>
-                <p className='truncate text-sm font-medium'>
-                  {model.model_name}
-                </p>
+                <div className='flex min-w-0 items-center gap-2'>
+                  <GroupBadge group={status.group} copyable={false} />
+                  <span className='truncate text-sm font-medium'>
+                    {status.model_name}
+                  </span>
+                </div>
                 <p className='text-muted-foreground mt-0.5 text-xs'>
-                  {formatLatency(model.latency_ms)} ·{' '}
-                  {model.tested_at
+                  {formatLatency(status.latency_ms)} ·{' '}
+                  {status.tested_at
                     ? formatTimestampRelative(
-                        model.tested_at,
+                        status.tested_at,
                         'seconds',
                         locale
                       )
                     : t('Not tested')}
                 </p>
               </div>
-              <ModelIqScore status={model} />
+              <ModelIqScore status={status} />
             </div>
-            {model.available ? null : (
+            {status.available ? null : (
               <div className='mt-2'>
                 <StatusBadge
                   label={t('Unavailable')}
@@ -194,11 +233,12 @@ export function ModelIqTable(props: ModelIqTableProps) {
             )}
             <div className='mt-2 flex justify-end'>
               <ModelIqActions
-                status={model}
+                status={status}
                 isAdmin={props.isAdmin}
-                busyModel={props.busyModel}
+                busyTarget={props.busyTarget}
                 sweepRunning={props.sweepRunning}
                 onPreview={props.onPreview}
+                onHistory={props.onHistory}
                 onRun={props.onRun}
               />
             </div>

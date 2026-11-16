@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,6 +29,12 @@ const api = vi.hoisted(() => ({
 }))
 
 vi.mock('../api', () => api)
+
+const EMPTY_CELL: Partial<ServiceStatusCell> = {
+  requests: 0,
+  success_rate: 0,
+  status: 'unknown',
+}
 
 function cell(overrides: Partial<ServiceStatusCell> = {}): ServiceStatusCell {
   return {
@@ -54,15 +60,21 @@ function view(overrides: Partial<ServiceStatusView> = {}): ServiceStatusView {
     cells: [cell(), cell({ start: 1_700_001_800, status: 'degraded' })],
     models: [
       {
+        group: 'default',
         model_name: 'gpt-4.1',
         requests: 4000,
         success_rate: 99.7,
         avg_latency_ms: 900,
         status: 'operational',
-        cells: [cell()],
+        cells: [
+          cell(),
+          // 这一段没有流量：状态条不应该为它画灰块。
+          cell({ start: 1_700_001_800, ...EMPTY_CELL }),
+        ],
       },
       {
-        model_name: 'claude-opus',
+        group: 'vip',
+        model_name: 'gpt-4.1',
         requests: 200,
         success_rate: 92.5,
         avg_latency_ms: 2100,
@@ -112,16 +124,28 @@ describe('service status page', () => {
     expect(api.getServiceStatus).toHaveBeenCalledWith(24)
   })
 
-  it('lists per-model availability with its own timeline', async () => {
+  it('separates the same model in different groups into its own row', async () => {
     renderPage()
 
-    await waitFor(() => {
-      expect(
-        screen.getAllByTestId('service-status-model-claude-opus').length
-      ).toBeGreaterThan(0)
-    })
-    expect(screen.getAllByText('gpt-4.1').length).toBeGreaterThan(0)
-    // 时间线条目按格子渲染，橙红格说明那段真实请求有失败。
+    const defaultRow = await screen.findByTestId(
+      'service-status-model-default-gpt-4.1'
+    )
+    const vipRow = screen.getByTestId('service-status-model-vip-gpt-4.1')
+    expect(within(defaultRow).getByText('default')).toBeVisible()
+    expect(within(vipRow).getByText('vip')).toBeVisible()
+    // 两个分组的可用率不同，说明没有把同一个模型的流量混在一起。
+    expect(within(defaultRow).getByText('Availability 99.70%')).toBeVisible()
+    expect(within(vipRow).getByText('Availability 92.50%')).toBeVisible()
+  })
+
+  it('renders a cell only for the time slices that carried traffic', async () => {
+    renderPage()
+
+    const row = await screen.findByTestId('service-status-model-default-gpt-4.1')
+    expect(within(row).getByTestId('service-status-cell-0')).toBeVisible()
+    // 第二格没有流量，因此不渲染任何格子，而不是画一个灰块。
+    expect(within(row).queryByTestId('service-status-cell-1')).toBeNull()
+    // 有数据的格子仍然按时间线条目渲染。
     expect(
       screen.getAllByTestId('service-status-cell-1').length
     ).toBeGreaterThan(0)
@@ -150,7 +174,7 @@ describe('service status page', () => {
         status: 'unknown',
         data_through: 0,
         models: [],
-        cells: [cell({ requests: 0, success_rate: 0, status: 'unknown' })],
+        cells: [cell({ ...EMPTY_CELL })],
       })
     )
     renderPage()

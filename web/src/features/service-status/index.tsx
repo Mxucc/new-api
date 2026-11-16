@@ -142,7 +142,7 @@ export function ServiceStatusPage() {
 
         <section className='space-y-3'>
           <div className='flex items-center justify-between gap-2'>
-            <h3 className='text-sm font-medium'>{t('Per model')}</h3>
+            <h3 className='text-sm font-medium'>{t('Per group and model')}</h3>
             <span className='text-muted-foreground text-xs'>
               {t('{{count}} models', { count: view.models.length })}
             </span>

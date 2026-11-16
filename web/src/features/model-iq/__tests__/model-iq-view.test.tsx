@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ROLE } from '@/lib/roles'
@@ -29,6 +30,9 @@ import type { ModelIqOverview, ModelIqStatus } from '../types'
 const api = vi.hoisted(() => ({
   getModelIqOverview: vi.fn(),
   getPelicanResult: vi.fn(),
+  getPelicanHistory: vi.fn(),
+  getPelicanConfig: vi.fn(),
+  updatePelicanConfig: vi.fn(),
   runPelicanTest: vi.fn(),
   runAllPelicanTests: vi.fn(),
 }))
@@ -37,6 +41,7 @@ vi.mock('../api', () => api)
 
 function modelStatus(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
   return {
+    group: 'default',
     model_name: 'gpt-4.1',
     available: true,
     verdict: 'healthy',
@@ -83,8 +88,9 @@ beforeEach(() => {
   api.getModelIqOverview.mockResolvedValue(
     overview([
       modelStatus(),
+      // 同一个模型在另一个分组：分数与历史必须分开。
       modelStatus({
-        model_name: 'claude-opus',
+        group: 'vip',
         verdict: 'degraded',
         score: 65,
         result_id: 12,
@@ -101,6 +107,7 @@ beforeEach(() => {
   )
   api.getPelicanResult.mockResolvedValue({
     id: 11,
+    group: 'default',
     model_name: 'gpt-4.1',
     status: 'success',
     verdict: 'healthy',
@@ -111,6 +118,37 @@ beforeEach(() => {
     error: '',
     created_at: 1700000000,
   })
+  api.getPelicanHistory.mockResolvedValue({
+    group: 'vip',
+    model_name: 'gpt-4.1',
+    history: [
+      {
+        id: 12,
+        group: 'vip',
+        status: 'success',
+        verdict: 'degraded',
+        score: 65,
+        latency_ms: 900,
+        dimensions: ['drawing'],
+        error: '',
+        created_at: 1700000000,
+      },
+    ],
+  })
+  api.getPelicanConfig.mockResolvedValue({
+    targets: [{ group: 'default', model: 'gpt-4.1' }],
+    interval_minutes: 30,
+    available_targets: [
+      { group: 'default', model: 'gpt-4.1' },
+      { group: 'vip', model: 'gpt-4.1' },
+    ],
+    missing_targets: [],
+  })
+  api.updatePelicanConfig.mockResolvedValue({
+    targets: [{ group: 'default', model: 'gpt-4.1' }],
+    interval_minutes: 30,
+  })
+  api.runPelicanTest.mockResolvedValue(modelStatus())
 })
 
 afterEach(() => {
@@ -119,44 +157,51 @@ afterEach(() => {
 })
 
 describe('model IQ page', () => {
-  it('shows every site model with its status and IQ score', async () => {
-    renderPage(ROLE.USER)
-
-    await waitFor(() => {
-      expect(screen.getAllByText('gpt-4.1').length).toBeGreaterThan(0)
-    })
-    expect(screen.getAllByText('claude-opus').length).toBeGreaterThan(0)
-    expect(
-      screen.getAllByTestId('model-iq-score-gpt-4.1')[0]
-    ).toHaveTextContent('100')
-    expect(
-      screen.getAllByTestId('model-iq-score-claude-opus')[0]
-    ).toHaveTextContent('65')
-    expect(screen.getAllByText('Healthy').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Degraded').length).toBeGreaterThan(0)
-  })
-
-  it('leaves an unprobed model without a fake score', async () => {
+  it('shows every group and model with its own status and IQ score', async () => {
     renderPage(ROLE.USER)
 
     await waitFor(() => {
       expect(
-        screen.getAllByTestId('model-iq-score-never-probed').length
+        screen.getAllByTestId('model-iq-score-default-gpt-4.1').length
       ).toBeGreaterThan(0)
     })
     expect(
-      screen.getAllByTestId('model-iq-score-never-probed')[0]
+      screen.getAllByTestId('model-iq-score-default-gpt-4.1')[0]
+    ).toHaveTextContent('100')
+    // 同一模型在 vip 分组是另一行，分数不同。
+    expect(
+      screen.getAllByTestId('model-iq-score-vip-gpt-4.1')[0]
+    ).toHaveTextContent('65')
+    expect(screen.getAllByText('default').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('vip').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Healthy').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Degraded').length).toBeGreaterThan(0)
+  })
+
+  it('leaves an unprobed combination without a fake score', async () => {
+    renderPage(ROLE.USER)
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByTestId('model-iq-score-default-never-probed').length
+      ).toBeGreaterThan(0)
+    })
+    expect(
+      screen.getAllByTestId('model-iq-score-default-never-probed')[0]
     ).toHaveTextContent('—')
     expect(screen.getAllByText('Not tested').length).toBeGreaterThan(0)
   })
 
-  it('hides the run controls from a regular user', async () => {
+  it('hides the run and sweep controls from a regular user', async () => {
     renderPage(ROLE.USER)
 
     await waitFor(() => {
-      expect(screen.getAllByText('gpt-4.1').length).toBeGreaterThan(0)
+      expect(
+        screen.getAllByTestId('model-iq-score-default-gpt-4.1').length
+      ).toBeGreaterThan(0)
     })
     expect(screen.queryByRole('button', { name: 'Test all models' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sweep settings' })).toBeNull()
     expect(screen.queryAllByRole('button', { name: 'Run test' })).toHaveLength(
       0
     )
@@ -166,24 +211,79 @@ describe('model IQ page', () => {
     renderPage(ROLE.ADMIN)
 
     await waitFor(() => {
-      expect(screen.getAllByText('gpt-4.1').length).toBeGreaterThan(0)
+      expect(
+        screen.getAllByTestId('model-iq-score-default-gpt-4.1').length
+      ).toBeGreaterThan(0)
     })
     expect(screen.getByRole('button', { name: 'Test all models' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sweep settings' })).toBeTruthy()
     expect(
       screen.getAllByRole('button', { name: 'Run test' }).length
     ).toBeGreaterThan(0)
   })
 
-  it('disables preview for a model that was never probed', async () => {
+  it('runs the pelican test for the clicked group and model', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.ADMIN)
+
+    const runButtons = await screen.findAllByRole('button', {
+      name: 'Run test',
+    })
+    await user.click(runButtons[0])
+
+    await waitFor(() => {
+      expect(api.runPelicanTest).toHaveBeenCalledWith(
+        { group: 'default', model: 'gpt-4.1' },
+        expect.anything()
+      )
+    })
+  })
+
+  it('opens the history of the clicked group and model', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.USER)
+
+    const historyButtons = await screen.findAllByRole('button', {
+      name: 'History',
+    })
+    // 第二行是 vip 分组：历史请求必须带上它自己的分组。
+    await user.click(historyButtons[1])
+
+    await waitFor(() => {
+      expect(api.getPelicanHistory).toHaveBeenCalledWith('vip', 'gpt-4.1')
+    })
+    expect(await screen.findByText('Test history')).toBeVisible()
+  })
+
+  it('loads the sweep settings for an administrator', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.ADMIN)
+
+    const sweepButton = await screen.findByRole('button', {
+      name: 'Sweep settings',
+    })
+    await user.click(sweepButton)
+
+    await waitFor(() => {
+      expect(api.getPelicanConfig).toHaveBeenCalled()
+    })
+    expect(
+      await screen.findByLabelText('Sweep interval (minutes)')
+    ).toHaveValue(30)
+  })
+
+  it('disables preview for a combination that was never probed', async () => {
     renderPage(ROLE.USER)
 
     await waitFor(() => {
       expect(
-        screen.getAllByTestId('model-iq-card-never-probed').length
+        screen.getAllByTestId('model-iq-card-default-never-probed').length
       ).toBeGreaterThan(0)
     })
-    const cards = screen.getAllByTestId('model-iq-card-never-probed')
+    const cards = screen.getAllByTestId('model-iq-card-default-never-probed')
     const previewButtons = cards[0].querySelectorAll('button')
-    expect(previewButtons[0]).toBeDisabled()
+    // 第一个按钮是历史（永远可用），第二个是预览。
+    expect(previewButtons[0]).toBeEnabled()
+    expect(previewButtons[1]).toBeDisabled()
   })
 })

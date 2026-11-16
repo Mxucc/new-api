@@ -32,7 +32,7 @@ export function ModelIqScore(props: { status: ModelIqStatus }) {
     <div className='flex items-center gap-2'>
       <span
         className='w-9 shrink-0 text-end text-sm font-semibold tabular-nums'
-        data-testid={`model-iq-score-${props.status.model_name}`}
+        data-testid={`model-iq-score-${props.status.group}-${props.status.model_name}`}
       >
         {scored ? formatNumber(props.status.score) : '—'}
       </span>

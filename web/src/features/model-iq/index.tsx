@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Brain, Play, RefreshCw } from 'lucide-react'
+import { Brain, Play, RefreshCw, Settings2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -33,21 +33,25 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { getModelIqOverview, runAllPelicanTests, runPelicanTest } from './api'
 import { ModelIqTable } from './components/model-iq-table'
+import { PelicanConfigDialog } from './components/pelican-config-dialog'
+import { PelicanHistoryDialog } from './components/pelican-history-dialog'
 import { PelicanPreviewDialog } from './components/pelican-preview-dialog'
-import { summarizeModelIq } from './lib/iq'
-import type { ModelIqStatus } from './types'
+import { pelicanTargetValue, summarizeModelIq } from './lib/iq'
+import type { ModelIqStatus, PelicanTarget } from './types'
 
 /**
- * 模型智商页：把站点模型的状态和鹈鹕测智（SVG 画一只骑自行车的鹈鹕）的分数放在一起，
- * 登录用户都能看到；只有管理员能触发新的测试。
+ * 模型智商页：把每个（分组, 模型）组合的状态和鹈鹕测智（SVG 画一只骑自行车的鹈鹕）
+ * 的分数放在一起，登录用户都能看到；只有管理员能触发新的测试与调整巡视设置。
  */
 export function ModelIq() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const role = useAuthStore((state) => state.auth.user?.role ?? 0)
   const isAdmin = role >= ROLE.ADMIN
-  const [busyModel, setBusyModel] = useState<string | null>(null)
+  const [busyTarget, setBusyTarget] = useState<string | null>(null)
   const [preview, setPreview] = useState<ModelIqStatus | null>(null)
+  const [historyTarget, setHistoryTarget] = useState<PelicanTarget | null>(null)
+  const [configOpen, setConfigOpen] = useState(false)
 
   const overview = useQuery({
     queryKey: ['model-iq', 'overview'],
@@ -62,14 +66,15 @@ export function ModelIq() {
     onSuccess: (status) => {
       void invalidate()
       toast.success(
-        t('{{model}} scored {{score}}', {
+        t('{{group}} · {{model}} scored {{score}}', {
+          group: status.group,
           model: status.model_name,
           score: status.score,
         })
       )
     },
     onError: (error) => handleServerError(error, t('Failed to run the test')),
-    onSettled: () => setBusyModel(null),
+    onSettled: () => setBusyTarget(null),
   })
 
   const allRun = useMutation({
@@ -89,13 +94,14 @@ export function ModelIq() {
   const models = overview.data?.models ?? []
   const summary = summarizeModelIq(models)
 
-  const handleRun = (modelName: string) => {
-    // 整轮巡视已在跑时不再接受单模型触发，避免同一模型被并发探两次。
+  const handleRun = (status: ModelIqStatus) => {
+    // 整轮巡视已在跑时不再接受单组合触发，避免同一组合被并发探两次。
     if (allRun.isPending) {
       return
     }
-    setBusyModel(modelName)
-    singleRun.mutate(modelName)
+    const target = { group: status.group, model: status.model_name }
+    setBusyTarget(pelicanTargetValue(target))
+    singleRun.mutate(target)
   }
 
   // 加载、失败、空与正常四种状态按顺序判定，避免嵌套三元。
@@ -124,9 +130,12 @@ export function ModelIq() {
       <ModelIqTable
         models={models}
         isAdmin={isAdmin}
-        busyModel={busyModel}
+        busyTarget={busyTarget}
         sweepRunning={allRun.isPending}
         onPreview={setPreview}
+        onHistory={(status) =>
+          setHistoryTarget({ group: status.group, model: status.model_name })
+        }
         onRun={handleRun}
       />
     )
@@ -138,17 +147,27 @@ export function ModelIq() {
         <SectionPageLayout.Title>{t('Model IQ')}</SectionPageLayout.Title>
         <SectionPageLayout.Actions>
           {isAdmin ? (
-            <Button
-              variant='outline'
-              size='sm'
-              disabled={
-                allRun.isPending || busyModel !== null || !models.length
-              }
-              onClick={() => allRun.mutate()}
-            >
-              <Play data-icon='inline-start' />
-              {allRun.isPending ? t('Testing…') : t('Test all models')}
-            </Button>
+            <>
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={() => setConfigOpen(true)}
+              >
+                <Settings2 data-icon='inline-start' />
+                {t('Sweep settings')}
+              </Button>
+              <Button
+                variant='outline'
+                size='sm'
+                disabled={
+                  allRun.isPending || busyTarget !== null || !models.length
+                }
+                onClick={() => allRun.mutate()}
+              >
+                <Play data-icon='inline-start' />
+                {allRun.isPending ? t('Testing…') : t('Test all models')}
+              </Button>
+            </>
           ) : null}
           <Button
             variant='ghost'
@@ -200,8 +219,23 @@ export function ModelIq() {
         </SectionPageLayout.Content>
       </SectionPageLayout>
 
+      <PelicanHistoryDialog
+        target={historyTarget}
+        onOpenChange={(open) => {
+          if (!open) setHistoryTarget(null)
+        }}
+      />
+
+      {isAdmin ? (
+        <PelicanConfigDialog
+          open={configOpen}
+          onOpenChange={setConfigOpen}
+        />
+      ) : null}
+
       <PelicanPreviewDialog
         open={preview !== null}
+        group={preview?.group ?? ''}
         modelName={preview?.model_name ?? ''}
         resultId={preview?.result_id ?? 0}
         onOpenChange={(open) => {

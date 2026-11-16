@@ -72,6 +72,11 @@ export function serviceStatusCellClass(status: ServiceStatus): string {
   return STATUS_CELL_CLASSES[status] ?? STATUS_CELL_CLASSES.unknown
 }
 
+/** 状态行的标题：状态按（分组, 模型）统计，标题要同时写清两者。 */
+export function serviceStatusTargetLabel(group: string, modelName: string): string {
+  return `${group} · ${modelName}`
+}
+
 /** 一格代表多长时间：半小时以内讲分钟，否则讲小时。 */
 export function serviceStatusIntervalKey(cellSeconds: number): {
   key: string

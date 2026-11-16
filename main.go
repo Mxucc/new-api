@@ -173,6 +173,9 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// 鹈鹕测智的后台自动巡视：按管理员配置的间隔跑一轮（0 表示关闭）。
+	controller.StartPelicanScheduler()
+
 	// Report this process as a system instance so the System Info page can show
 	// all currently alive nodes in multi-instance deployments.
 	service.StartSystemInstanceReporter()

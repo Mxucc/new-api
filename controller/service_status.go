@@ -44,6 +44,7 @@ func GetServiceStatus(c *gin.Context) {
 	samples := make([]service.ServiceStatusSample, 0, len(buckets))
 	for _, bucket := range buckets {
 		samples = append(samples, service.ServiceStatusSample{
+			Group:     bucket.Group,
 			Model:     bucket.ModelName,
 			BucketTs:  bucket.BucketTs,
 			Requests:  bucket.RequestCount,

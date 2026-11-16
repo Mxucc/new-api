@@ -22,6 +22,7 @@ import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
 } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import {
   formatLatency,
@@ -30,7 +31,11 @@ import {
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { serviceStatusLabelKey, serviceStatusVariant } from '../lib/status'
+import {
+  serviceStatusLabelKey,
+  serviceStatusTargetLabel,
+  serviceStatusVariant,
+} from '../lib/status'
 import type { ServiceStatusModel } from '../types'
 import { ServiceStatusBar } from './service-status-bar'
 
@@ -49,7 +54,7 @@ function ModelStatusBadge(props: { model: ServiceStatusModel }) {
   )
 }
 
-/** 各模型的状态条与关键指标：可用率、请求数、平均延迟。 */
+/** 各（分组, 模型）组合的状态条与关键指标：可用率、请求数、平均延迟。 */
 export function ServiceStatusModels(props: ServiceStatusModelsProps) {
   const { t } = useTranslation()
 
@@ -60,7 +65,7 @@ export function ServiceStatusModels(props: ServiceStatusModelsProps) {
         tableClassName='min-w-[820px] text-sm'
         headerRowClassName={tableStyles.compactHeaderRow}
         data={props.models}
-        getRowKey={(model) => model.model_name}
+        getRowKey={(model) => `${model.group}/${model.model_name}`}
         columns={[
           {
             id: 'model',
@@ -68,9 +73,10 @@ export function ServiceStatusModels(props: ServiceStatusModelsProps) {
             className: tableStyles.compactHeaderCell,
             cellClassName: tableStyles.compactCell,
             cell: (model) => (
-              <span className='block max-w-[220px] truncate font-medium'>
-                {model.model_name}
-              </span>
+              <div className='flex min-w-0 items-center gap-2'>
+                <GroupBadge group={model.group} copyable={false} />
+                <span className='truncate font-medium'>{model.model_name}</span>
+              </div>
             ),
           },
           {
@@ -110,7 +116,7 @@ export function ServiceStatusModels(props: ServiceStatusModelsProps) {
               <ServiceStatusBar
                 cells={model.cells}
                 size='sm'
-                label={`${model.model_name} ${t('Availability over time')}`}
+                label={`${serviceStatusTargetLabel(model.group, model.model_name)} ${t('Availability over time')}`}
               />
             ),
           },
@@ -120,14 +126,17 @@ export function ServiceStatusModels(props: ServiceStatusModelsProps) {
       <ul className='space-y-2 md:hidden'>
         {props.models.map((model) => (
           <li
-            key={model.model_name}
+            key={`${model.group}/${model.model_name}`}
             className='bg-card rounded-lg border p-3'
-            data-testid={`service-status-model-${model.model_name}`}
+            data-testid={`service-status-model-${model.group}-${model.model_name}`}
           >
             <div className='flex items-start justify-between gap-2'>
-              <span className='min-w-0 truncate text-sm font-medium'>
-                {model.model_name}
-              </span>
+              <div className='flex min-w-0 items-center gap-2'>
+                <GroupBadge group={model.group} copyable={false} />
+                <span className='min-w-0 truncate text-sm font-medium'>
+                  {model.model_name}
+                </span>
+              </div>
               <ModelStatusBadge model={model} />
             </div>
             <div className='text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs'>
@@ -145,7 +154,7 @@ export function ServiceStatusModels(props: ServiceStatusModelsProps) {
               <ServiceStatusBar
                 cells={model.cells}
                 size='sm'
-                label={`${model.model_name} ${t('Availability over time')}`}
+                label={`${serviceStatusTargetLabel(model.group, model.model_name)} ${t('Availability over time')}`}
               />
             </div>
           </li>

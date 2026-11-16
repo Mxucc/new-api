@@ -22,8 +22,11 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import type {
   ModelIqOverview,
   ModelIqStatus,
+  PelicanConfig,
+  PelicanHistory,
   PelicanResult,
   PelicanRunSummary,
+  PelicanTarget,
 } from './types'
 
 type Envelope<T> = {
@@ -44,10 +47,24 @@ export async function getPelicanResult(id: number): Promise<PelicanResult> {
   return requireServerSuccess(res.data).data
 }
 
-export async function runPelicanTest(model: string): Promise<ModelIqStatus> {
-  const res = await api.post<Envelope<ModelIqStatus>>('/api/pelican/test', {
-    model,
+/** 历史记录按（分组, 模型）查询：两个参数都是必填。 */
+export async function getPelicanHistory(
+  group: string,
+  model: string
+): Promise<PelicanHistory> {
+  const res = await api.get<Envelope<PelicanHistory>>('/api/pelican/history', {
+    params: { group, model },
   })
+  return requireServerSuccess(res.data).data
+}
+
+export async function runPelicanTest(
+  target: PelicanTarget
+): Promise<ModelIqStatus> {
+  const res = await api.post<Envelope<ModelIqStatus>>(
+    '/api/pelican/test',
+    target
+  )
   return requireServerSuccess(res.data).data
 }
 
@@ -55,5 +72,20 @@ export async function runAllPelicanTests(): Promise<PelicanRunSummary> {
   const res = await api.post<Envelope<PelicanRunSummary>>(
     '/api/pelican/test-all'
   )
+  return requireServerSuccess(res.data).data
+}
+
+export async function getPelicanConfig(): Promise<PelicanConfig> {
+  const res = await api.get<Envelope<PelicanConfig>>('/api/pelican/config')
+  return requireServerSuccess(res.data).data
+}
+
+export async function updatePelicanConfig(payload: {
+  targets: PelicanTarget[]
+  interval_minutes: number
+}): Promise<{ targets: PelicanTarget[]; interval_minutes: number }> {
+  const res = await api.put<
+    Envelope<{ targets: PelicanTarget[]; interval_minutes: number }>
+  >('/api/pelican/config', payload)
   return requireServerSuccess(res.data).data
 }

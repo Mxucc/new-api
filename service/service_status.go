@@ -17,8 +17,9 @@ const (
 // serviceStatusCellCount 是状态条上的格子数量，窗口多长都保持同样的视觉密度。
 const serviceStatusCellCount = 48
 
-// ServiceStatusSample 是一个模型在一个时间桶里的被动采样结果。
+// ServiceStatusSample 是一个（分组, 模型）在一个时间桶里的被动采样结果。
 type ServiceStatusSample struct {
+	Group     string
 	Model     string
 	BucketTs  int64
 	Requests  int64
@@ -34,6 +35,7 @@ type ServiceStatusCell struct {
 }
 
 type ServiceStatusModel struct {
+	Group        string              `json:"group"`
 	ModelName    string              `json:"model_name"`
 	Requests     int64               `json:"requests"`
 	SuccessRate  float64             `json:"success_rate"`
@@ -79,6 +81,13 @@ func successRatePercent(successes, requests int64) float64 {
 	}
 	rate := float64(successes) / float64(requests) * 100
 	return float64(int64(rate*100+0.5)) / 100
+}
+
+// serviceStatusKey 让被动状态按（分组, 模型）聚合：同一个模型在不同分组
+// 可能走不同渠道，混在一起看不出是哪个分组出问题。
+type serviceStatusKey struct {
+	group string
+	model string
 }
 
 type serviceStatusCounters struct {
@@ -131,8 +140,8 @@ func BuildServiceStatus(samples []ServiceStatusSample, hours int, now time.Time)
 
 	cells := emptyServiceStatusCells(windowStart, cellSeconds)
 	totals := make([]serviceStatusCounters, serviceStatusCellCount)
-	modelTotals := map[string]*serviceStatusCounters{}
-	modelCells := map[string][]serviceStatusCounters{}
+	modelTotals := map[serviceStatusKey]*serviceStatusCounters{}
+	modelCells := map[serviceStatusKey][]serviceStatusCounters{}
 	var overall serviceStatusCounters
 	dataThrough := int64(0)
 
@@ -158,14 +167,15 @@ func BuildServiceStatus(samples []ServiceStatusSample, hours int, now time.Time)
 			dataThrough = sample.BucketTs
 		}
 
-		total, ok := modelTotals[sample.Model]
+		key := serviceStatusKey{group: sample.Group, model: sample.Model}
+		total, ok := modelTotals[key]
 		if !ok {
 			total = &serviceStatusCounters{}
-			modelTotals[sample.Model] = total
-			modelCells[sample.Model] = make([]serviceStatusCounters, serviceStatusCellCount)
+			modelTotals[key] = total
+			modelCells[key] = make([]serviceStatusCounters, serviceStatusCellCount)
 		}
 		total.add(counters)
-		modelCells[sample.Model][index].add(counters)
+		modelCells[key][index].add(counters)
 	}
 
 	for i, counters := range totals {
@@ -174,14 +184,15 @@ func BuildServiceStatus(samples []ServiceStatusSample, hours int, now time.Time)
 
 	overallRate := successRatePercent(overall.successes, overall.requests)
 	models := make([]ServiceStatusModel, 0, len(modelTotals))
-	for name, total := range modelTotals {
+	for key, total := range modelTotals {
 		rate := successRatePercent(total.successes, total.requests)
 		cells := emptyServiceStatusCells(windowStart, cellSeconds)
-		for i, counters := range modelCells[name] {
+		for i, counters := range modelCells[key] {
 			cells[i] = counters.cell(windowStart + int64(i)*cellSeconds)
 		}
 		models = append(models, ServiceStatusModel{
-			ModelName:    name,
+			Group:        key.group,
+			ModelName:    key.model,
 			Requests:     total.requests,
 			SuccessRate:  rate,
 			AvgLatencyMs: averageLatency(total),
@@ -189,10 +200,13 @@ func BuildServiceStatus(samples []ServiceStatusSample, hours int, now time.Time)
 			Cells:        cells,
 		})
 	}
-	// 流量最大的模型排前面：状态页先回答「主力模型现在怎么样」。
+	// 流量最大的（分组, 模型）排前面：状态页先回答「主力分组现在怎么样」。
 	sort.Slice(models, func(i, j int) bool {
 		if models[i].Requests != models[j].Requests {
 			return models[i].Requests > models[j].Requests
+		}
+		if models[i].Group != models[j].Group {
+			return models[i].Group < models[j].Group
 		}
 		return models[i].ModelName < models[j].ModelName
 	})

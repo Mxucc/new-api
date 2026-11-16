@@ -23,12 +23,16 @@ import {
   iqHasScore,
   iqVerdictLabelKey,
   iqVerdictVariant,
+  pelicanTargetFromValue,
+  pelicanTargetLabel,
+  pelicanTargetValue,
   summarizeModelIq,
 } from '../lib/iq'
 import type { ModelIqStatus, ModelIqVerdict } from '../types'
 
 function status(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
   return {
+    group: 'default',
     model_name: 'gpt-4.1',
     available: true,
     verdict: 'healthy',
@@ -74,8 +78,25 @@ describe('model IQ verdict mapping', () => {
   })
 })
 
+describe('pelican target identity', () => {
+  it('round-trips a group and model pair through its page value', () => {
+    const target = { group: 'vip', model: 'gpt-4.1-mini' }
+    expect(pelicanTargetValue(target)).toBe('vip/gpt-4.1-mini')
+    expect(pelicanTargetFromValue(pelicanTargetValue(target))).toEqual(target)
+  })
+
+  it('keeps a pair apart from the same model in another group', () => {
+    expect(pelicanTargetValue({ group: 'default', model: 'gpt-4.1' })).not.toBe(
+      pelicanTargetValue({ group: 'vip', model: 'gpt-4.1' })
+    )
+    expect(pelicanTargetLabel({ group: 'vip', model: 'gpt-4.1' })).toBe(
+      'vip · gpt-4.1'
+    )
+  })
+})
+
 describe('summarizeModelIq', () => {
-  it('counts tested, healthy and delisted models separately', () => {
+  it('counts tested, healthy and delisted combinations separately', () => {
     const summary = summarizeModelIq([
       status(),
       status({ model_name: 'claude', verdict: 'degraded', score: 65 }),

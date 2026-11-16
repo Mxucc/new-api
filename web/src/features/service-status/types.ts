@@ -28,6 +28,8 @@ export type ServiceStatusCell = {
 }
 
 export type ServiceStatusModel = {
+  /** 同一个模型在不同分组可能走不同渠道，状态按（分组, 模型）分开统计。 */
+  group: string
   model_name: string
   requests: number
   success_rate: number

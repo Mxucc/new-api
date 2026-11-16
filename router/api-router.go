@@ -49,12 +49,15 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			pelicanRoute.GET("/overview", controller.GetPelicanOverview)
 			pelicanRoute.GET("/results/:id", controller.GetPelicanResult)
+			pelicanRoute.GET("/history", controller.GetPelicanHistory)
 		}
 		pelicanAdminRoute := apiRouter.Group("/pelican")
 		pelicanAdminRoute.Use(middleware.AdminAuth())
 		{
 			pelicanAdminRoute.POST("/test", middleware.CriticalRateLimit(), controller.RunPelicanTest)
 			pelicanAdminRoute.POST("/test-all", middleware.CriticalRateLimit(), controller.RunAllPelicanTests)
+			pelicanAdminRoute.GET("/config", controller.GetPelicanConfig)
+			pelicanAdminRoute.PUT("/config", controller.UpdatePelicanConfig)
 			// 被动式服务状态：只读真实请求的聚合结果，不对模型发探测。
 			apiRouter.GET("/service-status", middleware.UserAuth(), controller.GetServiceStatus)
 		}

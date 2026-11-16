@@ -33,11 +33,16 @@ export interface ServiceStatusBarProps {
   size?: 'sm' | 'md'
 }
 
-/** 时间轴状态条：每格代表一个时间片，颜色是那段真实请求的可用率。 */
+/**
+ * 时间轴状态条：每格代表一个时间片，颜色是那段真实请求的可用率。
+ * 没有流量的格子（unknown）不渲染——整行铺满灰块会把真实故障淹掉，
+ * 只画有数据的格子后留白本身就说明了「这段没有流量」。
+ */
 export function ServiceStatusBar(props: ServiceStatusBarProps) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const height = props.size === 'sm' ? 'h-5' : 'h-9'
+  const filledCells = props.cells.filter((cell) => cell.status !== 'unknown')
 
   return (
     <div
@@ -45,10 +50,8 @@ export function ServiceStatusBar(props: ServiceStatusBarProps) {
       aria-label={props.label}
       className='flex w-full items-end gap-[2px]'
     >
-      {props.cells.map((cell, index) => {
-        const detail = cell.requests
-          ? `${formatTimestampRelative(cell.start, 'seconds', locale)} · ${formatUptimePct(cell.success_rate)} · ${t('{{count}} requests', { count: formatNumber(cell.requests) })}`
-          : `${formatTimestampRelative(cell.start, 'seconds', locale)} · ${t('No traffic')}`
+      {filledCells.map((cell, index) => {
+        const detail = `${formatTimestampRelative(cell.start, 'seconds', locale)} · ${formatUptimePct(cell.success_rate)} · ${t('{{count}} requests', { count: formatNumber(cell.requests) })}`
         return (
           <span
             key={cell.start}
