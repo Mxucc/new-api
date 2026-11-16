@@ -284,7 +284,8 @@ func GetPelicanOverview(c *gin.Context) {
 			"total":            len(statuses),
 			"latest_tested_at": latestTestedAt,
 			"prompt":           cfg.EffectivePrompt(),
-			"description":      cfg.EffectiveDescription(),
+			// 说明原样返回：为空时前端用自己翻译的默认文案，避免中文默认值出现在英文界面。
+			"description": cfg.Description,
 			// 页面据此决定是否继续轮询：整轮巡视或任一个格子还在测就每 5 秒刷一次。
 			"sweeping":       sweeping,
 			"sweeping_since": sweepingSince,

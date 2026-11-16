@@ -82,6 +82,8 @@ function overview(
     total: models.length,
     latest_tested_at: 1700000000,
     prompt: '创建一个 HTML，内容是 SVG 绘制一个鹈鹕骑自行车的 2D 动画',
+    // 说明留空：页面用前端翻译好的默认文案。
+    description: '',
     sweeping: false,
     sweeping_since: 0,
     ...overrides,

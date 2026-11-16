@@ -5,15 +5,17 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 )
 
 // 鹈鹕测智（Pelican IQ test）用同一个提示词向模型要一段「SVG 鹈鹕骑自行车 2D 动画」，
 // 再按交付结果打分。题目本身不提供任何与打分相关的线索，所以分数衡量的是模型把
 // 一条多约束指令落成可渲染图形代码的能力，而不是某个基准测试的记忆答案。
-const PelicanPrompt = "创建一个 HTML，内容是 SVG 绘制一个鹈鹕骑自行车的 2D 动画，你不需要任何测试"
+// 题面与交付约定由后台配置提供（留空即用这里的默认值），所以默认值只在 model 里定义一份。
+const PelicanPrompt = model.DefaultPelicanPrompt
 
 // 交付约定单独追加，避免改动上面这条公共题面。
-const PelicanPromptContract = "只输出 HTML，不要使用 Markdown 代码块，不要解释。"
+const PelicanPromptContract = model.DefaultPelicanContract
 
 // 鹈鹕测智的判定档位。传输层失败用 failed，能拿到输出才进入三档评分。
 const (

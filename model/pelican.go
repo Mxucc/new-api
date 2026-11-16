@@ -99,14 +99,6 @@ func (cfg PelicanTestConfig) EffectivePrompt() string {
 	return prompt + "\n\n" + contract
 }
 
-// EffectiveDescription 返回页面上给用户看的说明。
-func (cfg PelicanTestConfig) EffectiveDescription() string {
-	if description := strings.TrimSpace(cfg.Description); description != "" {
-		return description
-	}
-	return DefaultPelicanDescription
-}
-
 // pelicanConfigText 归一化管理员填写的长文本：去两侧空白并限制长度。
 func pelicanConfigText(value string) string {
 	trimmed := strings.TrimSpace(value)
@@ -256,18 +248,6 @@ func GetLatestPelicanResults() (map[PelicanProbeTarget]*PelicanTestResult, error
 		latest[key] = &results[i]
 	}
 	return latest, nil
-}
-
-// GetPelicanResultsSince 返回 since 之后的记录（不含动画源码），最新的在前，
-// 供页面把每个组合画成时间切片。
-func GetPelicanResultsSince(since int64) ([]PelicanTestResult, error) {
-	var results []PelicanTestResult
-	err := DB.Model(&PelicanTestResult{}).
-		Select("id, model_name, "+commonGroupCol+", channel_id, status, verdict, score, latency_ms, created_at").
-		Where("created_at >= ?", since).
-		Order("id DESC").
-		Find(&results).Error
-	return results, err
 }
 
 // GetPelicanSuccessfulResults 返回 since 之后的成功记录（不含动画源码），最新的在前。
