@@ -51,6 +51,16 @@ jobs:
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
           cd ..
 
+      - name: Build classic frontend
+        env:
+          CI: ""
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: |
+          cd web/classic
+          bun install --frozen-lockfile
+          VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
+          cd ../..
+
       # - name: Build Go binary (macos/Linux)
       #   if: runner.os != 'Windows'
       #   run: |

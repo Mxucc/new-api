@@ -38,10 +38,12 @@ jobs:
             relaykit/go.sum
             tokenkit/go.sum
 
-      - name: Create frontend embed placeholder
+      # Both frontends are embedded in the binary, so both need to exist before
+      # any Go command compiles the root module.
+      - name: Create frontend embed placeholders
         run: |
-          mkdir -p web/dist
-          touch web/dist/index.html
+          mkdir -p web/dist web/classic/dist
+          touch web/dist/index.html web/classic/dist/index.html
 
       - name: Vet root module
         run: go vet ./...
