@@ -2,9 +2,11 @@ package controller
 
 import (
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPelicanSweepTargetsOnlyProbesConfiguredPairsWithAChannel(t *testing.T) {
@@ -45,4 +47,37 @@ func TestPelicanProbeUserIdUsesTheAdminWhoSavedTheConfig(t *testing.T) {
 	assert.Equal(t, 7, pelicanProbeUserId(model.PelicanTestConfig{OwnerUserId: 7}))
 	// 旧配置没有记账身份时退回初始管理员，探测不会因为缺账主而停摆。
 	assert.Equal(t, pelicanInitialAdminUserId, pelicanProbeUserId(model.PelicanTestConfig{}))
+}
+
+func TestPelicanProbeRegistrationExpiresAndIsTakenOver(t *testing.T) {
+	target := model.PelicanProbeTarget{Group: "default", Model: "gpt-4.1"}
+	t.Cleanup(func() { pelicanProbeRunning.Delete(target) })
+
+	token, started := pelicanProbeBegin(target)
+	require.True(t, started)
+	assert.True(t, pelicanProbeActive(target))
+
+	// 同一组合在跑时不会被再测一次。
+	_, again := pelicanProbeBegin(target)
+	assert.False(t, again)
+
+	pelicanProbeEnd(target, token)
+	assert.False(t, pelicanProbeActive(target))
+
+	// 超过探测上限还留在登记表里（goroutine 卡死或被重启打断）：
+	// 页面不该继续转圈，这个组合也要能重新触发。
+	pelicanProbeRunning.Store(target, pelicanProbeRun{
+		startedAt: time.Now().Add(-pelicanProbeStaleAfter - time.Minute).Unix(),
+		token:     1,
+	})
+	assert.False(t, pelicanProbeActive(target))
+
+	staleToken, restarted := pelicanProbeBegin(target)
+	require.True(t, restarted)
+	// 卡死的旧 goroutine 结束时不能把已经接管它的新登记删掉。
+	pelicanProbeEnd(target, 1)
+	assert.True(t, pelicanProbeActive(target))
+
+	pelicanProbeEnd(target, staleToken)
+	assert.False(t, pelicanProbeActive(target))
 }

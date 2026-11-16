@@ -294,20 +294,69 @@ type pelicanTestRequest struct {
 // overview 也用它告诉页面哪些格子正在测。
 var pelicanProbeRunning sync.Map
 
-// pelicanProbeBegin 登记一个组合；返回 false 表示该组合已经在跑。
-func pelicanProbeBegin(target model.PelicanProbeTarget) bool {
-	_, loaded := pelicanProbeRunning.LoadOrStore(target, time.Now().Unix())
-	return !loaded
+// pelicanProbeStaleAfter 是一次探测登记的失效时间：探测本身有 pelicanProbeTimeout
+// 上限，超过它还在登记表里只可能是 goroutine 卡死或进程被重启打断。登记过期后
+// 既不再让页面转圈，也不再挡住下一次触发。
+const pelicanProbeStaleAfter = pelicanProbeTimeout + time.Minute
+
+// pelicanProbeRun 是一条探测登记。token 让卡死的旧 goroutine 结束时不会把
+// 已经接管它的新登记删掉。
+type pelicanProbeRun struct {
+	startedAt int64
+	token     int64
 }
 
-func pelicanProbeEnd(target model.PelicanProbeTarget) {
-	pelicanProbeRunning.Delete(target)
+func (run pelicanProbeRun) stale() bool {
+	return run.startedAt > 0 && time.Since(time.Unix(run.startedAt, 0)) > pelicanProbeStaleAfter
 }
 
-// pelicanProbeActive 报告该组合此刻是否有一次探测在跑。
+// pelicanProbeBegin 登记一个组合。ok 为 false 表示该组合已经在跑；否则返回本次登记
+// 的 token，结束时必须用同一个 token 注销。已有的登记已经过期时直接接管，
+// 否则这个组合会永远测不动。
+func pelicanProbeBegin(target model.PelicanProbeTarget) (token int64, ok bool) {
+	if current, loaded := pelicanProbeRunning.Load(target); loaded {
+		if run, isRun := current.(pelicanProbeRun); !isRun || !run.stale() {
+			return 0, false
+		}
+		pelicanProbeRunning.Delete(target)
+	}
+	run := pelicanProbeRun{startedAt: time.Now().Unix(), token: time.Now().UnixNano()}
+	if _, loaded := pelicanProbeRunning.LoadOrStore(target, run); loaded {
+		return 0, false
+	}
+	return run.token, true
+}
+
+// pelicanProbeEnd 注销自己那条登记；被别的登记接管时什么都不做。
+func pelicanProbeEnd(target model.PelicanProbeTarget, token int64) {
+	current, ok := pelicanProbeRunning.Load(target)
+	if !ok {
+		return
+	}
+	run, isRun := current.(pelicanProbeRun)
+	if !isRun || run.token != token {
+		return
+	}
+	pelicanProbeRunning.CompareAndDelete(target, run)
+}
+
+// pelicanProbeActive 报告该组合此刻是否有一次探测在跑；过期的登记视为没在跑并清掉，
+// 免得页面上一格永远转圈。
 func pelicanProbeActive(target model.PelicanProbeTarget) bool {
-	_, ok := pelicanProbeRunning.Load(target)
-	return ok
+	current, ok := pelicanProbeRunning.Load(target)
+	if !ok {
+		return false
+	}
+	run, isRun := current.(pelicanProbeRun)
+	if !isRun {
+		pelicanProbeRunning.Delete(target)
+		return false
+	}
+	if run.stale() {
+		pelicanProbeRunning.CompareAndDelete(target, run)
+		return false
+	}
+	return true
 }
 
 // triggerPelicanTest 是单组合探测本身的入口：校验组合、选渠道、跑一次、落库。
@@ -364,7 +413,8 @@ func RunPelicanTest(c *gin.Context) {
 		common.ApiErrorMsg(c, "group and model are required")
 		return
 	}
-	if !pelicanProbeBegin(target) {
+	token, started := pelicanProbeBegin(target)
+	if !started {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"data":    gin.H{"started": false, "running": true},
@@ -373,7 +423,7 @@ func RunPelicanTest(c *gin.Context) {
 	}
 	probeUserId := pelicanProbeUserId(model.GetPelicanTestConfig())
 	go func() {
-		defer pelicanProbeEnd(target)
+		defer pelicanProbeEnd(target, token)
 		runPelicanProbeTarget(context.Background(), target, probeUserId)
 	}()
 	c.JSON(http.StatusAccepted, gin.H{
@@ -399,10 +449,12 @@ func runPelicanSweep(ctx context.Context, testUserID int, targets []model.Pelica
 		wg.Go(func() {
 			defer func() { <-slots }()
 			// 同一组合已经被单次触发抢占时不重复探测，也不计为失败。
-			if !pelicanProbeBegin(target) {
+			// 同一组合已经被单次触发抢占时不重复探测，也不计为失败。
+			token, started := pelicanProbeBegin(target)
+			if !started {
 				return
 			}
-			defer pelicanProbeEnd(target)
+			defer pelicanProbeEnd(target, token)
 			err := runPelicanProbeTarget(ctx, target, testUserID)
 			counters.Lock()
 			defer counters.Unlock()
