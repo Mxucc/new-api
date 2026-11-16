@@ -8368,6 +8368,6 @@
     "No probe targets are configured yet": "Цели проверки ещё не настроены",
     "No test results yet. Results appear here after the next sweep.": "Результатов пока нет. Они появятся здесь после следующего обхода.",
     "Test {{group}} now": "Проверить {{group}} сейчас",
-    "Copied from {{group}}": "Скопировано из {{group}}"
+    "Based on the latest result": "По последнему результату"
   }
 }

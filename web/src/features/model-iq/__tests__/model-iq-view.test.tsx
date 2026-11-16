@@ -25,7 +25,7 @@ import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { ModelIq } from '../index'
-import type { ModelIqOverview, ModelIqStatus } from '../types'
+import type { ModelIqOverview, ModelIqStatus, ModelIqStripCell } from '../types'
 
 const api = vi.hoisted(() => ({
   getModelIqOverview: vi.fn(),
@@ -39,18 +39,31 @@ const api = vi.hoisted(() => ({
 
 vi.mock('../api', () => api)
 
+/** 四格时间条：最后一格是真实结果，其余沿用它（后端就是这么补的）。 */
+function stripCells(verdict: ModelIqStatus['verdict']): ModelIqStripCell[] {
+  return Array.from({ length: 4 }, (_, index) => ({
+    start: 1700000000 + index * 1800,
+    verdict,
+    score: verdict === 'pending' ? 0 : 100,
+    tested_at: verdict === 'pending' ? 0 : 1700000000 + index * 1800,
+    filled: verdict !== 'pending' && index < 3,
+  }))
+}
+
 function modelStatus(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
+  const verdict = overrides.verdict ?? 'healthy'
   return {
     group: 'default',
     model_name: 'gpt-4.1',
     available: true,
-    verdict: 'healthy',
+    verdict,
     score: 100,
     latency_ms: 1200,
     tested_at: 1700000000,
     result_id: 11,
     dimensions: ['drawing', 'subject'],
     testing: false,
+    strip: stripCells(verdict),
     ...overrides,
   }
 }
@@ -216,28 +229,20 @@ describe('model IQ grid', () => {
     ).toBeInTheDocument()
   })
 
-  it('pads an empty cell with the nearest group result', async () => {
-    api.getModelIqOverview.mockResolvedValue(
-      overview([
-        modelStatus(),
-        modelStatus({
-          group: 'vip',
-          verdict: 'pending',
-          score: 0,
-          result_id: 0,
-          tested_at: 0,
-          latency_ms: 0,
-        }),
-      ])
-    )
+  it('splits one result into time squares and fades the copied ones', async () => {
     renderPage(ROLE.USER)
 
-    // vip 自己还没测过：用同列最近一格的分数补上，并淡显标出来源。
-    const borrowed = await screen.findByTestId('model-iq-borrowed-vip-gpt-4.1')
-    expect(borrowed).toHaveTextContent('100')
-    expect(borrowed).toHaveAttribute('title', 'Copied from default')
-    // 借来的格子不承担交互，免得把别的分组的分数当成自己的结论。
-    expect(borrowed.tagName).not.toBe('BUTTON')
+    const strip = await screen.findByTestId('model-iq-strip-default-gpt-4.1')
+    // 一条结果也铺成多格：最后一格是真测的，前面几格沿用最近一次结果。
+    const squares = strip.querySelectorAll('span')
+    expect(squares).toHaveLength(4)
+    expect(squares[3]?.className).toContain('bg-success')
+    expect(squares[3]?.className).not.toContain('opacity-40')
+    expect(squares[0]?.className).toContain('opacity-40')
+    expect(squares[0]).toHaveAttribute(
+      'title',
+      expect.stringContaining('Based on the latest result')
+    )
   })
 
   it('shows a loading cell, without a stale score, while a combination is being tested', async () => {

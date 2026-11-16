@@ -8368,6 +8368,6 @@
     "No probe targets are configured yet": "テスト対象がまだ設定されていません",
     "No test results yet. Results appear here after the next sweep.": "テスト結果はまだありません。次回の巡回後にここに表示されます。",
     "Test {{group}} now": "{{group}} を今すぐテスト",
-    "Copied from {{group}}": "{{group}} の結果を流用"
+    "Based on the latest result": "最新の結果を流用"
   }
 }

@@ -58,6 +58,19 @@ type pelicanModelStatus struct {
 	LastError  string   `json:"last_error,omitempty"`
 	// Testing 表示这个组合此刻正有一次探测在跑：页面据此显示加载态并保持轮询。
 	Testing bool `json:"testing"`
+	// Strip 是最近 24 小时的时间格子：判定取该时段最新的一次结果，
+	// 没有观测的时段用最近的一次结果补上并标记 filled。
+	Strip []pelicanStripCell `json:"strip"`
+}
+
+// pelicanStripCell 是智商时间条上的一小格。
+type pelicanStripCell struct {
+	Start    int64  `json:"start"`
+	Verdict  string `json:"verdict"`
+	Score    int    `json:"score"`
+	TestedAt int64  `json:"tested_at"`
+	// Filled 表示这一段没有观测，判定是从最近的一次结果借来的。
+	Filled bool `json:"filled"`
 }
 
 // isPelicanChatModel 判断模型是否属于可以回答题面的对话模型。
@@ -145,6 +158,68 @@ func pelicanStatusOf(target model.PelicanProbeTarget, available bool, result *mo
 	return status
 }
 
+// pelicanStripWindows 给每个组合切出最近 PelicanStripHours 小时的时间格子。
+// 一段里的判定取该时段最新的一次结果；没有观测的段用最近的一次结果补上并标记
+// filled，于是一个只测过一次的组合也是一条完整的格子，而不是孤零零一个色块。
+func pelicanStripWindows(targets []model.PelicanProbeTarget, latest map[model.PelicanProbeTarget]*model.PelicanTestResult, recent []model.PelicanTestResult, now int64) map[model.PelicanProbeTarget][]pelicanStripCell {
+	cellSeconds := int64(model.PelicanStripHours*3600) / model.PelicanStripCells
+	windowStart := now - int64(model.PelicanStripHours*3600)
+	slots := make(map[model.PelicanProbeTarget][]*model.PelicanTestResult, len(targets))
+	for i := range recent {
+		record := &recent[i]
+		index := int((record.CreatedAt - windowStart) / cellSeconds)
+		if index < 0 || index >= model.PelicanStripCells {
+			continue
+		}
+		target := model.PelicanProbeTarget{Group: record.Group, Model: record.ModelName}
+		// 查询按 id 倒序：先落到某个时段的记录就是该时段最新的一条。
+		if slots[target] == nil {
+			slots[target] = make([]*model.PelicanTestResult, model.PelicanStripCells)
+		}
+		if slots[target][index] == nil {
+			slots[target][index] = record
+		}
+	}
+	strips := make(map[model.PelicanProbeTarget][]pelicanStripCell, len(targets))
+	for _, target := range targets {
+		observed := slots[target]
+		cells := make([]pelicanStripCell, model.PelicanStripCells)
+		for i := range cells {
+			cells[i] = pelicanStripCell{
+				Start:   windowStart + int64(i)*cellSeconds,
+				Verdict: service.PelicanVerdictPending,
+			}
+			if observed != nil && observed[i] != nil {
+				cells[i].Verdict = observed[i].Verdict
+				cells[i].Score = observed[i].Score
+				cells[i].TestedAt = observed[i].CreatedAt
+				continue
+			}
+			// 先借窗口里最近的一次观测；整窗都没有观测时退回这个组合的最后一次结果。
+			source := latest[target]
+			for distance := 1; observed != nil && distance < len(cells); distance++ {
+				if ahead := i + distance; ahead < len(cells) && observed[ahead] != nil {
+					source = observed[ahead]
+					break
+				}
+				if behind := i - distance; behind >= 0 && observed[behind] != nil {
+					source = observed[behind]
+					break
+				}
+			}
+			if source == nil {
+				continue
+			}
+			cells[i].Verdict = source.Verdict
+			cells[i].Score = source.Score
+			cells[i].TestedAt = source.CreatedAt
+			cells[i].Filled = true
+		}
+		strips[target] = cells
+	}
+	return strips
+}
+
 // GetPelicanOverview 返回管理员配置的每个（分组, 模型）探测项的状态与智商，登录用户可见。
 // 探测由系统自己跑，所有用户读到的是同一份结果。
 func GetPelicanOverview(c *gin.Context) {
@@ -159,16 +234,24 @@ func GetPelicanOverview(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	now := time.Now().Unix()
+	recent, err := model.GetPelicanResultsSince(now - int64(model.PelicanStripHours*3600))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	serveable := make(map[model.PelicanProbeTarget]struct{}, len(cfg.Targets))
 	for _, target := range pelicanAvailableTargets(probes) {
 		serveable[target] = struct{}{}
 	}
+	strips := pelicanStripWindows(cfg.Targets, latest, recent, now)
 	// 只上报配置里的探测项：用户看到的行数就等于管理员配置的分组数。
 	statuses := make([]pelicanModelStatus, 0, len(cfg.Targets))
 	for _, target := range cfg.Targets {
 		_, served := serveable[target]
 		status := pelicanStatusOf(target, served, latest[target])
 		status.Testing = pelicanProbeActive(target)
+		status.Strip = strips[target]
 		statuses = append(statuses, status)
 	}
 	slices.SortFunc(statuses, func(a, b pelicanModelStatus) int {

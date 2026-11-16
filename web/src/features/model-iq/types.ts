@@ -40,6 +40,16 @@ export type PelicanTarget = {
   model: string
 }
 
+/** 时间条上一小格：一段时间的判定。没观测到的段落沿用最近一次结果。 */
+export type ModelIqStripCell = {
+  start: number
+  verdict: ModelIqVerdict
+  score: number
+  tested_at: number
+  /** 这一段没有观测，判定是从最近一次结果借来的。 */
+  filled: boolean
+}
+
 export type ModelIqStatus = {
   /** 该分数来自哪个分组。 */
   group: string
@@ -55,6 +65,8 @@ export type ModelIqStatus = {
   last_error?: string
   /** 该组合当前有一次探测在跑：格子显示加载态，页面保持轮询。 */
   testing: boolean
+  /** 最近 24 小时切成的小格，一条结果也会铺满整条。 */
+  strip: ModelIqStripCell[]
 }
 
 export type ModelIqOverview = {

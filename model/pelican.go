@@ -50,6 +50,13 @@ type PelicanTestConfig struct {
 // PelicanMaxIntervalMinutes 是巡视间隔上限（一天）：再长就没有巡视的意义了。
 const PelicanMaxIntervalMinutes = 1440
 
+// 智商时间条的时间窗与格数：格子按时间切片画，和状态页一样，
+// 只测过一次的组合也能铺成一整条，而不是孤零零一个色块。
+const (
+	PelicanStripHours = 24
+	PelicanStripCells = 12
+)
+
 // pelicanRetentionPerModel 限制单个模型保留的历史记录条数：趋势图靠这些元数据。
 const pelicanRetentionPerModel = 200
 
@@ -184,6 +191,18 @@ func GetLatestPelicanResults() (map[PelicanProbeTarget]*PelicanTestResult, error
 		latest[key] = &results[i]
 	}
 	return latest, nil
+}
+
+// GetPelicanResultsSince 返回 since 之后的记录（不含动画源码），最新的在前，
+// 供页面把每个组合画成时间切片。
+func GetPelicanResultsSince(since int64) ([]PelicanTestResult, error) {
+	var results []PelicanTestResult
+	err := DB.Model(&PelicanTestResult{}).
+		Select("id, model_name, "+commonGroupCol+", channel_id, status, verdict, score, latency_ms, created_at").
+		Where("created_at >= ?", since).
+		Order("id DESC").
+		Find(&results).Error
+	return results, err
 }
 
 // GetPelicanTestResultById 读取单条记录，用于预览。

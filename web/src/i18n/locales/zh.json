@@ -8368,6 +8368,6 @@
     "No probe targets are configured yet": "还没有配置探测目标",
     "No test results yet. Results appear here after the next sweep.": "还没有测试结果，下一轮巡视完成后会显示在这里。",
     "Test {{group}} now": "立即测试 {{group}}",
-    "Copied from {{group}}": "沿用 {{group}} 的最近结果"
+    "Based on the latest result": "沿用最近一次结果"
   }
 }

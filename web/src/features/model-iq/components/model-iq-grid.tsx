@@ -27,13 +27,15 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
-import { formatNumber } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber, formatTimestampRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import {
   buildIqGrid,
   iqCellClass,
   iqHasScore,
+  iqStripCellClass,
   iqVerdictLabelKey,
   pelicanTargetLabel,
 } from '../lib/iq'
@@ -49,18 +51,52 @@ export interface ModelIqGridProps {
 }
 
 interface ModelIqCellProps {
-  /** 这一格所在的分组（行）；借用数据时它与 status.group 不同。 */
-  rowGroup: string
   status: ModelIqStatus
-  /** 有值表示这一格是借用「旁边」的最近一份结果补上的，只做视觉补齐。 */
-  borrowedFrom?: string
   isAdmin: boolean
   onPreview: (status: ModelIqStatus) => void
   onHistory: (status: ModelIqStatus) => void
   onRun: (target: PelicanTarget) => void
 }
 
-/** 一个（分组, 模型）格子：显示分数，悬停看概要与最近趋势，点击看完整历史。 */
+/**
+ * 格子里的小格子：最近 24 小时的时间条，一段一格，和状态页一样。
+ * 没有观测的段落用最近一次结果补上（淡显），所以只测过一次的组合也是一整条。
+ */
+function ModelIqCellStrip(props: { status: ModelIqStatus }) {
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const cells = props.status.strip
+  if (cells.length === 0) {
+    return null
+  }
+  return (
+    <span
+      className='flex w-full items-stretch gap-[2px]'
+      data-testid={`model-iq-strip-${props.status.group}-${props.status.model_name}`}
+    >
+      {cells.map((cell) => {
+        const when = formatTimestampRelative(cell.start, 'seconds', locale)
+        const verdict = t(iqVerdictLabelKey(cell.verdict))
+        return (
+          <span
+            key={cell.start}
+            title={
+              cell.filled
+                ? `${when} · ${verdict} · ${t('Based on the latest result')}`
+                : `${when} · ${verdict}`
+            }
+            className={cn(
+              'h-3 min-w-[3px] flex-1 rounded-[2px]',
+              iqStripCellClass(cell.verdict, cell.filled)
+            )}
+          />
+        )
+      })}
+    </span>
+  )
+}
+
+/** 一个（分组, 模型）格子：时间条 + 分数，悬停看概要，点击看完整历史。 */
 function ModelIqCell(props: ModelIqCellProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -69,27 +105,13 @@ function ModelIqCell(props: ModelIqCellProps) {
 
   let cellContent = <span>—</span>
   if (status.testing) {
-    cellContent = <Loader2 className='size-4 animate-spin' aria-hidden='true' />
+    cellContent = (
+      <Loader2 className='size-3.5 animate-spin' aria-hidden='true' />
+    )
   } else if (scored) {
     cellContent = <span>{formatNumber(status.score)}</span>
   } else if (status.verdict === 'failed') {
-    cellContent = <CircleX className='size-4' aria-hidden='true' />
-  }
-
-  // 借来的格子只补视觉：不弹卡片、不跳历史，免得把别的分组的数据当成自己的。
-  if (props.borrowedFrom) {
-    return (
-      <div
-        data-testid={`model-iq-borrowed-${props.rowGroup}-${status.model_name}`}
-        title={t('Copied from {{group}}', { group: props.borrowedFrom })}
-        className={cn(
-          'flex h-10 min-w-0 items-center justify-center gap-1 rounded-md border border-dashed text-sm font-semibold tabular-nums opacity-45',
-          iqCellClass(status.verdict)
-        )}
-      >
-        {scored ? <span>{formatNumber(status.score)}</span> : cellContent}
-      </div>
-    )
+    cellContent = <CircleX className='size-3.5' aria-hidden='true' />
   }
 
   return (
@@ -107,12 +129,13 @@ function ModelIqCell(props: ModelIqCellProps) {
             })} ${t(iqVerdictLabelKey(status.verdict))}`}
             onClick={() => props.onHistory(status)}
             className={cn(
-              'flex h-10 min-w-0 items-center justify-center gap-1 rounded-md border text-sm font-semibold tabular-nums transition-colors',
+              'flex h-11 min-w-0 flex-col items-stretch justify-center gap-1 rounded-md border px-1 py-1 text-sm font-semibold tabular-nums transition-colors',
               'hover:brightness-105 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
               iqCellClass(status.verdict)
             )}
           >
-            {cellContent}
+            <ModelIqCellStrip status={status} />
+            <span className='text-center leading-none'>{cellContent}</span>
           </button>
         }
       />
@@ -176,8 +199,7 @@ export function ModelIqGrid(props: ModelIqGridProps) {
         </div>
 
         {grid.rows.map((row) => {
-          // 每行只配一个模型：动作按钮落在这个分组自己配置的目标上，
-          // 即使这一行的格子显示的是借来的数据。
+          // 每行只配一个模型：动作按钮落在这个分组自己配置的目标上。
           const own = row.own
           return (
             <div
@@ -187,24 +209,22 @@ export function ModelIqGrid(props: ModelIqGridProps) {
               data-testid={`model-iq-row-${row.group}`}
             >
               <GroupBadge group={row.group} copyable={false} />
-              {row.cells.map((cell, index) =>
-                cell ? (
+              {row.cells.map((status, index) =>
+                status ? (
                   <ModelIqCell
-                    key={`${cell.borrowedFrom ?? cell.status.group}-${cell.status.model_name}`}
-                    rowGroup={row.group}
-                    status={cell.status}
-                    borrowedFrom={cell.borrowedFrom}
+                    key={status.model_name}
+                    status={status}
                     isAdmin={props.isAdmin}
                     onPreview={props.onPreview}
                     onHistory={props.onHistory}
                     onRun={props.onRun}
                   />
                 ) : (
-                  // 这一格既没有自己的结果，旁边也借不到数据：留一个空槽，列才对得上。
+                  // 这一行没有这个模型：留一个空槽，列才对得上。
                   <span
                     key={grid.columns[index]}
                     aria-hidden='true'
-                    className='border-border/50 h-10 rounded-md border border-dashed'
+                    className='border-border/50 h-11 rounded-md border border-dashed'
                   />
                 )
               )}

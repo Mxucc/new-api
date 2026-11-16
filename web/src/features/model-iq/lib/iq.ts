@@ -110,18 +110,32 @@ export function iqCellClass(verdict: ModelIqVerdict): string {
   return VERDICT_CELL_CLASSES[verdict] ?? VERDICT_CELL_CLASSES.pending
 }
 
-export type IqGridCell = {
-  status: ModelIqStatus
-  /** 这一格自己没有结果，用同列最近的一格补上；记下来源好让界面淡显。 */
-  borrowedFrom?: string
+const STRIP_CELL_CLASSES: Record<ModelIqVerdict, string> = {
+  healthy: 'bg-success',
+  degraded: 'bg-warning',
+  poor: 'bg-destructive',
+  failed: 'bg-destructive',
+  pending: 'bg-muted',
+}
+
+/**
+ * 时间条上一小格的颜色：实心色块，和状态页一致。用最近一次结果补出来的段落
+ * 淡一点，一眼能分出「这段真的测过」和「这段是沿用的」。
+ */
+export function iqStripCellClass(
+  verdict: ModelIqVerdict,
+  filled: boolean
+): string {
+  const base = STRIP_CELL_CLASSES[verdict] ?? STRIP_CELL_CLASSES.pending
+  return filled ? `${base} opacity-40` : base
 }
 
 export type IqGridRow = {
   group: string
-  /** 这一行自己配置的目标，用于「立即测试」；格子里显示的可能是借来的数据。 */
+  /** 这一行自己配置的目标，用于「立即测试」。 */
   own: ModelIqStatus | null
-  /** 与 columns 一一对应：该分组既没有数据、也借不到数据时留空。 */
-  cells: (IqGridCell | null)[]
+  /** 与 columns 一一对应：该分组在这个模型上没有记录时留空。 */
+  cells: (ModelIqStatus | null)[]
 }
 
 export type IqGrid = {
@@ -133,8 +147,8 @@ export type IqGrid = {
 }
 
 /**
- * 行 = 分组，列 = 分组配置的模型。空格与「还没测过」的格子用同一列里最近的一格
- * 真实结果补上（淡显并标出来源）：只测过一次时整片空白看着像页面坏了。
+ * 行 = 分组，列 = 分组配置的模型。矩阵里的空格只表示「这一行没有这个模型」，
+ * 时间上的留白交给每个格子自己的时间条去补（后端已经把最近 24 小时切成小格）。
  */
 export function buildIqGrid(models: ModelIqStatus[]): IqGrid {
   const columns = [...new Set(models.map((status) => status.model_name))].sort(
@@ -158,47 +172,9 @@ export function buildIqGrid(models: ModelIqStatus[]): IqGrid {
       return {
         group,
         own,
-        cells: columns.map((name) => {
-          const status = byModel?.get(name)
-          return status ? { status } : null
-        }),
+        cells: columns.map((name) => byModel?.get(name) ?? null),
       }
     })
-  columns.forEach((_, column) => {
-    // 补格子的来源只取真正的结果：借来的格子不能再被借一次，否则来源会串。
-    const known = rows
-      .map((row, index) => ({
-        index,
-        cell: row.cells[column],
-        group: row.group,
-      }))
-      .filter(
-        (entry): entry is { index: number; cell: IqGridCell; group: string } =>
-          entry.cell !== null && entry.cell.status.verdict !== 'pending'
-      )
-    if (known.length === 0) {
-      return
-    }
-    rows.forEach((row, index) => {
-      const current = row.cells[column]
-      // 自己的结果优先，正在测的那一格也不覆盖。
-      if (
-        current &&
-        (current.status.verdict !== 'pending' || current.status.testing)
-      ) {
-        return
-      }
-      const nearest = known.reduce((best, entry) =>
-        Math.abs(entry.index - index) < Math.abs(best.index - index)
-          ? entry
-          : best
-      )
-      row.cells[column] = {
-        status: nearest.cell.status,
-        borrowedFrom: nearest.group,
-      }
-    })
-  })
   return { columns, rows, total: models.length }
 }
 

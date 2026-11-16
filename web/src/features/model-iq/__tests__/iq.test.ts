@@ -24,6 +24,7 @@ import {
   iqDimensionLabelKey,
   iqHasScore,
   iqNeedsPolling,
+  iqStripCellClass,
   iqVerdictLabelKey,
   iqVerdictVariant,
   pelicanTargetLabel,
@@ -43,6 +44,7 @@ function status(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
     result_id: 1,
     dimensions: ['drawing'],
     testing: false,
+    strip: [],
     ...overrides,
   }
 }
@@ -117,7 +119,7 @@ describe('summarizeModelIq', () => {
   })
 
   describe('buildIqGrid', () => {
-    it('lays out groups as rows and probed models as columns', () => {
+    it('lays out groups as rows and configured models as columns', () => {
       const grid = buildIqGrid([
         status({ model_name: 'gpt-4.1' }),
         status({ model_name: 'claude', verdict: 'degraded', score: 65 }),
@@ -126,58 +128,39 @@ describe('summarizeModelIq', () => {
 
       expect(grid.columns).toEqual(['claude', 'gpt-4.1'])
       expect(grid.rows.map((row) => row.group)).toEqual(['default', 'vip'])
-      expect(grid.rows[0].cells.map((cell) => cell?.status.model_name)).toEqual(
-        ['claude', 'gpt-4.1']
-      )
-      // vip 分组没有 gpt-4.1 的结果：用同列最近的一格补上，并记下来源。
+      expect(grid.rows[0].cells.map((cell) => cell?.model_name)).toEqual([
+        'claude',
+        'gpt-4.1',
+      ])
+      // vip 分组没有 gpt-4.1：这一列留空，列才对得上。
       expect(
-        grid.rows[1].cells.map((cell) => cell?.status.model_name ?? null)
-      ).toEqual(['claude', 'gpt-4.1'])
-      expect(grid.rows[1].cells[1]).toMatchObject({ borrowedFrom: 'default' })
-      // 自己有结果的格子不会被当成借来的。
-      expect(grid.rows[0].cells[1]?.borrowedFrom).toBeUndefined()
+        grid.rows[1].cells.map((cell) => cell?.model_name ?? null)
+      ).toEqual(['claude', null])
+      // 每行自己的目标用来触发「立即测试」。
+      expect(grid.rows[1].own?.group).toBe('vip')
       expect(grid.total).toBe(3)
     })
 
-    it('fills an empty cell from the nearest group in the same column', () => {
-      const grid = buildIqGrid([
-        status({ group: 'default', score: 100 }),
-        status({ group: 'mid', verdict: 'degraded', score: 60 }),
-        status({ group: 'vip', verdict: 'pending', score: 0 }),
-      ])
-
-      // vip 自己还没测过：拿最近的一格（mid）补上，只做视觉补齐。
-      expect(grid.rows[2].cells[0]).toMatchObject({ borrowedFrom: 'mid' })
-      expect(grid.rows[2].cells[0]?.status.score).toBe(60)
-      // 「立即测试」仍然针对 vip 自己配置的目标。
-      expect(grid.rows[2].own?.group).toBe('vip')
-    })
-
-    it('keeps a configured combination that was never probed and has no neighbour', () => {
+    it('keeps a configured combination that was never probed', () => {
       const grid = buildIqGrid([
         status(),
         status({ model_name: 'never-probed', verdict: 'pending', score: 0 }),
       ])
-      // 整列都没有结果时借不到数据，格子留给「立即测试」。
+      // 没测过也占一格：整条时间片都是灰色，等第一次探测。
       expect(grid.columns).toEqual(['gpt-4.1', 'never-probed'])
       expect(grid.total).toBe(2)
-      expect(grid.rows[0].cells[1]?.status.verdict).toBe('pending')
-      expect(grid.rows[0].cells[1]?.borrowedFrom).toBeUndefined()
+      expect(grid.rows[0].cells[1]?.verdict).toBe('pending')
     })
+  })
 
-    it('never overwrites a cell that is being tested right now', () => {
-      const grid = buildIqGrid([
-        status({ group: 'default', score: 100 }),
-        status({
-          group: 'vip',
-          verdict: 'pending',
-          score: 0,
-          testing: true,
-        }),
-      ])
-      expect(grid.columns).toEqual(['gpt-4.1'])
-      expect(grid.rows[1].cells[0]?.status.testing).toBe(true)
-      expect(grid.rows[1].cells[0]?.borrowedFrom).toBeUndefined()
+  describe('iqStripCellClass', () => {
+    it('paints a segment and fades the ones copied from the latest result', () => {
+      expect(iqStripCellClass('healthy', false)).toContain('bg-success')
+      expect(iqStripCellClass('degraded', false)).toContain('bg-warning')
+      expect(iqStripCellClass('poor', false)).toContain('bg-destructive')
+      expect(iqStripCellClass('pending', false)).toContain('bg-muted')
+      // 补出来的段落淡一点，一眼能分出观测和沿用。
+      expect(iqStripCellClass('healthy', true)).toContain('opacity-40')
     })
   })
 
