@@ -404,7 +404,7 @@ async fn sync_topup_orders(state: &AppState, now: i64) -> Result<i64> {
         SELECT
             t.id,
             t.user_id,
-            t.money,
+            t.money::DOUBLE PRECISION AS money,
             COALESCE(NULLIF(t.complete_time, 0), NULLIF(t.create_time, 0), 0) AS order_time,
             u.inviter_id,
             u."group"
@@ -486,7 +486,7 @@ async fn sync_subscription_orders(state: &AppState, now: i64) -> Result<i64> {
         SELECT
             s.id,
             s.user_id,
-            s.money,
+            s.money::DOUBLE PRECISION AS money,
             COALESCE(NULLIF(s.complete_time, 0), NULLIF(s.create_time, 0), 0) AS order_time,
             u.inviter_id,
             u."group"
