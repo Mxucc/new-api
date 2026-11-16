@@ -148,6 +148,8 @@ beforeEach(() => {
   api.getPelicanConfig.mockResolvedValue({
     targets: [{ group: 'default', model: 'gpt-4.1' }],
     interval_minutes: 30,
+    owner_user_id: 2,
+    owner_username: 'admin',
     available_targets: [
       { group: 'default', model: 'gpt-4.1' },
       { group: 'vip', model: 'gpt-4.1' },
@@ -157,6 +159,8 @@ beforeEach(() => {
   api.updatePelicanConfig.mockResolvedValue({
     targets: [{ group: 'default', model: 'gpt-4.1' }],
     interval_minutes: 30,
+    owner_user_id: 2,
+    owner_username: 'admin',
   })
   api.runPelicanTest.mockResolvedValue({ started: true })
   api.runAllPelicanTests.mockResolvedValue({ started: true, targets: 3 })
@@ -292,6 +296,46 @@ describe('model IQ actions', () => {
     expect(
       await screen.findByLabelText('Sweep interval (minutes)')
     ).toHaveValue(30)
+  })
+
+  it('configures one model per group and records the usage on the saving administrator', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.ADMIN)
+
+    await user.click(await screen.findByRole('button', { name: 'Sweep settings' }))
+
+    // 行 = 分组：两个可测分组各一行下拉，而不是一串（分组, 模型）多选。
+    expect(
+      await screen.findByTestId('pelican-config-group-default')
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('pelican-config-group-vip')).toBeInTheDocument()
+    // 用量记在保存配置的那个管理员名下。
+    expect(screen.getByTestId('pelican-config-owner')).toHaveTextContent(
+      'admin'
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(api.updatePelicanConfig).toHaveBeenCalledWith(
+        {
+          // 每个分组最多一个模型：没配过模型的 vip 分组不提交。
+          targets: [{ group: 'default', model: 'gpt-4.1' }],
+          interval_minutes: 30,
+        },
+        expect.anything()
+      )
+    })
+  })
+
+  it('tells a reader that nothing is configured yet', async () => {
+    api.getModelIqOverview.mockResolvedValue(overview([]))
+    renderPage(ROLE.USER)
+
+    expect(
+      await screen.findByText('No probe targets configured')
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('model-iq-grid')).toBeNull()
   })
 })
 

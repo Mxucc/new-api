@@ -22,6 +22,7 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import type {
   ModelIqOverview,
   PelicanConfig,
+  PelicanConfigUpdate,
   PelicanHistory,
   PelicanResult,
   PelicanStartAck,
@@ -88,9 +89,10 @@ export async function getPelicanConfig(): Promise<PelicanConfig> {
 export async function updatePelicanConfig(payload: {
   targets: PelicanTarget[]
   interval_minutes: number
-}): Promise<{ targets: PelicanTarget[]; interval_minutes: number }> {
-  const res = await api.put<
-    Envelope<{ targets: PelicanTarget[]; interval_minutes: number }>
-  >('/api/pelican/config', payload)
+}): Promise<PelicanConfigUpdate> {
+  const res = await api.put<Envelope<PelicanConfigUpdate>>(
+    '/api/pelican/config',
+    payload
+  )
   return requireServerSuccess(res.data).data
 }

@@ -58,25 +58,6 @@ export function iqDimensionLabelKey(dimension: string): string | null {
   return DIMENSION_LABEL_KEYS[dimension] ?? null
 }
 
-/**
- * （分组, 模型）组合在页面上的稳定标识：既做 React key，也做巡视设置里多选的取值。
- * 后端按同样的两个字段校验，所以这里必须能还原回组合。
- */
-export function pelicanTargetValue(target: PelicanTarget): string {
-  return `${target.group}/${target.model}`
-}
-
-export function pelicanTargetFromValue(value: string): PelicanTarget {
-  const separator = value.indexOf('/')
-  if (separator < 0) {
-    return { group: '', model: value }
-  }
-  return {
-    group: value.slice(0, separator),
-    model: value.slice(separator + 1),
-  }
-}
-
 /** 展示用的组合名：`分组 · 模型`，避免同一模型的不同分组看起来一样。 */
 export function pelicanTargetLabel(target: PelicanTarget): string {
   return `${target.group} · ${target.model}`

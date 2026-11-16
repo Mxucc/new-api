@@ -109,22 +109,44 @@ func TestGetPelicanProbeTargetsReturnsEnabledPairsInPriorityOrder(t *testing.T) 
 	}, targets)
 }
 
-func TestGetPelicanTestTargetsReadsPairsAndLegacyModelList(t *testing.T) {
-	setPelicanOption(t, PelicanTestModelsOption, `[{"group":" vip ","model":"gpt-4.1"},{"group":"vip","model":"gpt-4.1"},{"group":"","model":"  "}]`)
-	assert.Equal(t, []PelicanProbeTarget{{Group: "vip", Model: "gpt-4.1"}}, GetPelicanTestTargets())
+func TestGetPelicanTestConfigKeepsOneModelPerGroup(t *testing.T) {
+	setPelicanOption(t, PelicanTestConfigOption, `{"targets":[{"group":" vip ","model":"gpt-4.1"},{"group":"vip","model":"claude-opus"},{"group":"","model":"  "}],"interval_minutes":30,"owner_user_id":7}`)
+	cfg := GetPelicanTestConfig()
+	// 同一分组只留第一个模型，缺分组或模型的条目被丢掉。
+	assert.Equal(t, []PelicanProbeTarget{{Group: "vip", Model: "gpt-4.1"}}, cfg.Targets)
+	assert.Equal(t, 30, cfg.IntervalMinutes)
+	assert.Equal(t, 7, cfg.OwnerUserId)
 
-	// 旧格式只有模型名：分组留空，表示该模型在所有分组上都要测。
-	setPelicanOption(t, PelicanTestModelsOption, `["gpt-4.1"," claude-opus "]`)
+	// 默认空：没有配置就不探测任何组合。
+	setPelicanOption(t, PelicanTestConfigOption, `{}`)
+	assert.Empty(t, GetPelicanTestConfig().Targets)
+
+	// 内容损坏时按未配置处理，而不是退回到「全都测」。
+	setPelicanOption(t, PelicanTestConfigOption, `not-json`)
+	assert.Empty(t, GetPelicanTestConfig().Targets)
+}
+
+func TestSavePelicanTestConfigRoundTripsTargetsAndOwner(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	t.Cleanup(func() { assert.NoError(t, SavePelicanTestConfig(PelicanTestConfig{})) })
+
+	require.NoError(t, SavePelicanTestConfig(PelicanTestConfig{
+		Targets: []PelicanProbeTarget{
+			{Group: " default ", Model: " gpt-4.1 "},
+			{Group: "default", Model: "claude-opus"},
+			{Group: "vip", Model: "gpt-4.1"},
+		},
+		IntervalMinutes: 15,
+		OwnerUserId:     9,
+	}))
+
+	cfg := GetPelicanTestConfig()
 	assert.Equal(t, []PelicanProbeTarget{
-		{Group: "", Model: "gpt-4.1"},
-		{Group: "", Model: "claude-opus"},
-	}, GetPelicanTestTargets())
-
-	setPelicanOption(t, PelicanTestModelsOption, `[]`)
-	assert.Empty(t, GetPelicanTestTargets())
-
-	setPelicanOption(t, PelicanTestModelsOption, `not-json`)
-	assert.Empty(t, GetPelicanTestTargets())
+		{Group: "default", Model: "gpt-4.1"},
+		{Group: "vip", Model: "gpt-4.1"},
+	}, cfg.Targets)
+	assert.Equal(t, 15, cfg.IntervalMinutes)
+	assert.Equal(t, 9, cfg.OwnerUserId)
 }
 
 func TestGetPelicanTestHistoryFiltersByGroup(t *testing.T) {

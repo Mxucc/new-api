@@ -46,13 +46,16 @@ type testResult struct {
 }
 
 // channelTestOptions 让同一个探针既跑默认的 “hi” 健康检查，
-// 也跑鹈鹕测智这种需要较长输出、且不写消费日志的固定题面。
+// 也跑鹈鹕测智这种需要较长输出的固定题面。
 type channelTestOptions struct {
 	Prompt string
 	// MaxTokens 为 0 时沿用按模型类型推断的默认值。
 	MaxTokens uint
 	// SkipConsumeLog 为真时不为本次探针写消费日志。
 	SkipConsumeLog bool
+	// LogTokenName 是写进消费日志的令牌名；为空时用 “Model test”。
+	// 系统巡视用它打上自己的标记，管理员才能把巡视开销与真实调用分开筛。
+	LogTokenName string
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
@@ -557,8 +560,13 @@ func testChannelWithOptions(ctx context.Context, channel *model.Channel, testUse
 	}
 	info.SetEstimatePromptTokens(usage.PromptTokens)
 
-	// 鹈鹕测智这类探针只想拿到模型输出，不写消费日志，避免刷出假的测试账单记录。
+	// 鹈鹕测智这类探针默认不写消费日志，避免刷出假的测试账单记录；
+	// 系统巡视则保留日志并打上自己的令牌名，用量记在保存配置的管理员名下。
 	if !opts.SkipConsumeLog {
+		logTokenName := opts.LogTokenName
+		if logTokenName == "" {
+			logTokenName = "Model test"
+		}
 		milliseconds := time.Since(tik).Milliseconds()
 		consumedTime := float64(milliseconds) / 1000.0
 		quota, tieredResult := settleTestQuota(info, priceData, usage)
@@ -568,9 +576,9 @@ func testChannelWithOptions(ctx context.Context, channel *model.Channel, testUse
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			ModelName:        info.OriginModelName,
-			TokenName:        "Model test",
+			TokenName:        logTokenName,
 			Quota:            quota,
-			Content:          []*common.Message{common.NewMessage("Model test")},
+			Content:          []*common.Message{common.NewMessage(logTokenName)},
 			UseTimeSeconds:   int(consumedTime),
 			IsStream:         info.IsStream,
 			Group:            info.UsingGroup,

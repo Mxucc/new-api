@@ -101,12 +101,26 @@ export type PelicanHistory = {
   history: PelicanHistoryPoint[]
 }
 
-/** 后台巡视设置：要测的组合、间隔，以及当前可测与已失效的组合。 */
+/**
+ * 后台巡视设置：探测白名单（每个分组一个模型）、间隔，以及探测用量的记账管理员。
+ * 探测由系统自己跑，所有用户看同一份结果，所以这里没有「谁的探测」这一说。
+ */
 export type PelicanConfig = {
   targets: PelicanTarget[]
   interval_minutes: number
+  /** 用量记在这个管理员名下。 */
+  owner_user_id: number
+  owner_username: string
   available_targets: PelicanTarget[]
   missing_targets: PelicanTarget[]
+}
+
+/** 保存巡视设置后的回执：记账管理员由服务端按会话填写。 */
+export type PelicanConfigUpdate = {
+  targets: PelicanTarget[]
+  interval_minutes: number
+  owner_user_id: number
+  owner_username: string
 }
 /**
  * 异步触发的回执：探测在后台跑，页面只知道自己有没有真的启动一次。

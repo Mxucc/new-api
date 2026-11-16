@@ -96,10 +96,19 @@ export function ModelIq() {
     mutationFn: runAllPelicanTests,
     onSuccess: (ack) => {
       void invalidate()
-      toast.success(
-        ack.started
-          ? t('Sweep started for {{count}} models', { count: ack.targets ?? 0 })
-          : t('The sweep is already running')
+      if (ack.started) {
+        toast.success(
+          t('Sweep started for {{count}} models', {
+            count: ack.targets ?? 0,
+          })
+        )
+        return
+      }
+      // running 为真说明已有一轮在跑；否则是没配置探测项，得先去设置里配。
+      toast.info(
+        ack.running
+          ? t('The sweep is already running')
+          : t('No probe targets are configured yet')
       )
     },
     onError: (error) => handleServerError(error, t('Failed to run the test')),
@@ -129,9 +138,9 @@ export function ModelIq() {
     listContent = (
       <EmptyState
         icon={Brain}
-        title={t('No models to test yet')}
+        title={t('No probe targets configured')}
         description={t(
-          'Add a chat model to an enabled channel, then let an administrator run the pelican test.'
+          'An administrator picks one model per group in the sweep settings. Everyone sees the same results here.'
         )}
       />
     )

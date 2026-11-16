@@ -1,7 +1,6 @@
 package model
 
 import (
-	"strconv"
 	"strings"
 	"time"
 
@@ -30,12 +29,26 @@ func (PelicanTestResult) TableName() string {
 	return "pelican_test_results"
 }
 
-// PelicanProbeTarget 是一次鹈鹕探测的目标：同一个模型在不同分组可能走不同渠道，
+// PelicanProbeTarget 是一次鹈鹕探测的目标：每个分组只挑一个模型，分组不同走的渠道也不同，
 // 智商与延迟必须分开记录，否则一个分组的故障会污染另一个分组的历史。
 type PelicanProbeTarget struct {
 	Group string `json:"group"`
 	Model string `json:"model"`
 }
+
+// PelicanTestConfig 是后台的巡视设置。探测由系统自己跑，所有用户看同一份结果：
+// 测哪些分组由管理员决定，用量记在保存这份配置的管理员名下。
+type PelicanTestConfig struct {
+	// Targets 是探测白名单，每个分组最多一个模型；空表示不探测任何组合。
+	Targets []PelicanProbeTarget `json:"targets"`
+	// IntervalMinutes 是自动巡视间隔，0 表示不自动巡视。
+	IntervalMinutes int `json:"interval_minutes"`
+	// OwnerUserId 是保存这份配置的管理员，探测的用量日志记在他名下。
+	OwnerUserId int `json:"owner_user_id"`
+}
+
+// PelicanMaxIntervalMinutes 是巡视间隔上限（一天）：再长就没有巡视的意义了。
+const PelicanMaxIntervalMinutes = 1440
 
 // pelicanRetentionPerModel 限制单个模型保留的历史记录条数：趋势图靠这些元数据。
 const pelicanRetentionPerModel = 200
@@ -44,12 +57,8 @@ const pelicanRetentionPerModel = 200
 // 免得每个模型几十 KB 的动画源码把库撑大。
 const pelicanPreviewRetention = 20
 
-// 后台可配置项：参与巡视的（分组, 模型）组合（JSON 数组，留空表示自动覆盖全部可测组合）
-// 与巡视间隔分钟数（0 表示不自动巡视）。
-const (
-	PelicanTestModelsOption   = "PelicanTestModels"
-	PelicanTestIntervalOption = "PelicanTestIntervalMinutes"
-)
+// PelicanTestConfigOption 保存整份巡视设置；没有这个键就是「没有配置」，不探测。
+const PelicanTestConfigOption = "PelicanTestConfig"
 
 func pelicanOption(key string) string {
 	common.OptionMapRWMutex.RLock()
@@ -57,76 +66,51 @@ func pelicanOption(key string) string {
 	return common.OptionMap[key]
 }
 
-// pelicanTargetKey 去掉分组与模型名两侧的空白，避免配置里出现只差空格的重影条目。
-func pelicanTargetKey(target PelicanProbeTarget) PelicanProbeTarget {
-	return PelicanProbeTarget{
-		Group: strings.TrimSpace(target.Group),
-		Model: strings.TrimSpace(target.Model),
-	}
-}
-
-// GetPelicanTestTargets 返回后台配置的巡视组合；未配置时返回空切片表示自动。
-// 旧格式是只有模型名的字符串数组，读到它时把分组留空，表示「该模型在所有分组」。
-func GetPelicanTestTargets() []PelicanProbeTarget {
-	raw := strings.TrimSpace(pelicanOption(PelicanTestModelsOption))
-	if raw == "" {
-		return nil
-	}
-	var targets []PelicanProbeTarget
-	if err := common.UnmarshalJsonStr(raw, &targets); err != nil {
-		// 解码器可能先塞进若干零值元素再报错，所以旧格式单独用一个切片。
-		var legacy []string
-		if err := common.UnmarshalJsonStr(raw, &legacy); err != nil {
-			return nil
-		}
-		legacyTargets := make([]PelicanProbeTarget, 0, len(legacy))
-		for _, name := range legacy {
-			target := pelicanTargetKey(PelicanProbeTarget{Model: name})
-			if target.Model == "" {
-				continue
-			}
-			legacyTargets = append(legacyTargets, target)
-		}
-		return legacyTargets
-	}
+// pelicanConfigTargets 归一化探测目标：去掉两侧空白、丢掉缺分组或模型的条目，
+// 并保证每个分组只留一个模型——同一分组测两个模型只会让用户看到两行一样的格子。
+func pelicanConfigTargets(targets []PelicanProbeTarget) []PelicanProbeTarget {
 	cleaned := make([]PelicanProbeTarget, 0, len(targets))
-	seen := make(map[PelicanProbeTarget]struct{}, len(targets))
+	groups := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
-		target = pelicanTargetKey(target)
-		if target.Model == "" {
+		group := strings.TrimSpace(target.Group)
+		modelName := strings.TrimSpace(target.Model)
+		if group == "" || modelName == "" {
 			continue
 		}
-		if _, ok := seen[target]; ok {
+		if _, ok := groups[group]; ok {
 			continue
 		}
-		seen[target] = struct{}{}
-		cleaned = append(cleaned, target)
+		groups[group] = struct{}{}
+		cleaned = append(cleaned, PelicanProbeTarget{Group: group, Model: modelName})
 	}
 	return cleaned
 }
 
-// GetPelicanTestIntervalMinutes 返回自动巡视间隔，0 表示关闭。
-func GetPelicanTestIntervalMinutes() int {
-	minutes, err := strconv.Atoi(strings.TrimSpace(pelicanOption(PelicanTestIntervalOption)))
-	if err != nil || minutes < 0 {
-		return 0
+// GetPelicanTestConfig 读取巡视设置；内容损坏时按「未配置」处理，一个组合都不探测。
+func GetPelicanTestConfig() PelicanTestConfig {
+	cfg := PelicanTestConfig{Targets: []PelicanProbeTarget{}}
+	raw := strings.TrimSpace(pelicanOption(PelicanTestConfigOption))
+	if raw == "" {
+		return cfg
 	}
-	return minutes
+	if err := common.UnmarshalJsonStr(raw, &cfg); err != nil {
+		return PelicanTestConfig{Targets: []PelicanProbeTarget{}}
+	}
+	if cfg.IntervalMinutes < 0 || cfg.IntervalMinutes > PelicanMaxIntervalMinutes {
+		cfg.IntervalMinutes = 0
+	}
+	cfg.Targets = pelicanConfigTargets(cfg.Targets)
+	return cfg
 }
 
-// SavePelicanTestConfig 保存后台配置。两个键一起写，避免只落一半。
-func SavePelicanTestConfig(targets []PelicanProbeTarget, intervalMinutes int) error {
-	if targets == nil {
-		targets = []PelicanProbeTarget{}
-	}
-	encoded, err := common.Marshal(targets)
+// SavePelicanTestConfig 整体写入巡视设置：目标、间隔与记账身份一次落库，避免只写一半。
+func SavePelicanTestConfig(cfg PelicanTestConfig) error {
+	cfg.Targets = pelicanConfigTargets(cfg.Targets)
+	encoded, err := common.Marshal(cfg)
 	if err != nil {
 		return err
 	}
-	return UpdateOptionsBulk(map[string]string{
-		PelicanTestModelsOption:   string(encoded),
-		PelicanTestIntervalOption: strconv.Itoa(intervalMinutes),
-	})
+	return UpdateOptionsBulk(map[string]string{PelicanTestConfigOption: string(encoded)})
 }
 
 // GetPelicanProbeTargets 返回所有可测的（分组, 模型）组合：abilities 里真正启用

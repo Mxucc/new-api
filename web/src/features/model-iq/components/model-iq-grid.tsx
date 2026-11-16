@@ -126,7 +126,7 @@ export function ModelIqGrid(props: ModelIqGridProps) {
         className='text-muted-foreground bg-muted/40 rounded-xl border px-3 py-2 text-xs'
         data-testid='model-iq-grid-empty'
       >
-        {t('No test results yet. Run a pelican test to fill the grid.')}
+        {t('No test results yet. Results appear here after the next sweep.')}
       </p>
     )
   }
