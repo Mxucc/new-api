@@ -45,17 +45,64 @@ type PelicanTestConfig struct {
 	IntervalMinutes int `json:"interval_minutes"`
 	// OwnerUserId 是保存这份配置的管理员，探测的用量日志记在他名下。
 	OwnerUserId int `json:"owner_user_id"`
+	// Prompt 是发给模型的题面，留空用内置默认。
+	Prompt string `json:"prompt,omitempty"`
+	// PromptContract 是追加在题面后的交付约定，留空用内置默认。
+	PromptContract string `json:"prompt_contract,omitempty"`
+	// Description 是页面上给用户看的说明，留空用前端翻译的默认说明。
+	Description string `json:"description,omitempty"`
 }
+
+// 题面、交付约定与页面说明的内置默认值。管理员可以整体替换它们，
+// 于是同一套探测能换成别的题目，而不用改代码。
+const (
+	DefaultPelicanPrompt      = "创建一个 HTML，内容是 SVG 绘制一个鹈鹕骑自行车的 2D 动画，你不需要任何测试"
+	DefaultPelicanContract    = "只输出 HTML，不要使用 Markdown 代码块，不要解释。"
+	DefaultPelicanDescription = "每个模型收到同一条题面，分数衡量它把一条多约束指令落成可运行代码的能力。"
+)
+
+// 题面与交付约定的长度上限：题面是要发给上游的请求体，不能无限长。
+const PelicanPromptMaxRunes = 4000
 
 // PelicanMaxIntervalMinutes 是巡视间隔上限（一天）：再长就没有巡视的意义了。
 const PelicanMaxIntervalMinutes = 1440
 
-// 智商时间条的时间窗与格数：24 小时切成 24 格（每格 1 小时），和状态页一样画成一排小格子；
-// 没测过的格子用最近一次结果补上，只测过一次的组合也能看到一整条。
+// 智商时间条的时间窗与格数：24 小时按 30 分钟采样，共 48 格，和状态页一样画成一排小格子。
+// 只有真正采样到的格子着色，没采样的格子留空——一次失败只影响它自己那一格。
 const (
 	PelicanStripHours = 24
-	PelicanStripCells = 24
+	PelicanStripCells = 48
 )
+
+// EffectivePrompt 返回实际发给模型的题面（含交付约定）。
+func (cfg PelicanTestConfig) EffectivePrompt() string {
+	prompt := strings.TrimSpace(cfg.Prompt)
+	if prompt == "" {
+		prompt = DefaultPelicanPrompt
+	}
+	contract := strings.TrimSpace(cfg.PromptContract)
+	if contract == "" {
+		contract = DefaultPelicanContract
+	}
+	return prompt + "\n\n" + contract
+}
+
+// EffectiveDescription 返回页面上给用户看的说明。
+func (cfg PelicanTestConfig) EffectiveDescription() string {
+	if description := strings.TrimSpace(cfg.Description); description != "" {
+		return description
+	}
+	return DefaultPelicanDescription
+}
+
+// pelicanConfigText 归一化管理员填写的长文本：去两侧空白并限制长度。
+func pelicanConfigText(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if runes := []rune(trimmed); len(runes) > PelicanPromptMaxRunes {
+		return string(runes[:PelicanPromptMaxRunes])
+	}
+	return trimmed
+}
 
 // pelicanRetentionPerModel 限制单个模型保留的历史记录条数：趋势图靠这些元数据。
 const pelicanRetentionPerModel = 200
@@ -107,12 +154,18 @@ func GetPelicanTestConfig() PelicanTestConfig {
 		cfg.IntervalMinutes = 0
 	}
 	cfg.Targets = pelicanConfigTargets(cfg.Targets)
+	cfg.Prompt = pelicanConfigText(cfg.Prompt)
+	cfg.PromptContract = pelicanConfigText(cfg.PromptContract)
+	cfg.Description = pelicanConfigText(cfg.Description)
 	return cfg
 }
 
-// SavePelicanTestConfig 整体写入巡视设置：目标、间隔与记账身份一次落库，避免只写一半。
+// SavePelicanTestConfig 整体写入巡视设置：目标、间隔、题面与记账身份一次落库，避免只写一半。
 func SavePelicanTestConfig(cfg PelicanTestConfig) error {
 	cfg.Targets = pelicanConfigTargets(cfg.Targets)
+	cfg.Prompt = pelicanConfigText(cfg.Prompt)
+	cfg.PromptContract = pelicanConfigText(cfg.PromptContract)
+	cfg.Description = pelicanConfigText(cfg.Description)
 	encoded, err := common.Marshal(cfg)
 	if err != nil {
 		return err

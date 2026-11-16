@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -50,6 +51,10 @@ type PelicanConfigDraft = {
   /** 分组 -> 模型；不在表里的分组就是不探测。 */
   models: Record<string, string>
   intervalMinutes: string
+  /** 题面、交付约定与页面说明；空字符串表示用内置默认。 */
+  prompt: string
+  promptContract: string
+  description: string
 }
 
 export interface PelicanConfigDialogProps {
@@ -64,7 +69,13 @@ function draftFromConfig(
   for (const target of config?.targets ?? []) {
     models[target.group] = target.model
   }
-  return { models, intervalMinutes: String(config?.interval_minutes ?? 0) }
+  return {
+    models,
+    intervalMinutes: String(config?.interval_minutes ?? 0),
+    prompt: config?.prompt ?? '',
+    promptContract: config?.prompt_contract ?? '',
+    description: config?.description ?? '',
+  }
 }
 
 /**
@@ -89,6 +100,9 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
   const config = query.data
   const initialDraft = useMemo(() => draftFromConfig(config), [config])
   const draft = editing ?? initialDraft
+  // 任何一处改动都在当前草稿上打补丁，别的字段不会被清空。
+  const patchDraft = (patch: Partial<PelicanConfigDraft>) =>
+    setEditing({ ...draft, ...patch })
 
   // 行 = 分组：可测的分组与配置里已有的分组都要出现，后者可能已经没有渠道了。
   const groups = useMemo(() => {
@@ -168,9 +182,8 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
   }, [props.open])
 
   const handleModelChange = (group: string, value: string) => {
-    setEditing({
+    patchDraft({
       models: { ...draft.models, [group]: value === NO_MODEL ? '' : value },
-      intervalMinutes: draft.intervalMinutes,
     })
   }
 
@@ -186,7 +199,13 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
         targets.push({ group, model })
       }
     }
-    save.mutate({ targets, interval_minutes: intervalNumber })
+    save.mutate({
+      targets,
+      interval_minutes: intervalNumber,
+      prompt: draft.prompt,
+      prompt_contract: draft.promptContract,
+      description: draft.description,
+    })
   }
 
   const ownerName = config?.owner_username || currentUsername
@@ -301,16 +320,65 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
             value={draft.intervalMinutes}
             aria-invalid={intervalValid ? undefined : true}
             onChange={(event) =>
-              setEditing({
-                models: draft.models,
-                intervalMinutes: event.target.value,
-              })
+              patchDraft({ intervalMinutes: event.target.value })
             }
           />
           <p className='text-muted-foreground text-xs'>
             {intervalValid
               ? t('0 disables the scheduled sweep.')
               : t('Interval must be a whole number between 0 and 1440.')}
+          </p>
+        </div>
+
+        <div className='space-y-2'>
+          <Label htmlFor='pelican-probe-prompt'>{t('Probe prompt')}</Label>
+          <Textarea
+            id='pelican-probe-prompt'
+            rows={3}
+            value={draft.prompt}
+            placeholder={config?.default_prompt}
+            onChange={(event) => patchDraft({ prompt: event.target.value })}
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Leave empty to use the built-in question.')}
+          </p>
+        </div>
+
+        <div className='space-y-2'>
+          <Label htmlFor='pelican-probe-contract'>
+            {t('Delivery instruction')}
+          </Label>
+          <Textarea
+            id='pelican-probe-contract'
+            rows={2}
+            value={draft.promptContract}
+            placeholder={config?.default_contract}
+            onChange={(event) =>
+              patchDraft({ promptContract: event.target.value })
+            }
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Appended to the prompt. Leave empty to use the built-in instruction.'
+            )}
+          </p>
+        </div>
+
+        <div className='space-y-2'>
+          <Label htmlFor='pelican-probe-description'>
+            {t('Description shown to users')}
+          </Label>
+          <Textarea
+            id='pelican-probe-description'
+            rows={2}
+            value={draft.description}
+            placeholder={config?.default_description}
+            onChange={(event) =>
+              patchDraft({ description: event.target.value })
+            }
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Leave empty to use the translated default description.')}
           </p>
         </div>
       </div>

@@ -39,15 +39,17 @@ const api = vi.hoisted(() => ({
 
 vi.mock('../api', () => api)
 
-/** 四格时间条：最后一格是真实结果，其余沿用它（后端就是这么补的）。 */
+/** 四格时间条：最后一格是真实采样，其余没采到样（灰格）。 */
 function stripCells(verdict: ModelIqStatus['verdict']): ModelIqStripCell[] {
-  return Array.from({ length: 4 }, (_, index) => ({
-    start: 1700000000 + index * 1800,
-    verdict,
-    score: verdict === 'pending' ? 0 : 100,
-    tested_at: verdict === 'pending' ? 0 : 1700000000 + index * 1800,
-    filled: verdict !== 'pending' && index < 3,
-  }))
+  return Array.from({ length: 4 }, (_, index) => {
+    const sampled = verdict !== 'pending' && index === 3
+    return {
+      start: 1700000000 + index * 1800,
+      verdict: sampled ? verdict : 'pending',
+      score: sampled ? 100 : 0,
+      tested_at: sampled ? 1700000000 + index * 1800 : 0,
+    }
+  })
 }
 
 function modelStatus(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
@@ -164,6 +166,12 @@ beforeEach(() => {
     interval_minutes: 30,
     owner_user_id: 2,
     owner_username: 'admin',
+    prompt: '',
+    prompt_contract: '',
+    description: '',
+    default_prompt: 'Draw a pelican.',
+    default_contract: 'Output HTML only.',
+    default_description: 'Every model gets the same request.',
     available_targets: [
       { group: 'default', model: 'gpt-4.1' },
       { group: 'vip', model: 'gpt-4.1' },
@@ -175,6 +183,9 @@ beforeEach(() => {
     interval_minutes: 30,
     owner_user_id: 2,
     owner_username: 'admin',
+    prompt: '',
+    prompt_contract: '',
+    description: '',
   })
   api.runPelicanTest.mockResolvedValue({ started: true })
   api.runAllPelicanTests.mockResolvedValue({ started: true, targets: 3 })
@@ -233,19 +244,18 @@ describe('model IQ grid', () => {
     ).toBeInTheDocument()
   })
 
-  it('splits one result into time squares and fades the copied ones', async () => {
+  it('paints only the sampled square and leaves the rest empty', async () => {
     renderPage(ROLE.USER)
 
     const strip = await screen.findByTestId('model-iq-strip-default-gpt-4.1')
-    // 一条结果也铺成多格：最后一格是真测的，前面几格沿用最近一次结果。
     const squares = strip.querySelectorAll('span')
     expect(squares).toHaveLength(4)
+    // 最后一格是真测过的，其余三格没有采样：留灰，不借用邻近结果。
     expect(squares[3]?.className).toContain('bg-success')
-    expect(squares[3]?.className).not.toContain('opacity-40')
-    expect(squares[0]?.className).toContain('opacity-40')
+    expect(squares[0]?.className).toContain('bg-muted')
     expect(squares[0]).toHaveAttribute(
       'title',
-      expect.stringContaining('Based on the latest result')
+      expect.stringContaining('No sample')
     )
   })
 
@@ -362,6 +372,34 @@ describe('model IQ actions', () => {
     ).toHaveValue(30)
   })
 
+  it('saves a custom question and page description', async () => {
+    const user = userEvent.setup()
+    renderPage(ROLE.ADMIN)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Sweep settings' })
+    )
+    const prompt = await screen.findByLabelText('Probe prompt')
+    // 留空时用内置题面做占位提示，管理员一眼能看到默认值。
+    expect(prompt).toHaveAttribute('placeholder', 'Draw a pelican.')
+    await user.type(prompt, '画一只猫')
+    await user.type(
+      screen.getByLabelText('Description shown to users'),
+      '看谁画得好'
+    )
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(api.updatePelicanConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: '画一只猫',
+          description: '看谁画得好',
+        }),
+        expect.anything()
+      )
+    })
+  })
+
   it('configures one model per group and records the usage on the saving administrator', async () => {
     const user = userEvent.setup()
     renderPage(ROLE.ADMIN)
@@ -388,6 +426,10 @@ describe('model IQ actions', () => {
           // 每个分组最多一个模型：没配过模型的 vip 分组不提交。
           targets: [{ group: 'default', model: 'gpt-4.1' }],
           interval_minutes: 30,
+          // 题面、交付约定与说明留空表示用内置默认。
+          prompt: '',
+          prompt_contract: '',
+          description: '',
         },
         expect.anything()
       )

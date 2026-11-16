@@ -51,8 +51,8 @@ export interface ModelIqGridProps {
 }
 
 /**
- * 格子里的小格子：最近 24 小时的时间条，一段一格，和状态页一样。
- * 没有观测的段落用最近一次结果补上（淡显），所以只测过一次的组合也是一整条。
+ * 格子里的小格子：最近 24 小时按 30 分钟采样，共 48 格，和状态页一样。
+ * 只有真正采到样的格子着色，没采样的格子留灰——一次失败只红它自己那一格。
  */
 function ModelIqStrip(props: { status: ModelIqStatus }) {
   const { t, i18n } = useTranslation()
@@ -63,23 +63,22 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
   }
   return (
     <span
-      className='flex shrink-0 items-stretch gap-[3px]'
+      className='flex shrink-0 items-stretch gap-[2px]'
       data-testid={`model-iq-strip-${props.status.group}-${props.status.model_name}`}
     >
       {cells.map((cell) => {
         const when = formatTimestampRelative(cell.start, 'seconds', locale)
-        const verdict = t(iqVerdictLabelKey(cell.verdict))
+        const verdict =
+          cell.verdict === 'pending'
+            ? t('No sample')
+            : t(iqVerdictLabelKey(cell.verdict))
         return (
           <span
             key={cell.start}
-            title={
-              cell.filled
-                ? `${when} · ${verdict} · ${t('Based on the latest result')}`
-                : `${when} · ${verdict}`
-            }
+            title={`${when} · ${verdict}`}
             className={cn(
-              'h-4 w-2.5 rounded-[2px]',
-              iqStripCellClass(cell.verdict, cell.filled)
+              'h-4 w-1.5 rounded-[2px]',
+              iqStripCellClass(cell.verdict)
             )}
           />
         )
@@ -87,7 +86,6 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
     </span>
   )
 }
-
 interface ModelIqRowCellProps {
   status: ModelIqStatus
   isAdmin: boolean

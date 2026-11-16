@@ -40,14 +40,12 @@ export type PelicanTarget = {
   model: string
 }
 
-/** 时间条上一小格：一段时间的判定。没观测到的段落沿用最近一次结果。 */
+/** 时间条上一小格：只代表它自己那 30 分钟，没采到样时 verdict 是 pending。 */
 export type ModelIqStripCell = {
   start: number
   verdict: ModelIqVerdict
   score: number
   tested_at: number
-  /** 这一段没有观测，判定是从最近一次结果借来的。 */
-  filled: boolean
 }
 
 export type ModelIqStatus = {
@@ -75,7 +73,10 @@ export type ModelIqOverview = {
   models: ModelIqStatus[]
   total: number
   latest_tested_at: number
+  /** 管理员配置的题面（含交付约定）。 */
   prompt: string
+  /** 管理员配置的页面说明；为空时前端用翻译好的默认说明。 */
+  description: string
   /** 整轮巡视是否在跑。 */
   sweeping: boolean
   /** 巡视开始时间，0 表示没在跑。 */
@@ -118,8 +119,8 @@ export type PelicanHistory = {
 }
 
 /**
- * 后台巡视设置：探测白名单（每个分组一个模型）、间隔，以及探测用量的记账管理员。
- * 探测由系统自己跑，所有用户看同一份结果，所以这里没有「谁的探测」这一说。
+ * 后台巡视设置：探测白名单（每个分组一个模型）、间隔、题面与页面说明，
+ * 以及探测用量的记账管理员。探测由系统自己跑，所有用户看同一份结果。
  */
 export type PelicanConfig = {
   targets: PelicanTarget[]
@@ -127,6 +128,14 @@ export type PelicanConfig = {
   /** 用量记在这个管理员名下。 */
   owner_user_id: number
   owner_username: string
+  /** 管理员填的题面与说明；空字符串表示用内置默认。 */
+  prompt: string
+  prompt_contract: string
+  description: string
+  /** 内置默认值，设置页用作输入框的占位提示。 */
+  default_prompt: string
+  default_contract: string
+  default_description: string
   available_targets: PelicanTarget[]
   missing_targets: PelicanTarget[]
 }
@@ -137,7 +146,11 @@ export type PelicanConfigUpdate = {
   interval_minutes: number
   owner_user_id: number
   owner_username: string
+  prompt: string
+  prompt_contract: string
+  description: string
 }
+
 /**
  * 异步触发的回执：探测在后台跑，页面只知道自己有没有真的启动一次。
  * `running` 为真表示已有一次同类探测在跑，这次没有重复触发。

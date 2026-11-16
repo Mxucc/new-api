@@ -57,7 +57,6 @@ function stripCell(verdict: ModelIqVerdict): ModelIqStripCell {
     verdict,
     score: verdict === 'pending' ? 0 : 100,
     tested_at: 1700000000,
-    filled: false,
   }
 }
 
@@ -167,13 +166,12 @@ describe('summarizeModelIq', () => {
   })
 
   describe('iqStripCellClass', () => {
-    it('paints a segment and fades the ones copied from the latest result', () => {
-      expect(iqStripCellClass('healthy', false)).toContain('bg-success')
-      expect(iqStripCellClass('degraded', false)).toContain('bg-warning')
-      expect(iqStripCellClass('poor', false)).toContain('bg-destructive')
-      expect(iqStripCellClass('pending', false)).toContain('bg-muted')
-      // 补出来的段落淡一点，一眼能分出观测和沿用。
-      expect(iqStripCellClass('healthy', true)).toContain('opacity-40')
+    it('paints a sampled segment and leaves an unsampled one empty', () => {
+      expect(iqStripCellClass('healthy')).toContain('bg-success')
+      expect(iqStripCellClass('degraded')).toContain('bg-warning')
+      expect(iqStripCellClass('poor')).toContain('bg-destructive')
+      // 没采到样的格子是灰的：一次失败不会把整条时间线染红。
+      expect(iqStripCellClass('pending')).toContain('bg-muted')
     })
   })
 

@@ -82,8 +82,28 @@ func TestChatCompletionOutput(t *testing.T) {
 		assert.Contains(t, err.Error(), "no available channel")
 	})
 
-	t.Run("empty choices reports a failure", func(t *testing.T) {
-		_, err := ChatCompletionOutput([]byte(`{"choices":[]}`))
+	t.Run("stream chunks are joined into the full answer", func(t *testing.T) {
+		body := strings.Join([]string{
+			`data: {"choices":[{"delta":{"role":"assistant"}}]}`,
+			`data: {"choices":[{"delta":{"content":"<svg>"}}]}`,
+			`data: {"choices":[{"delta":{"content":"<animate/>"}}]}`,
+			`data: {"choices":[{"delta":{"content":"</svg>"}}]}`,
+			`data: [DONE]`,
+		}, "\n\n")
+		got, err := ChatCompletionOutput([]byte(body))
+		require.NoError(t, err)
+		assert.Equal(t, "<svg><animate/></svg>", got)
+	})
+
+	t.Run("stream with an error event reports it", func(t *testing.T) {
+		body := `data: {"error":{"message":"Upstream service temporarily unavailable"}}`
+		_, err := ChatCompletionOutput([]byte(body))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Upstream service temporarily unavailable")
+	})
+
+	t.Run("stream without any content event is a failure", func(t *testing.T) {
+		_, err := ChatCompletionOutput([]byte("data: [DONE]"))
 		require.Error(t, err)
 	})
 }

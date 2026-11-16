@@ -8368,8 +8368,14 @@
     "No probe targets are configured yet": "還沒有設定探測目標",
     "No test results yet. Results appear here after the next sweep.": "還沒有測試結果，下一輪巡視完成後會顯示在這裡。",
     "Test {{group}} now": "立即測試 {{group}}",
-    "Based on the latest result": "沿用最近一次結果",
     "Degraded {{percent}}": "降智 {{percent}}",
-    "Channel {{id}}": "渠道 {{id}}"
+    "Channel {{id}}": "渠道 {{id}}",
+    "No sample": "未取樣",
+    "Probe prompt": "探測題面",
+    "Delivery instruction": "交付約定",
+    "Description shown to users": "給使用者看的說明",
+    "Leave empty to use the built-in question.": "留空使用內建題目。",
+    "Appended to the prompt. Leave empty to use the built-in instruction.": "附加在題面之後；留空使用內建交付約定。",
+    "Leave empty to use the translated default description.": "留空使用翻譯好的預設說明。"
   }
 }

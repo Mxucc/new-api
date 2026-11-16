@@ -213,13 +213,14 @@ export function ModelIq() {
           <div className='space-y-4'>
             <section className='bg-card rounded-xl border p-4'>
               <p className='text-sm font-medium'>{t('Pelican IQ test')}</p>
-              <p className='text-muted-foreground mt-1 text-sm'>
-                {t(
-                  'Every model gets the same request: an SVG animation of a pelican riding a bicycle. The score shows whether it can turn a multi-constraint instruction into working code.'
-                )}
+              <p className='text-muted-foreground mt-1 text-sm whitespace-pre-line'>
+                {overview.data?.description ||
+                  t(
+                    'Every model gets the same request: an SVG animation of a pelican riding a bicycle. The score shows whether it can turn a multi-constraint instruction into working code.'
+                  )}
               </p>
-              <p className='bg-muted mt-3 rounded-lg px-3 py-2 font-mono text-xs break-all'>
-                {overview.data?.prompt ??
+              <p className='bg-muted mt-3 rounded-lg px-3 py-2 font-mono text-xs break-all whitespace-pre-line'>
+                {overview.data?.prompt ||
                   t('An SVG animation of a pelican riding a bicycle.')}
               </p>
             </section>

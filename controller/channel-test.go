@@ -56,6 +56,9 @@ type channelTestOptions struct {
 	// LogTokenName 是写进消费日志的令牌名；为空时用 “Model test”。
 	// 系统巡视用它打上自己的标记，管理员才能把巡视开销与真实调用分开筛。
 	LogTokenName string
+	// StreamCaptureBytes 是流式探针最多读回多少字节；0 表示沿用默认的 8KB 日志上限。
+	// 鹈鹕测智要把整段输出拼回来打分，需要比日志大得多的上限。
+	StreamCaptureBytes int64
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
@@ -543,7 +546,7 @@ func testChannelWithOptions(ctx context.Context, channel *model.Channel, testUse
 		}
 	}
 	result := w.Result()
-	respBody, err := readTestResponseBody(result.Body, isStream)
+	respBody, err := readTestResponseBody(result.Body, isStream, opts.StreamCaptureBytes)
 	if err != nil {
 		return testResult{
 			context:     c,
@@ -664,13 +667,17 @@ func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dt
 	}
 }
 
-func readTestResponseBody(body io.ReadCloser, isStream bool) ([]byte, error) {
+func readTestResponseBody(body io.ReadCloser, isStream bool, captureBytes int64) ([]byte, error) {
 	defer func() { _ = body.Close() }()
 	const maxStreamLogBytes = 8 << 10
-	if isStream {
-		return io.ReadAll(io.LimitReader(body, maxStreamLogBytes))
+	if !isStream {
+		return io.ReadAll(body)
 	}
-	return io.ReadAll(body)
+	limit := int64(maxStreamLogBytes)
+	if captureBytes > limit {
+		limit = captureBytes
+	}
+	return io.ReadAll(io.LimitReader(body, limit))
 }
 
 func detectErrorFromTestResponseBody(respBody []byte) error {

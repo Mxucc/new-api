@@ -87,6 +87,9 @@ export async function getPelicanConfig(): Promise<PelicanConfig> {
 export async function updatePelicanConfig(payload: {
   targets: PelicanTarget[]
   interval_minutes: number
+  prompt: string
+  prompt_contract: string
+  description: string
 }): Promise<PelicanConfigUpdate> {
   const res = await api.put<Envelope<PelicanConfigUpdate>>(
     '/api/pelican/config',

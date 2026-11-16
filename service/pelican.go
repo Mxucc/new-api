@@ -142,8 +142,17 @@ func ScorePelicanOutput(output string) PelicanScore {
 }
 
 // ChatCompletionOutput 取出站点对外返回（OpenAI 格式）的助手文本。
-// 兼容 content 为字符串或分块数组两种形态，并把推理内容排除在外。
+// 非流式读 choices[].message.content，流式把 choices[].delta.content 逐段拼起来；
+// 两种形态都兼容 content 为字符串或分块数组，并把推理内容排除在外。
 func ChatCompletionOutput(body []byte) (string, error) {
+	trimmed := strings.TrimSpace(string(body))
+	if trimmed == "" {
+		return "", fmt.Errorf("pelican response is empty")
+	}
+	if strings.HasPrefix(trimmed, "data:") || strings.Contains(trimmed, "\ndata:") {
+		return chatCompletionStreamOutput(trimmed)
+	}
+
 	var payload struct {
 		Choices []struct {
 			Message struct {
@@ -163,12 +172,58 @@ func ChatCompletionOutput(body []byte) (string, error) {
 	if len(payload.Choices) == 0 {
 		return "", fmt.Errorf("pelican response has no choices")
 	}
-	switch content := payload.Choices[0].Message.Content.(type) {
+	return pelicanContentText(payload.Choices[0].Message.Content)
+}
+
+// chatCompletionStreamOutput 把 SSE 里所有 delta.content 片段拼成完整输出。
+func chatCompletionStreamOutput(body string) (string, error) {
+	var builder strings.Builder
+	events := 0
+	for line := range strings.SplitSeq(body, "\n") {
+		payload := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "data:"))
+		if payload == "" || payload == "[DONE]" || !strings.HasPrefix(payload, "{") {
+			continue
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content any `json:"content"`
+				} `json:"delta"`
+			} `json:"choices"`
+			Error *struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := common.UnmarshalJsonStr(payload, &chunk); err != nil {
+			continue
+		}
+		if chunk.Error != nil && chunk.Error.Message != "" {
+			return "", fmt.Errorf("%s", chunk.Error.Message)
+		}
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+		text, err := pelicanContentText(chunk.Choices[0].Delta.Content)
+		if err != nil {
+			continue
+		}
+		events++
+		builder.WriteString(text)
+	}
+	if events == 0 {
+		return "", fmt.Errorf("pelican stream has no content")
+	}
+	return builder.String(), nil
+}
+
+// pelicanContentText 把 content 字段还原成文本：字符串原样返回，分块数组只取 text。
+func pelicanContentText(content any) (string, error) {
+	switch value := content.(type) {
 	case string:
-		return content, nil
+		return value, nil
 	case []any:
 		var builder strings.Builder
-		for _, part := range content {
+		for _, part := range value {
 			chunk, ok := part.(map[string]any)
 			if !ok {
 				continue
@@ -179,7 +234,7 @@ func ChatCompletionOutput(body []byte) (string, error) {
 		}
 		return builder.String(), nil
 	case nil:
-		return "", fmt.Errorf("pelican response has empty content")
+		return "", nil
 	default:
 		return "", fmt.Errorf("pelican response content is %T", content)
 	}

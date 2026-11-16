@@ -82,7 +82,7 @@ func TestPelicanProbeRegistrationExpiresAndIsTakenOver(t *testing.T) {
 	assert.False(t, pelicanProbeActive(target))
 }
 
-func TestPelicanStripWindowsFillsTheWholeStripFromOneResult(t *testing.T) {
+func TestPelicanStripWindowsPaintsOnlyTheSampledCell(t *testing.T) {
 	now := int64(1_800_000_000)
 	cellSeconds := int64(model.PelicanStripHours*3600) / model.PelicanStripCells
 	target := model.PelicanProbeTarget{Group: "default", Model: "gpt-4.1"}
@@ -90,23 +90,26 @@ func TestPelicanStripWindowsFillsTheWholeStripFromOneResult(t *testing.T) {
 		Id:        1,
 		Group:     "default",
 		ModelName: "gpt-4.1",
-		Verdict:   "healthy",
-		Score:     92,
+		Verdict:   "failed",
 		CreatedAt: now - cellSeconds/2,
 	}
-	latest := map[model.PelicanProbeTarget]*model.PelicanTestResult{target: &record}
 
-	cells := pelicanStripWindows([]model.PelicanProbeTarget{target}, latest, []model.PelicanTestResult{record}, now)[target]
+	cells := pelicanStripWindows([]model.PelicanProbeTarget{target}, []model.PelicanTestResult{record}, now)[target]
 	require.Len(t, cells, model.PelicanStripCells)
-	// 一条结果也铺满整条：观测到的那一段是真实结果，其余沿用同一判定。
+	// 一次失败只染红它自己那 30 分钟：其余格子留空，不会把整条时间线刷成红色。
+	failed := 0
 	for i, cell := range cells {
-		assert.Equal(t, "healthy", cell.Verdict, "cell %d", i)
-		assert.Equal(t, 92, cell.Score, "cell %d", i)
-		assert.Equal(t, i != model.PelicanStripCells-1, cell.Filled, "cell %d", i)
+		if cell.Verdict == "failed" {
+			failed++
+			assert.Equal(t, model.PelicanStripCells-1, i)
+			continue
+		}
+		assert.Equal(t, "pending", cell.Verdict, "cell %d", i)
 	}
+	assert.Equal(t, 1, failed)
 }
 
-func TestPelicanStripWindowsFallsBackToTheLatestResultOutsideTheWindow(t *testing.T) {
+func TestPelicanStripWindowsIgnoresResultsOutsideTheWindow(t *testing.T) {
 	now := int64(1_800_000_000)
 	target := model.PelicanProbeTarget{Group: "default", Model: "gpt-4.1"}
 	record := model.PelicanTestResult{
@@ -114,29 +117,13 @@ func TestPelicanStripWindowsFallsBackToTheLatestResultOutsideTheWindow(t *testin
 		Group:     "default",
 		ModelName: "gpt-4.1",
 		Verdict:   "degraded",
-		Score:     60,
 		CreatedAt: now - 72*3600,
 	}
-	latest := map[model.PelicanProbeTarget]*model.PelicanTestResult{target: &record}
 
-	// 窗口里没有记录：仍用最后一次结果把整条补满，而不是留一片灰。
-	cells := pelicanStripWindows([]model.PelicanProbeTarget{target}, latest, nil, now)[target]
+	cells := pelicanStripWindows([]model.PelicanProbeTarget{target}, []model.PelicanTestResult{record}, now)[target]
 	require.Len(t, cells, model.PelicanStripCells)
 	for i, cell := range cells {
-		assert.Equal(t, "degraded", cell.Verdict, "cell %d", i)
-		assert.True(t, cell.Filled, "cell %d", i)
-	}
-}
-
-func TestPelicanStripWindowsKeepsAnUntestedPairEmpty(t *testing.T) {
-	now := int64(1_800_000_000)
-	target := model.PelicanProbeTarget{Group: "vip", Model: "claude"}
-
-	cells := pelicanStripWindows([]model.PelicanProbeTarget{target}, nil, nil, now)[target]
-	require.Len(t, cells, model.PelicanStripCells)
-	for i, cell := range cells {
-		// 一次都没测过就没有「好的」可补：格子留空，等第一次探测。
+		// 窗口外的旧结果不涂到今天的格子上，整条留空。
 		assert.Equal(t, "pending", cell.Verdict, "cell %d", i)
-		assert.False(t, cell.Filled, "cell %d", i)
 	}
 }

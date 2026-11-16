@@ -20,6 +20,9 @@ import (
 // 鹈鹕测智要模型交付一整段 SVG 动画，输出上限远高于健康检查用的 “hi”。
 const pelicanProbeMaxTokens = 8000
 
+// 流式探针最多读回多少字节：整段动画源码要拼回来打分，8KB 的日志上限远远不够。
+const pelicanProbeStreamCaptureBytes = 2 << 20
+
 // 一次鹈鹕探测的单次耗时上限，超时按失败记录，避免整轮巡视卡在一个组合上。
 const pelicanProbeTimeout = 3 * time.Minute
 
@@ -65,14 +68,13 @@ type pelicanModelStatus struct {
 	Strip []pelicanStripCell `json:"strip"`
 }
 
-// pelicanStripCell 是智商时间条上的一小格。
+// pelicanStripCell 是智商时间条上的一小格：只代表它自己那 30 分钟。
+// 没采样到的格子 verdict 是 pending，界面留空——不会借用邻近结果。
 type pelicanStripCell struct {
 	Start    int64  `json:"start"`
 	Verdict  string `json:"verdict"`
 	Score    int    `json:"score"`
 	TestedAt int64  `json:"tested_at"`
-	// Filled 表示这一段没有观测，判定是从最近的一次结果借来的。
-	Filled bool `json:"filled"`
 }
 
 // isPelicanChatModel 判断模型是否属于可以回答题面的对话模型。
@@ -162,9 +164,9 @@ func pelicanStatusOf(target model.PelicanProbeTarget, available bool, result *mo
 }
 
 // pelicanStripWindows 给每个组合切出最近 PelicanStripHours 小时的时间格子。
-// 一段里的判定取该时段最新的一次结果；没有观测的段用最近的一次结果补上并标记
-// filled，于是一个只测过一次的组合也是一条完整的格子，而不是孤零零一个色块。
-func pelicanStripWindows(targets []model.PelicanProbeTarget, latest map[model.PelicanProbeTarget]*model.PelicanTestResult, recent []model.PelicanTestResult, now int64) map[model.PelicanProbeTarget][]pelicanStripCell {
+// 每格只代表它自己那 30 分钟：采到了就显示那次判定，没采到就留空（pending）。
+// 不把邻近结果涂到空格子上——否则一次失败会把整条时间线染红，看着像 24 小时全挂。
+func pelicanStripWindows(targets []model.PelicanProbeTarget, recent []model.PelicanTestResult, now int64) map[model.PelicanProbeTarget][]pelicanStripCell {
 	cellSeconds := int64(model.PelicanStripHours*3600) / model.PelicanStripCells
 	windowStart := now - int64(model.PelicanStripHours*3600)
 	slots := make(map[model.PelicanProbeTarget][]*model.PelicanTestResult, len(targets))
@@ -192,31 +194,12 @@ func pelicanStripWindows(targets []model.PelicanProbeTarget, latest map[model.Pe
 				Start:   windowStart + int64(i)*cellSeconds,
 				Verdict: service.PelicanVerdictPending,
 			}
-			if observed != nil && observed[i] != nil {
-				cells[i].Verdict = observed[i].Verdict
-				cells[i].Score = observed[i].Score
-				cells[i].TestedAt = observed[i].CreatedAt
+			if observed == nil || observed[i] == nil {
 				continue
 			}
-			// 先借窗口里最近的一次观测；整窗都没有观测时退回这个组合的最后一次结果。
-			source := latest[target]
-			for distance := 1; observed != nil && distance < len(cells); distance++ {
-				if ahead := i + distance; ahead < len(cells) && observed[ahead] != nil {
-					source = observed[ahead]
-					break
-				}
-				if behind := i - distance; behind >= 0 && observed[behind] != nil {
-					source = observed[behind]
-					break
-				}
-			}
-			if source == nil {
-				continue
-			}
-			cells[i].Verdict = source.Verdict
-			cells[i].Score = source.Score
-			cells[i].TestedAt = source.CreatedAt
-			cells[i].Filled = true
+			cells[i].Verdict = observed[i].Verdict
+			cells[i].Score = observed[i].Score
+			cells[i].TestedAt = observed[i].CreatedAt
 		}
 		strips[target] = cells
 	}
@@ -247,7 +230,7 @@ func GetPelicanOverview(c *gin.Context) {
 	for _, target := range pelicanAvailableTargets(probes) {
 		serveable[target] = struct{}{}
 	}
-	strips := pelicanStripWindows(cfg.Targets, latest, recent, now)
+	strips := pelicanStripWindows(cfg.Targets, recent, now)
 	// 只上报配置里的探测项：用户看到的行数就等于管理员配置的分组数。
 	statuses := make([]pelicanModelStatus, 0, len(cfg.Targets))
 	for _, target := range cfg.Targets {
@@ -276,7 +259,8 @@ func GetPelicanOverview(c *gin.Context) {
 			"models":           statuses,
 			"total":            len(statuses),
 			"latest_tested_at": latestTestedAt,
-			"prompt":           service.PelicanPrompt,
+			"prompt":           cfg.EffectivePrompt(),
+			"description":      cfg.EffectiveDescription(),
 			// 页面据此决定是否继续轮询：整轮巡视或任一个格子还在测就每 5 秒刷一次。
 			"sweeping":       sweeping,
 			"sweeping_since": sweepingSince,
@@ -322,15 +306,18 @@ func GetPelicanResult(c *gin.Context) {
 // runPelicanProbe 通过站点自己的渠道链路向一个模型问一次鹈鹕题面，并写好记录。
 // testUserID 是记账身份：探测照常写一条消费日志（令牌名 pelican-probe），记在
 // 保存巡视设置的管理员名下，管理员据此把巡视开销与真实调用分开核对。
-func runPelicanProbe(ctx context.Context, channel *model.Channel, modelName string, testUserID int, group string) (*model.PelicanTestResult, error) {
+func runPelicanProbe(ctx context.Context, channel *model.Channel, modelName string, testUserID int, group string, prompt string) (*model.PelicanTestResult, error) {
 	probeCtx, cancel := context.WithTimeout(ctx, pelicanProbeTimeout)
 	defer cancel()
 
 	startedAt := time.Now()
-	result := testChannelWithOptions(probeCtx, channel, testUserID, modelName, "", false, channelTestOptions{
-		Prompt:       service.PelicanPrompt + "\n\n" + service.PelicanPromptContract,
-		MaxTokens:    pelicanProbeMaxTokens,
-		LogTokenName: pelicanProbeLogTokenName,
+	// 按用户的方式请求：流式。上游网关对长时间无输出的非流式请求更容易超时并回 502，
+	// 而流式只要开头有数据就不会被判超时；整段输出由 service.ChatCompletionOutput 拼回来。
+	result := testChannelWithOptions(probeCtx, channel, testUserID, modelName, "", true, channelTestOptions{
+		Prompt:             prompt,
+		MaxTokens:          pelicanProbeMaxTokens,
+		LogTokenName:       pelicanProbeLogTokenName,
+		StreamCaptureBytes: pelicanProbeStreamCaptureBytes,
 	})
 	latencyMs := time.Since(startedAt).Milliseconds()
 
@@ -464,7 +451,7 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 	if channel == nil {
 		return pelicanModelStatus{}, errors.New("no enabled channel serves this group/model: " + group + "/" + modelName)
 	}
-	record, err := runPelicanProbe(ctx, channel, modelName, testUserID, group)
+	record, err := runPelicanProbe(ctx, channel, modelName, testUserID, group, model.GetPelicanTestConfig().EffectivePrompt())
 	if err != nil {
 		return pelicanModelStatus{}, err
 	}
@@ -635,6 +622,10 @@ func GetPelicanHistory(c *gin.Context) {
 type pelicanConfigRequest struct {
 	Targets         []model.PelicanProbeTarget `json:"targets"`
 	IntervalMinutes int                        `json:"interval_minutes"`
+	// 留空表示用内置默认：题面、交付约定与页面说明都可以整体替换。
+	Prompt         string `json:"prompt"`
+	PromptContract string `json:"prompt_contract"`
+	Description    string `json:"description"`
 }
 
 // GetPelicanConfig 返回巡视设置与可选的（分组, 模型）组合，供后台设置页使用。
@@ -666,12 +657,19 @@ func GetPelicanConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"targets":           cfg.Targets,
-			"interval_minutes":  cfg.IntervalMinutes,
-			"owner_user_id":     cfg.OwnerUserId,
-			"owner_username":    ownerUsername,
-			"available_targets": available,
-			"missing_targets":   missing,
+			"targets":          cfg.Targets,
+			"interval_minutes": cfg.IntervalMinutes,
+			"owner_user_id":    cfg.OwnerUserId,
+			"owner_username":   ownerUsername,
+			// 原样返回管理员填的题面（可能为空）：设置页要能看出哪些是自定义的。
+			"prompt":              cfg.Prompt,
+			"prompt_contract":     cfg.PromptContract,
+			"description":         cfg.Description,
+			"default_prompt":      model.DefaultPelicanPrompt,
+			"default_contract":    model.DefaultPelicanContract,
+			"default_description": model.DefaultPelicanDescription,
+			"available_targets":   available,
+			"missing_targets":     missing,
 		},
 	})
 }
@@ -727,6 +725,9 @@ func UpdatePelicanConfig(c *gin.Context) {
 		Targets:         cleaned,
 		IntervalMinutes: request.IntervalMinutes,
 		OwnerUserId:     adminUserId,
+		Prompt:          request.Prompt,
+		PromptContract:  request.PromptContract,
+		Description:     request.Description,
 	}); err != nil {
 		common.ApiError(c, err)
 		return
@@ -738,6 +739,9 @@ func UpdatePelicanConfig(c *gin.Context) {
 			"interval_minutes": request.IntervalMinutes,
 			"owner_user_id":    adminUserId,
 			"owner_username":   c.GetString("username"),
+			"prompt":           request.Prompt,
+			"prompt_contract":  request.PromptContract,
+			"description":      request.Description,
 		},
 	})
 }

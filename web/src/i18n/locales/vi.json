@@ -8368,8 +8368,14 @@
     "No probe targets are configured yet": "Chưa cấu hình mục tiêu kiểm tra",
     "No test results yet. Results appear here after the next sweep.": "Chưa có kết quả kiểm tra. Kết quả sẽ xuất hiện sau lượt kiểm tra tiếp theo.",
     "Test {{group}} now": "Kiểm tra {{group}} ngay",
-    "Based on the latest result": "Theo kết quả gần nhất",
     "Degraded {{percent}}": "Suy giảm {{percent}}",
-    "Channel {{id}}": "Kênh {{id}}"
+    "Channel {{id}}": "Kênh {{id}}",
+    "No sample": "Chưa lấy mẫu",
+    "Probe prompt": "Đề bài kiểm tra",
+    "Delivery instruction": "Yêu cầu đầu ra",
+    "Description shown to users": "Mô tả hiển thị cho người dùng",
+    "Leave empty to use the built-in question.": "Để trống để dùng câu hỏi mặc định.",
+    "Appended to the prompt. Leave empty to use the built-in instruction.": "Được nối sau đề bài. Để trống để dùng yêu cầu mặc định.",
+    "Leave empty to use the translated default description.": "Để trống để dùng mô tả mặc định đã dịch."
   }
 }

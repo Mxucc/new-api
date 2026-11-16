@@ -115,19 +115,13 @@ const STRIP_CELL_CLASSES: Record<ModelIqVerdict, string> = {
   degraded: 'bg-warning',
   poor: 'bg-destructive',
   failed: 'bg-destructive',
+  // 没采到样的格子留空：不借用邻近结果，否则一次失败会把整条时间线染红。
   pending: 'bg-muted',
 }
 
-/**
- * 时间条上一小格的颜色：实心色块，和状态页一致。用最近一次结果补出来的段落
- * 淡一点，一眼能分出「这段真的测过」和「这段是沿用的」。
- */
-export function iqStripCellClass(
-  verdict: ModelIqVerdict,
-  filled: boolean
-): string {
-  const base = STRIP_CELL_CLASSES[verdict] ?? STRIP_CELL_CLASSES.pending
-  return filled ? `${base} opacity-40` : base
+/** 时间条上一小格的颜色：实心色块，和状态页一致；没采样的格子是灰的。 */
+export function iqStripCellClass(verdict: ModelIqVerdict): string {
+  return STRIP_CELL_CLASSES[verdict] ?? STRIP_CELL_CLASSES.pending
 }
 
 /** 一行 = 一个探测项。每个分组只配一个模型，所以不需要模型列，模型名写在格子里。 */
@@ -147,23 +141,23 @@ export function buildIqRows(models: ModelIqStatus[]): IqRow[] {
 }
 
 /**
- * 降智率：时间条里「不健康」的片段占已有判定片段的比例（0–1）。
- * 用最近一次结果补出来的片段也算——那个判定本来就代表这一段的状态。
- * 一条判定都没有时返回 null，界面显示「—」。
+ * 降智率：时间条里「不健康」的采样格占已采样格的比例（0–1）。
+ * 只统计真正采到样的格子，没采样的格子不参与——否则一次失败会被摊薄成整天的结论。
+ * 一次采样都没有时返回 null，界面显示「—」。
  */
 export function iqDegradedRate(cells: ModelIqStatus['strip']): number | null {
-  let judged = 0
+  let sampled = 0
   let degraded = 0
   for (const cell of cells) {
     if (cell.verdict === 'pending') {
       continue
     }
-    judged += 1
+    sampled += 1
     if (cell.verdict !== 'healthy') {
       degraded += 1
     }
   }
-  return judged === 0 ? null : degraded / judged
+  return sampled === 0 ? null : degraded / sampled
 }
 
 /** 有探测在跑才继续轮询：整轮巡视或者任一格子还在测。 */
