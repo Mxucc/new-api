@@ -50,11 +50,12 @@ describe('service status presentation', () => {
     ])
   })
 
-  it('keeps a slot without traffic visually empty instead of green', () => {
+  it('treats a slot without traffic as available', () => {
     expect(serviceStatusCellClass('operational')).toBe('bg-success')
     expect(serviceStatusCellClass('degraded')).toBe('bg-warning')
     expect(serviceStatusCellClass('partial')).toBe('bg-destructive')
-    expect(serviceStatusCellClass('unknown')).not.toBe('bg-success')
+    // 没有流量的格子按可用处理，状态条保持连续。
+    expect(serviceStatusCellClass('unknown')).toBe('bg-success')
   })
 
   it('describes a band with a sentence a user can act on', () => {

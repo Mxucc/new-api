@@ -138,17 +138,13 @@ describe('service status page', () => {
     expect(within(vipRow).getByText('Availability 92.50%')).toBeVisible()
   })
 
-  it('renders a cell only for the time slices that carried traffic', async () => {
+  it('renders every time slice and treats empty slices as available', async () => {
     renderPage()
 
     const row = await screen.findByTestId('service-status-model-default-gpt-4.1')
     expect(within(row).getByTestId('service-status-cell-0')).toBeVisible()
-    // 第二格没有流量，因此不渲染任何格子，而不是画一个灰块。
-    expect(within(row).queryByTestId('service-status-cell-1')).toBeNull()
-    // 有数据的格子仍然按时间线条目渲染。
-    expect(
-      screen.getAllByTestId('service-status-cell-1').length
-    ).toBeGreaterThan(0)
+    // 第二格没有流量，但按可用处理，所以也要渲染出来。
+    expect(within(row).getByTestId('service-status-cell-1')).toBeVisible()
   })
 
   it('switches the window and asks for the new range', async () => {

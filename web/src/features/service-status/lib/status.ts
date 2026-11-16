@@ -52,8 +52,8 @@ const STATUS_CELL_CLASSES: Record<ServiceStatus, string> = {
   operational: 'bg-success',
   degraded: 'bg-warning',
   partial: 'bg-destructive',
-  // 没有流量的格子留灰色，不能画成绿色假装正常。
-  unknown: 'bg-muted-foreground/20',
+  // 没有流量的格子按可用处理：状态条保持连续，不画成缺失的灰块。
+  unknown: 'bg-success',
 }
 
 export function serviceStatusLabelKey(status: ServiceStatus): string {

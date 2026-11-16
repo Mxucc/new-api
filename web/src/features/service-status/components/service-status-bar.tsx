@@ -35,14 +35,13 @@ export interface ServiceStatusBarProps {
 
 /**
  * 时间轴状态条：每格代表一个时间片，颜色是那段真实请求的可用率。
- * 没有流量的格子（unknown）不渲染——整行铺满灰块会把真实故障淹掉，
- * 只画有数据的格子后留白本身就说明了「这段没有流量」。
+ * 没有流量的格子按「可用」处理：状态条要保持连续，留白反而像缺数据。
  */
 export function ServiceStatusBar(props: ServiceStatusBarProps) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const height = props.size === 'sm' ? 'h-5' : 'h-9'
-  const filledCells = props.cells.filter((cell) => cell.status !== 'unknown')
+  const filledCells = props.cells
 
   return (
     <div
