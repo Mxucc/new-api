@@ -26,6 +26,7 @@ import {
   FlaskConical,
   Gauge,
   Gift,
+  HeartPulse,
   Key,
   LayoutDashboard,
   Link2,
@@ -102,6 +103,11 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('Model IQ'),
             url: '/model-iq',
             icon: Brain,
+          },
+          {
+            title: t('Service Status'),
+            url: '/service-status',
+            icon: HeartPulse,
           },
           {
             title: t('API Keys'),

@@ -55,6 +55,8 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			pelicanAdminRoute.POST("/test", middleware.CriticalRateLimit(), controller.RunPelicanTest)
 			pelicanAdminRoute.POST("/test-all", middleware.CriticalRateLimit(), controller.RunAllPelicanTests)
+			// 被动式服务状态：只读真实请求的聚合结果，不对模型发探测。
+			apiRouter.GET("/service-status", middleware.UserAuth(), controller.GetServiceStatus)
 		}
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)

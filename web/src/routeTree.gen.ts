@@ -31,6 +31,7 @@ import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authentica
 import { Route as AuthenticatedConnectRouteImport } from './routes/_authenticated/connect'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
 import { Route as AuthenticatedModelIqRouteImport } from './routes/_authenticated/model-iq'
+import { Route as AuthenticatedServiceStatusRouteImport } from './routes/_authenticated/service-status'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
@@ -190,6 +191,12 @@ const AuthenticatedModelIqRoute = AuthenticatedModelIqRouteImport.update({
   path: '/model-iq',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedServiceStatusRoute =
+  AuthenticatedServiceStatusRouteImport.update({
+    id: '/service-status',
+    path: '/service-status',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSystemSettingsRouteRoute =
   AuthenticatedSystemSettingsRouteRouteImport.update({
     id: '/system-settings',
@@ -497,6 +504,7 @@ export interface FileRoutesByFullPath {
   '/connect': typeof AuthenticatedConnectRoute
   '/invitations': typeof AuthenticatedInvitationsRouteWithChildren
   '/model-iq': typeof AuthenticatedModelIqRoute
+  '/service-status': typeof AuthenticatedServiceStatusRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
@@ -566,6 +574,7 @@ export interface FileRoutesByTo {
   '/chat2link': typeof AuthenticatedChat2linkRoute
   '/connect': typeof AuthenticatedConnectRoute
   '/model-iq': typeof AuthenticatedModelIqRoute
+  '/service-status': typeof AuthenticatedServiceStatusRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
@@ -640,6 +649,7 @@ export interface FileRoutesById {
   '/_authenticated/connect': typeof AuthenticatedConnectRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRouteWithChildren
   '/_authenticated/model-iq': typeof AuthenticatedModelIqRoute
+  '/_authenticated/service-status': typeof AuthenticatedServiceStatusRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
@@ -713,6 +723,7 @@ export interface FileRouteTypes {
     | '/connect'
     | '/invitations'
     | '/model-iq'
+    | '/service-status'
     | '/oauth/$provider'
     | '/about/'
     | '/pricing/'
@@ -782,6 +793,7 @@ export interface FileRouteTypes {
     | '/chat2link'
     | '/connect'
     | '/model-iq'
+    | '/service-status'
     | '/oauth/$provider'
     | '/about'
     | '/pricing'
@@ -855,6 +867,7 @@ export interface FileRouteTypes {
     | '/_authenticated/connect'
     | '/_authenticated/invitations'
     | '/_authenticated/model-iq'
+    | '/_authenticated/service-status'
     | '/oauth/$provider'
     | '/about/'
     | '/pricing/'
@@ -1078,6 +1091,13 @@ declare module '@tanstack/react-router' {
       path: '/model-iq'
       fullPath: '/model-iq'
       preLoaderRoute: typeof AuthenticatedModelIqRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/service-status': {
+      id: '/_authenticated/service-status'
+      path: '/service-status'
+      fullPath: '/service-status'
+      preLoaderRoute: typeof AuthenticatedServiceStatusRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/system-settings': {
@@ -1538,6 +1558,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedConnectRoute: typeof AuthenticatedConnectRoute
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRouteWithChildren
   AuthenticatedModelIqRoute: typeof AuthenticatedModelIqRoute
+  AuthenticatedServiceStatusRoute: typeof AuthenticatedServiceStatusRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -1570,6 +1591,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedConnectRoute: AuthenticatedConnectRoute,
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRouteWithChildren,
   AuthenticatedModelIqRoute: AuthenticatedModelIqRoute,
+  AuthenticatedServiceStatusRoute: AuthenticatedServiceStatusRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,

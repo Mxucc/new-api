@@ -50,6 +50,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"GET /api/rankings":                   accessTokenAnyRule,
 	"GET /api/pelican/overview":           accessTokenAnyRule,
 	"GET /api/pelican/results/:id":        accessTokenAnyRule,
+	"GET /api/service-status":             accessTokenAnyRule,
 	"POST /api/pelican/test":              accessTokenScopeRule("model:write"),
 	"POST /api/pelican/test-all":          accessTokenScopeRule("model:write"),
 	"POST /api/oauth/state":               accessTokenSessionRule,

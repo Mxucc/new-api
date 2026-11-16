@@ -1,0 +1,220 @@
+package service
+
+import (
+	"sort"
+	"time"
+)
+
+// 服务状态页是被动式的：它只读真实请求留下的聚合数据（perf_metrics），
+// 不对模型额外发探测请求，所以状态反映的是「用户实际调用时发生了什么」。
+const (
+	ServiceStatusOperational = "operational" // 可用率 >= 99%
+	ServiceStatusDegraded    = "degraded"    // 可用率 >= 95%
+	ServiceStatusPartial     = "partial"     // 低于 95%
+	ServiceStatusUnknown     = "unknown"     // 区间内没有流量
+)
+
+// serviceStatusCellCount 是状态条上的格子数量，窗口多长都保持同样的视觉密度。
+const serviceStatusCellCount = 48
+
+// ServiceStatusSample 是一个模型在一个时间桶里的被动采样结果。
+type ServiceStatusSample struct {
+	Model     string
+	BucketTs  int64
+	Requests  int64
+	Successes int64
+	LatencyMs int64
+}
+
+type ServiceStatusCell struct {
+	Start       int64   `json:"start"`
+	Requests    int64   `json:"requests"`
+	SuccessRate float64 `json:"success_rate"`
+	Status      string  `json:"status"`
+}
+
+type ServiceStatusModel struct {
+	ModelName    string              `json:"model_name"`
+	Requests     int64               `json:"requests"`
+	SuccessRate  float64             `json:"success_rate"`
+	AvgLatencyMs int64               `json:"avg_latency_ms"`
+	Status       string              `json:"status"`
+	Cells        []ServiceStatusCell `json:"cells"`
+}
+
+type ServiceStatusView struct {
+	GeneratedAt int64                `json:"generated_at"`
+	WindowHours int                  `json:"window_hours"`
+	WindowStart int64                `json:"window_start"`
+	WindowEnd   int64                `json:"window_end"`
+	CellSeconds int64                `json:"cell_seconds"`
+	DataThrough int64                `json:"data_through"`
+	Requests    int64                `json:"requests"`
+	SuccessRate float64              `json:"success_rate"`
+	Status      string               `json:"status"`
+	Cells       []ServiceStatusCell  `json:"cells"`
+	Models      []ServiceStatusModel `json:"models"`
+}
+
+// ServiceStatusOfSuccessRate 把可用率换算成状态档位；没有流量时返回 unknown，
+// 不把「没人用」当成「挂了」。
+func ServiceStatusOfSuccessRate(successRate float64, requests int64) string {
+	if requests <= 0 {
+		return ServiceStatusUnknown
+	}
+	switch {
+	case successRate >= 99:
+		return ServiceStatusOperational
+	case successRate >= 95:
+		return ServiceStatusDegraded
+	default:
+		return ServiceStatusPartial
+	}
+}
+
+// successRatePercent 返回两位小数的可用率百分比，和性能页的口径一致。
+func successRatePercent(successes, requests int64) float64 {
+	if requests <= 0 {
+		return 0
+	}
+	rate := float64(successes) / float64(requests) * 100
+	return float64(int64(rate*100+0.5)) / 100
+}
+
+type serviceStatusCounters struct {
+	requests  int64
+	successes int64
+	latencyMs int64
+}
+
+func (c *serviceStatusCounters) add(other serviceStatusCounters) {
+	c.requests += other.requests
+	c.successes += other.successes
+	c.latencyMs += other.latencyMs
+}
+
+func (c serviceStatusCounters) cell(start int64) ServiceStatusCell {
+	return ServiceStatusCell{
+		Start:       start,
+		Requests:    c.requests,
+		SuccessRate: successRatePercent(c.successes, c.requests),
+		Status:      ServiceStatusOfSuccessRate(successRatePercent(c.successes, c.requests), c.requests),
+	}
+}
+
+// emptyServiceStatusCells 先铺满格子，没有流量的格子保持 unknown，
+// 这样状态条的时间轴始终完整。
+func emptyServiceStatusCells(windowStart, cellSeconds int64) []ServiceStatusCell {
+	cells := make([]ServiceStatusCell, serviceStatusCellCount)
+	for i := range cells {
+		cells[i] = ServiceStatusCell{
+			Start:  windowStart + int64(i)*cellSeconds,
+			Status: ServiceStatusUnknown,
+		}
+	}
+	return cells
+}
+
+// BuildServiceStatus 把被动采样聚合成状态页数据。
+// 时间桶按固定格子宽度落位；窗口内没有流量的格子留 unknown。
+func BuildServiceStatus(samples []ServiceStatusSample, hours int, now time.Time) ServiceStatusView {
+	if hours <= 0 {
+		hours = 24
+	}
+	windowSeconds := int64(hours) * 3600
+	windowEnd := now.Unix()
+	windowStart := windowEnd - windowSeconds
+	cellSeconds := windowSeconds / serviceStatusCellCount
+	if cellSeconds <= 0 {
+		cellSeconds = 1
+	}
+
+	cells := emptyServiceStatusCells(windowStart, cellSeconds)
+	totals := make([]serviceStatusCounters, serviceStatusCellCount)
+	modelTotals := map[string]*serviceStatusCounters{}
+	modelCells := map[string][]serviceStatusCounters{}
+	var overall serviceStatusCounters
+	dataThrough := int64(0)
+
+	for _, sample := range samples {
+		if sample.BucketTs < windowStart || sample.BucketTs > windowEnd {
+			continue
+		}
+		if sample.Requests <= 0 {
+			continue
+		}
+		index := int((sample.BucketTs - windowStart) / cellSeconds)
+		if index < 0 || index >= serviceStatusCellCount {
+			index = serviceStatusCellCount - 1
+		}
+		counters := serviceStatusCounters{
+			requests:  sample.Requests,
+			successes: sample.Successes,
+			latencyMs: sample.LatencyMs,
+		}
+		totals[index].add(counters)
+		overall.add(counters)
+		if sample.BucketTs > dataThrough {
+			dataThrough = sample.BucketTs
+		}
+
+		total, ok := modelTotals[sample.Model]
+		if !ok {
+			total = &serviceStatusCounters{}
+			modelTotals[sample.Model] = total
+			modelCells[sample.Model] = make([]serviceStatusCounters, serviceStatusCellCount)
+		}
+		total.add(counters)
+		modelCells[sample.Model][index].add(counters)
+	}
+
+	for i, counters := range totals {
+		cells[i] = counters.cell(windowStart + int64(i)*cellSeconds)
+	}
+
+	overallRate := successRatePercent(overall.successes, overall.requests)
+	models := make([]ServiceStatusModel, 0, len(modelTotals))
+	for name, total := range modelTotals {
+		rate := successRatePercent(total.successes, total.requests)
+		cells := emptyServiceStatusCells(windowStart, cellSeconds)
+		for i, counters := range modelCells[name] {
+			cells[i] = counters.cell(windowStart + int64(i)*cellSeconds)
+		}
+		models = append(models, ServiceStatusModel{
+			ModelName:    name,
+			Requests:     total.requests,
+			SuccessRate:  rate,
+			AvgLatencyMs: averageLatency(total),
+			Status:       ServiceStatusOfSuccessRate(rate, total.requests),
+			Cells:        cells,
+		})
+	}
+	// 流量最大的模型排前面：状态页先回答「主力模型现在怎么样」。
+	sort.Slice(models, func(i, j int) bool {
+		if models[i].Requests != models[j].Requests {
+			return models[i].Requests > models[j].Requests
+		}
+		return models[i].ModelName < models[j].ModelName
+	})
+
+	return ServiceStatusView{
+		GeneratedAt: windowEnd,
+		WindowHours: hours,
+		WindowStart: windowStart,
+		WindowEnd:   windowEnd,
+		CellSeconds: cellSeconds,
+		DataThrough: dataThrough,
+		Requests:    overall.requests,
+		SuccessRate: overallRate,
+		Status:      ServiceStatusOfSuccessRate(overallRate, overall.requests),
+		Cells:       cells,
+		Models:      models,
+	}
+}
+
+func averageLatency(counters *serviceStatusCounters) int64 {
+	if counters == nil || counters.requests <= 0 {
+		return 0
+	}
+	return counters.latencyMs / counters.requests
+}
