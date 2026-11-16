@@ -130,52 +130,40 @@ export function iqStripCellClass(
   return filled ? `${base} opacity-40` : base
 }
 
-export type IqGridRow = {
+/** 一行 = 一个探测项。每个分组只配一个模型，所以不需要模型列，模型名写在格子里。 */
+export type IqRow = {
   group: string
-  /** 这一行自己配置的目标，用于「立即测试」。 */
-  own: ModelIqStatus | null
-  /** 与 columns 一一对应：该分组在这个模型上没有记录时留空。 */
-  cells: (ModelIqStatus | null)[]
+  status: ModelIqStatus
 }
 
-export type IqGrid = {
-  /** 列 = 分组配置的模型，按名称排序，使各行对齐。 */
-  columns: string[]
-  rows: IqGridRow[]
-  /** 真正画出来的组合数。 */
-  total: number
+export function buildIqRows(models: ModelIqStatus[]): IqRow[] {
+  return [...models]
+    .sort(
+      (a, b) =>
+        a.group.localeCompare(b.group) ||
+        a.model_name.localeCompare(b.model_name)
+    )
+    .map((status) => ({ group: status.group, status }))
 }
 
 /**
- * 行 = 分组，列 = 分组配置的模型。矩阵里的空格只表示「这一行没有这个模型」，
- * 时间上的留白交给每个格子自己的时间条去补（后端已经把最近 24 小时切成小格）。
+ * 降智率：时间条里「不健康」的片段占已有判定片段的比例（0–1）。
+ * 用最近一次结果补出来的片段也算——那个判定本来就代表这一段的状态。
+ * 一条判定都没有时返回 null，界面显示「—」。
  */
-export function buildIqGrid(models: ModelIqStatus[]): IqGrid {
-  const columns = [...new Set(models.map((status) => status.model_name))].sort(
-    (a, b) => a.localeCompare(b)
-  )
-  const byGroup = new Map<string, Map<string, ModelIqStatus>>()
-  for (const status of models) {
-    const byModel = byGroup.get(status.group) ?? new Map()
-    byModel.set(status.model_name, status)
-    byGroup.set(status.group, byModel)
+export function iqDegradedRate(cells: ModelIqStatus['strip']): number | null {
+  let judged = 0
+  let degraded = 0
+  for (const cell of cells) {
+    if (cell.verdict === 'pending') {
+      continue
+    }
+    judged += 1
+    if (cell.verdict !== 'healthy') {
+      degraded += 1
+    }
   }
-  const rows: IqGridRow[] = [...byGroup.keys()]
-    .sort((a, b) => a.localeCompare(b))
-    .map((group) => {
-      const byModel = byGroup.get(group)
-      const own =
-        columns
-          .map((name) => byModel?.get(name))
-          .find((status): status is ModelIqStatus => status !== undefined) ??
-        null
-      return {
-        group,
-        own,
-        cells: columns.map((name) => byModel?.get(name) ?? null),
-      }
-    })
-  return { columns, rows, total: models.length }
+  return judged === 0 ? null : degraded / judged
 }
 
 /** 有探测在跑才继续轮询：整轮巡视或者任一格子还在测。 */

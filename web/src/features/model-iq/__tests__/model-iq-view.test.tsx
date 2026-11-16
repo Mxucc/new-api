@@ -186,14 +186,17 @@ afterEach(() => {
 })
 
 describe('model IQ grid', () => {
-  it('shows a cell with its own score for every group and model pair', async () => {
+  it('shows one row per group with its model and degraded rate', async () => {
     renderPage(ROLE.USER)
 
+    // 每个分组只测一个模型：模型名写在格子里，不再有模型列。
     const cell = await screen.findByTestId('model-iq-cell-default-gpt-4.1')
-    expect(cell).toHaveTextContent('100')
-    // 同一模型在 vip 分组是另一格，分数不同。
+    expect(cell).toHaveTextContent('gpt-4.1')
+    // 全健康的一组降智率是 0。
+    expect(cell).toHaveTextContent('Degraded 0%')
+    // vip 分组的判定是 degraded：整条时间片都不健康，降智率 100%。
     expect(screen.getByTestId('model-iq-cell-vip-gpt-4.1')).toHaveTextContent(
-      '65'
+      'Degraded 100%'
     )
     expect(screen.getAllByText('default').length).toBeGreaterThan(0)
     expect(screen.getAllByText('vip').length).toBeGreaterThan(0)
@@ -254,8 +257,9 @@ describe('model IQ grid', () => {
     renderPage(ROLE.USER)
 
     const cell = await screen.findByTestId('model-iq-cell-default-claude')
-    // 正在测的格子不拿上一次的分数冒充结论，只显示加载态。
-    expect(cell).toHaveTextContent('')
+    // 正在测的格子不拿上一次的分数冒充结论：只显示模型名和加载态。
+    expect(cell).toHaveTextContent('claude')
+    expect(cell).not.toHaveTextContent('Degraded')
     expect(cell.querySelector('svg')).not.toBeNull()
     expect(cell).toHaveAccessibleName('default · claude Healthy')
   })

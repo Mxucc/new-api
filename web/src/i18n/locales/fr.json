@@ -8368,6 +8368,7 @@
     "No probe targets are configured yet": "Aucune cible de test n'est encore configurée",
     "No test results yet. Results appear here after the next sweep.": "Pas encore de résultats. Ils apparaîtront ici après la prochaine tournée.",
     "Test {{group}} now": "Tester {{group}} maintenant",
-    "Based on the latest result": "Repris du dernier résultat"
+    "Based on the latest result": "Repris du dernier résultat",
+    "Degraded {{percent}}": "Dégradé {{percent}}"
   }
 }

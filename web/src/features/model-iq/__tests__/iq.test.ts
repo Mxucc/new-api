@@ -19,8 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildIqGrid,
+  buildIqRows,
   iqCellClass,
+  iqDegradedRate,
   iqDimensionLabelKey,
   iqHasScore,
   iqNeedsPolling,
@@ -30,7 +31,7 @@ import {
   pelicanTargetLabel,
   summarizeModelIq,
 } from '../lib/iq'
-import type { ModelIqStatus, ModelIqVerdict } from '../types'
+import type { ModelIqStatus, ModelIqStripCell, ModelIqVerdict } from '../types'
 
 function status(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
   return {
@@ -46,6 +47,16 @@ function status(overrides: Partial<ModelIqStatus> = {}): ModelIqStatus {
     testing: false,
     strip: [],
     ...overrides,
+  }
+}
+
+function stripCell(verdict: ModelIqVerdict): ModelIqStripCell {
+  return {
+    start: 1700000000,
+    verdict,
+    score: verdict === 'pending' ? 0 : 100,
+    tested_at: 1700000000,
+    filled: false,
   }
 }
 
@@ -118,38 +129,39 @@ describe('summarizeModelIq', () => {
     })
   })
 
-  describe('buildIqGrid', () => {
-    it('lays out groups as rows and configured models as columns', () => {
-      const grid = buildIqGrid([
-        status({ model_name: 'gpt-4.1' }),
-        status({ model_name: 'claude', verdict: 'degraded', score: 65 }),
+  describe('buildIqRows', () => {
+    it('puts one probe per row, sorted by group, without a model column', () => {
+      const rows = buildIqRows([
         status({ group: 'vip', model_name: 'claude', verdict: 'poor' }),
+        status({ group: 'default', model_name: 'gpt-4.1' }),
       ])
 
-      expect(grid.columns).toEqual(['claude', 'gpt-4.1'])
-      expect(grid.rows.map((row) => row.group)).toEqual(['default', 'vip'])
-      expect(grid.rows[0].cells.map((cell) => cell?.model_name)).toEqual([
-        'claude',
+      expect(rows.map((row) => row.group)).toEqual(['default', 'vip'])
+      // 模型名跟着行一起走：页面上不再有模型列。
+      expect(rows.map((row) => row.status.model_name)).toEqual([
         'gpt-4.1',
+        'claude',
       ])
-      // vip 分组没有 gpt-4.1：这一列留空，列才对得上。
+    })
+  })
+
+  describe('iqDegradedRate', () => {
+    it('counts the unhealthy segments of the strip', () => {
       expect(
-        grid.rows[1].cells.map((cell) => cell?.model_name ?? null)
-      ).toEqual(['claude', null])
-      // 每行自己的目标用来触发「立即测试」。
-      expect(grid.rows[1].own?.group).toBe('vip')
-      expect(grid.total).toBe(3)
+        iqDegradedRate([
+          stripCell('healthy'),
+          stripCell('healthy'),
+          stripCell('degraded'),
+          stripCell('failed'),
+        ])
+      ).toBe(0.5)
     })
 
-    it('keeps a configured combination that was never probed', () => {
-      const grid = buildIqGrid([
-        status(),
-        status({ model_name: 'never-probed', verdict: 'pending', score: 0 }),
-      ])
-      // 没测过也占一格：整条时间片都是灰色，等第一次探测。
-      expect(grid.columns).toEqual(['gpt-4.1', 'never-probed'])
-      expect(grid.total).toBe(2)
-      expect(grid.rows[0].cells[1]?.verdict).toBe('pending')
+    it('ignores segments without any verdict', () => {
+      expect(
+        iqDegradedRate([stripCell('pending'), stripCell('pending')])
+      ).toBeNull()
+      expect(iqDegradedRate([stripCell('pending'), stripCell('poor')])).toBe(1)
     })
   })
 

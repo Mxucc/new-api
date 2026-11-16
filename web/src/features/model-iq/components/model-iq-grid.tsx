@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CircleX, Loader2, Play } from 'lucide-react'
+import { Loader2, Play } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,13 +28,13 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatNumber, formatTimestampRelative } from '@/lib/format'
+import { formatTimestampRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import {
-  buildIqGrid,
+  buildIqRows,
   iqCellClass,
-  iqHasScore,
+  iqDegradedRate,
   iqStripCellClass,
   iqVerdictLabelKey,
   pelicanTargetLabel,
@@ -50,19 +50,11 @@ export interface ModelIqGridProps {
   onRun: (target: PelicanTarget) => void
 }
 
-interface ModelIqCellProps {
-  status: ModelIqStatus
-  isAdmin: boolean
-  onPreview: (status: ModelIqStatus) => void
-  onHistory: (status: ModelIqStatus) => void
-  onRun: (target: PelicanTarget) => void
-}
-
 /**
  * 格子里的小格子：最近 24 小时的时间条，一段一格，和状态页一样。
  * 没有观测的段落用最近一次结果补上（淡显），所以只测过一次的组合也是一整条。
  */
-function ModelIqCellStrip(props: { status: ModelIqStatus }) {
+function ModelIqStrip(props: { status: ModelIqStatus }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const cells = props.status.strip
@@ -96,22 +88,33 @@ function ModelIqCellStrip(props: { status: ModelIqStatus }) {
   )
 }
 
-/** 一个（分组, 模型）格子：时间条 + 分数，悬停看概要，点击看完整历史。 */
-function ModelIqCell(props: ModelIqCellProps) {
+interface ModelIqRowCellProps {
+  status: ModelIqStatus
+  isAdmin: boolean
+  onPreview: (status: ModelIqStatus) => void
+  onHistory: (status: ModelIqStatus) => void
+  onRun: (target: PelicanTarget) => void
+}
+
+/**
+ * 一格 = 一个分组的探测项。每个分组只配一个模型，所以没有模型列：
+ * 模型名写在格子里，右侧标降智率，下面一条 24 小时的时间条。
+ */
+function ModelIqRowCell(props: ModelIqRowCellProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const status = props.status
-  const scored = iqHasScore(status.verdict)
+  const rate = iqDegradedRate(status.strip)
 
-  let cellContent = <span>—</span>
+  let summary = <span>—</span>
   if (status.testing) {
-    cellContent = (
-      <Loader2 className='size-3.5 animate-spin' aria-hidden='true' />
+    summary = <Loader2 className='size-3 animate-spin' aria-hidden='true' />
+  } else if (rate !== null) {
+    summary = (
+      <span className={rate > 0 ? 'text-warning' : undefined}>
+        {t('Degraded {{percent}}', { percent: `${Math.round(rate * 100)}%` })}
+      </span>
     )
-  } else if (scored) {
-    cellContent = <span>{formatNumber(status.score)}</span>
-  } else if (status.verdict === 'failed') {
-    cellContent = <CircleX className='size-3.5' aria-hidden='true' />
   }
 
   return (
@@ -129,13 +132,18 @@ function ModelIqCell(props: ModelIqCellProps) {
             })} ${t(iqVerdictLabelKey(status.verdict))}`}
             onClick={() => props.onHistory(status)}
             className={cn(
-              'flex h-11 min-w-0 flex-col items-stretch justify-center gap-1 rounded-md border px-1 py-1 text-sm font-semibold tabular-nums transition-colors',
-              'hover:brightness-105 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+              'flex w-full min-w-0 flex-col gap-1 rounded-md border px-2 py-1.5 text-left transition-colors',
+              'hover:brightness-105 focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
               iqCellClass(status.verdict)
             )}
           >
-            <ModelIqCellStrip status={status} />
-            <span className='text-center leading-none'>{cellContent}</span>
+            <span className='flex min-w-0 items-center justify-between gap-2 text-xs'>
+              <span className='min-w-0 truncate font-medium'>
+                {status.model_name}
+              </span>
+              <span className='shrink-0 tabular-nums'>{summary}</span>
+            </span>
+            <ModelIqStrip status={status} />
           </button>
         }
       />
@@ -154,18 +162,18 @@ function ModelIqCell(props: ModelIqCellProps) {
 }
 
 /**
- * 行 = 分组，列 = 分组配置的模型。铺开成网格而不是表格，
+ * 一行 = 一个分组（每行只配一个模型，所以没有模型列）。铺成列表而不是表格，
  * 是为了让一屏内的对比靠颜色就够，细节留给悬停与点击；
  * 管理员每行末尾还有一个「立即测试」按钮，点了就在后台跑一次，不用等整轮巡视。
  */
 export function ModelIqGrid(props: ModelIqGridProps) {
   const { t } = useTranslation()
-  const grid = useMemo(() => buildIqGrid(props.models), [props.models])
+  const rows = useMemo(() => buildIqRows(props.models), [props.models])
   // 列宽随模型名伸缩，网格模板只能按当前列数动态生成；管理员多一列动作。
-  const templateColumns = `minmax(5.5rem, max-content) repeat(${grid.columns.length}, minmax(4.5rem, 1fr))${props.isAdmin ? ' minmax(2rem, max-content)' : ''}`
+  const templateColumns = `minmax(5.5rem, max-content) minmax(0, 1fr)${props.isAdmin ? ' minmax(2rem, max-content)' : ''}`
 
-  // 一个结果都没有时不留空网格：空壳子会被误读成「全挂了」。
-  if (grid.total === 0) {
+  // 一个探测项都没有时不留空列表：空壳子会被误读成「全挂了」。
+  if (rows.length === 0) {
     return (
       <p
         className='text-muted-foreground bg-muted/40 rounded-xl border px-3 py-2 text-xs'
@@ -177,91 +185,61 @@ export function ModelIqGrid(props: ModelIqGridProps) {
   }
 
   return (
-    <div className='overflow-x-auto' data-testid='model-iq-grid'>
-      <div className='min-w-max space-y-1'>
-        <div
-          className='grid items-end gap-1'
-          style={{ gridTemplateColumns: templateColumns }}
-        >
-          <span className='text-muted-foreground px-1 text-xs'>
-            {t('Group')}
-          </span>
-          {grid.columns.map((modelName) => (
-            <span
-              key={modelName}
-              title={modelName}
-              className='text-muted-foreground truncate px-1 text-center text-xs'
-            >
-              {modelName}
-            </span>
-          ))}
-          {props.isAdmin ? <span aria-hidden='true' /> : null}
-        </div>
+    <div className='space-y-1' data-testid='model-iq-grid'>
+      <div
+        className='grid items-end gap-2 px-1'
+        style={{ gridTemplateColumns: templateColumns }}
+      >
+        <span className='text-muted-foreground text-xs'>{t('Group')}</span>
+        <span className='text-muted-foreground text-center text-xs'>
+          {t('Last 24 hours')}
+        </span>
+        {props.isAdmin ? <span aria-hidden='true' /> : null}
+      </div>
 
-        {grid.rows.map((row) => {
-          // 每行只配一个模型：动作按钮落在这个分组自己配置的目标上。
-          const own = row.own
-          return (
-            <div
-              key={row.group}
-              className='grid items-center gap-1'
-              style={{ gridTemplateColumns: templateColumns }}
-              data-testid={`model-iq-row-${row.group}`}
-            >
-              <GroupBadge group={row.group} copyable={false} />
-              {row.cells.map((status, index) =>
-                status ? (
-                  <ModelIqCell
-                    key={status.model_name}
-                    status={status}
-                    isAdmin={props.isAdmin}
-                    onPreview={props.onPreview}
-                    onHistory={props.onHistory}
-                    onRun={props.onRun}
+      {rows.map((row) => (
+        <div
+          key={`${row.group}/${row.status.model_name}`}
+          className='grid items-center gap-2'
+          style={{ gridTemplateColumns: templateColumns }}
+          data-testid={`model-iq-row-${row.group}`}
+        >
+          <GroupBadge group={row.group} copyable={false} />
+          <ModelIqRowCell
+            status={row.status}
+            isAdmin={props.isAdmin}
+            onPreview={props.onPreview}
+            onHistory={props.onHistory}
+            onRun={props.onRun}
+          />
+          {props.isAdmin ? (
+            <div className='flex justify-end'>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                title={t('Test {{group}} now', { group: row.group })}
+                aria-label={t('Test {{group}} now', { group: row.group })}
+                disabled={row.status.testing}
+                onClick={() =>
+                  props.onRun({
+                    group: row.group,
+                    model: row.status.model_name,
+                  })
+                }
+              >
+                {row.status.testing ? (
+                  <Loader2
+                    className='size-3.5 animate-spin'
+                    aria-hidden='true'
                   />
                 ) : (
-                  // 这一行没有这个模型：留一个空槽，列才对得上。
-                  <span
-                    key={grid.columns[index]}
-                    aria-hidden='true'
-                    className='border-border/50 h-11 rounded-md border border-dashed'
-                  />
-                )
-              )}
-              {props.isAdmin ? (
-                <div className='flex justify-end'>
-                  {own ? (
-                    <Button
-                      variant='ghost'
-                      size='icon-sm'
-                      title={t('Test {{group}} now', { group: row.group })}
-                      aria-label={t('Test {{group}} now', {
-                        group: row.group,
-                      })}
-                      disabled={own.testing}
-                      onClick={() =>
-                        props.onRun({
-                          group: own.group,
-                          model: own.model_name,
-                        })
-                      }
-                    >
-                      {own.testing ? (
-                        <Loader2
-                          className='size-3.5 animate-spin'
-                          aria-hidden='true'
-                        />
-                      ) : (
-                        <Play className='size-3.5' aria-hidden='true' />
-                      )}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
+                  <Play className='size-3.5' aria-hidden='true' />
+                )}
+              </Button>
             </div>
-          )
-        })}
-      </div>
+          ) : null}
+        </div>
+      ))}
     </div>
   )
 }
