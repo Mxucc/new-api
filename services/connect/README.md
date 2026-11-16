@@ -10,7 +10,7 @@
 
 ### 模式 A：同域路径（推荐）
 
-通过 `BASE_PATH` 将 Connect 挂载到主站路径下（如 `dli.li/connect/`），天然共享 session cookie，无需任何 cookie 改写。
+通过 `BASE_PATH` 将 Connect 挂载到主站路径下（如 `example.com/connect/`），天然共享 session cookie，无需任何 cookie 改写。
 
 ```
 ┌──────────────┐     ┌──────────────────────────────────┐     ┌──────────────┐

@@ -8,7 +8,7 @@
 
 ```
 ┌──────────────┐     ┌──────────────────────────────────┐     ┌──────────────┐
-│  new-api     │────▶│  dli.li/invitations/api/*         │────▶│  Invitations │
+│  new-api     │────▶│  example.com/invitations/api/*    │────▶│  Invitations │
 │  前端        │     │  (直接读取同域 session cookie)     │     │  后端服务    │
 └──────────────┘     └──────────────────────────────────┘     └──────────────┘
 ```
@@ -107,7 +107,7 @@ cargo build --release
 在主站 nginx 配置中添加 location 块：
 
 ```nginx
-# dli.li 的 server 块中添加：
+# example.com 的 server 块中添加：
 
 # Invitations API（必须在 /invitations 之前）
 location ^~ /invitations/api/ {
