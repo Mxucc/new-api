@@ -107,3 +107,15 @@ func TestChatCompletionOutput(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// 正文空着时要说清为什么：推理模型把预算全花在思考上，只有用量能证明这件事。
+func TestPelicanAnswerNoteReportsWhyNothingWasRenderable(t *testing.T) {
+	stream := "data: {\"choices\":[{\"delta\":{\"content\":\"\"},\"finish_reason\":\"length\"}]}\n" +
+		"data: {\"choices\":[],\"usage\":{\"completion_tokens\":17566}}"
+	note := PelicanAnswerNote([]byte(stream))
+	assert.Contains(t, note, "finish_reason=length")
+	assert.Contains(t, note, "completion_tokens=17566")
+
+	// 什么都没有的响应也不能编一个原因出来。
+	assert.Equal(t, "the answer carried no HTML", PelicanAnswerNote(nil))
+}

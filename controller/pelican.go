@@ -18,7 +18,8 @@ import (
 )
 
 // 鹈鹕测智要模型交付一整段 SVG 动画，输出上限远高于健康检查用的 “hi”。
-const pelicanProbeMaxTokens = 8000
+// 会推理的模型常把预算全花在思考上、正文一个字节都没写，所以留得比正文所需更宽。
+const pelicanProbeMaxTokens = 16000
 
 // 流式探针最多读回多少字节：整段动画源码要拼回来打分，8KB 的日志上限远远不够。
 const pelicanProbeStreamCaptureBytes = 2 << 20
@@ -470,6 +471,11 @@ func runPelicanProbe(ctx context.Context, channel *model.Channel, modelName stri
 		record.Score = score.Score
 		record.Dimensions = strings.Join(score.Dimensions, ",")
 		record.Output = score.HTML
+		if score.HTML == "" {
+			// 拿到了响应但正文是空的：把 finish_reason 与用量写进错误，
+			// 预览与历史里直接能看出「预算花在思考上」这种原因。
+			record.Error = service.PelicanAnswerNote(result.responseBody)
+		}
 	}
 	if err := model.SavePelicanTestResult(record); err != nil {
 		return nil, err

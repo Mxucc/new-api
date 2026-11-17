@@ -218,6 +218,42 @@ func chatCompletionStreamOutput(body string) (string, error) {
 	return builder.String(), nil
 }
 
+// PelicanAnswerNote 说明这一条为什么没有可渲染的内容：把响应里的 finish_reason
+// 与 completion_tokens 报出来，而不是只留一句「模型没返回内容」。
+// 会推理的模型最常见的情况就是把预算全花在思考上（finish_reason=length），正文空着。
+func PelicanAnswerNote(body []byte) string {
+	text := string(body)
+	note := "the answer carried no HTML"
+	if reason := pelicanLastField(text, "finish_reason"); reason != "" {
+		note += ", finish_reason=" + reason
+	}
+	if tokens := pelicanLastField(text, "completion_tokens"); tokens != "" {
+		note += ", completion_tokens=" + tokens
+	}
+	return note
+}
+
+// pelicanLastField 取 JSON（含 SSE 分块）里最后一次出现的字符串或数字字段值。
+func pelicanLastField(text, field string) string {
+	marker := `"` + field + `":`
+	index := strings.LastIndex(text, marker)
+	if index < 0 {
+		return ""
+	}
+	rest := strings.TrimSpace(text[index+len(marker):])
+	if quoted, ok := strings.CutPrefix(rest, `"`); ok {
+		if end := strings.IndexByte(quoted, '"'); end >= 0 {
+			return quoted[:end]
+		}
+		return ""
+	}
+	end := 0
+	for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+		end++
+	}
+	return rest[:end]
+}
+
 // pelicanContentText 把 content 字段还原成文本：字符串原样返回，分块数组只取 text。
 func pelicanContentText(content any) (string, error) {
 	switch value := content.(type) {
