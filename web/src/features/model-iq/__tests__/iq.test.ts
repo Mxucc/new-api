@@ -20,8 +20,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildIqRows,
+  iqAvailabilityRate,
   iqCellClass,
-  iqDegradedRate,
   iqDimensionLabelKey,
   iqHasScore,
   iqNeedsPolling,
@@ -147,10 +147,10 @@ describe('summarizeModelIq', () => {
     })
   })
 
-  describe('iqDegradedRate', () => {
-    it('counts the unhealthy segments of the strip', () => {
+  describe('iqAvailabilityRate', () => {
+    it('counts the available segments of the strip', () => {
       expect(
-        iqDegradedRate([
+        iqAvailabilityRate([
           stripCell('healthy'),
           stripCell('healthy'),
           stripCell('degraded'),
@@ -162,14 +162,14 @@ describe('summarizeModelIq', () => {
     it('counts only the segments that really ran', () => {
       // 沿用值不算新样本：只有真采到样的格子参与统计。
       expect(
-        iqDegradedRate([
-          stripCell('degraded', false),
-          stripCell('degraded', false),
+        iqAvailabilityRate([
+          stripCell('healthy', false),
+          stripCell('healthy', false),
         ])
       ).toBeNull()
-      expect(iqDegradedRate([stripCell('pending', false)])).toBeNull()
+      expect(iqAvailabilityRate([stripCell('pending', false)])).toBeNull()
       expect(
-        iqDegradedRate([stripCell('degraded'), stripCell('healthy')])
+        iqAvailabilityRate([stripCell('degraded'), stripCell('healthy')])
       ).toBe(0.5)
     })
   })

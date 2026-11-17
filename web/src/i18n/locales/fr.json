@@ -8373,7 +8373,6 @@
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Ajoutée à la consigne. Laissez vide pour utiliser la consigne intégrée.",
     "Leave empty to use the translated default description.": "Laissez vide pour utiliser la description traduite par défaut.",
     "Carried over from the last successful run": "Repris du dernier test réussi",
-    "{{percent}} unavailable": "{{percent}} indisponible",
     "Magpie integration": "Intégration magpie",
     "magpie-ops URL": "URL de magpie-ops",
     "The address must start with http:// or https://.": "L'adresse doit commencer par http:// ou https://.",
@@ -8409,6 +8408,7 @@
     "Clear history": "Effacer l'historique",
     "Delete this run": "Supprimer cette exécution",
     "Repeated bad runs drag the trend down: delete the wrong ones.": "Les exécutions ratées répétées tirent la tendance vers le bas : supprimez celles qui sont fausses.",
-    "The animation for this run could not be loaded.": "L'animation de cette exécution n'a pas pu être chargée."
+    "The animation for this run could not be loaded.": "L'animation de cette exécution n'a pas pu être chargée.",
+    "{{percent}} available": "{{percent}} disponible"
   }
 }

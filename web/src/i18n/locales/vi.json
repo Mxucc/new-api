@@ -8373,7 +8373,6 @@
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Được nối sau đề bài. Để trống để dùng yêu cầu mặc định.",
     "Leave empty to use the translated default description.": "Để trống để dùng mô tả mặc định đã dịch.",
     "Carried over from the last successful run": "Kế thừa lần kiểm tra thành công gần nhất",
-    "{{percent}} unavailable": "{{percent}} không khả dụng",
     "Magpie integration": "Tích hợp magpie",
     "magpie-ops URL": "URL magpie-ops",
     "The address must start with http:// or https://.": "Địa chỉ phải bắt đầu bằng http:// hoặc https://.",
@@ -8409,6 +8408,7 @@
     "Clear history": "Xoá lịch sử",
     "Delete this run": "Xoá lần chạy này",
     "Repeated bad runs drag the trend down: delete the wrong ones.": "Nhiều lần chạy lỗi kéo xu hướng xuống: hãy xoá những lần bị chấm sai.",
-    "The animation for this run could not be loaded.": "Không tải được hoạt ảnh của lần chạy này."
+    "The animation for this run could not be loaded.": "Không tải được hoạt ảnh của lần chạy này.",
+    "{{percent}} available": "{{percent}} khả dụng"
   }
 }

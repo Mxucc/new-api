@@ -8373,7 +8373,6 @@
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Добавляется к заданию. Оставьте пустым для встроенного требования.",
     "Leave empty to use the translated default description.": "Оставьте пустым, чтобы использовать переведённое описание по умолчанию.",
     "Carried over from the last successful run": "По последней успешной проверке",
-    "{{percent}} unavailable": "{{percent}} недоступно",
     "Magpie integration": "Интеграция с magpie",
     "magpie-ops URL": "URL magpie-ops",
     "The address must start with http:// or https://.": "Адрес должен начинаться с http:// или https://.",
@@ -8409,6 +8408,7 @@
     "Clear history": "Очистить историю",
     "Delete this run": "Удалить эту запись",
     "Repeated bad runs drag the trend down: delete the wrong ones.": "Повторные неудачные записи занижают тренд: удалите ошибочные.",
-    "The animation for this run could not be loaded.": "Не удалось загрузить анимацию этой записи."
+    "The animation for this run could not be loaded.": "Не удалось загрузить анимацию этой записи.",
+    "{{percent}} available": "{{percent}} доступно"
   }
 }

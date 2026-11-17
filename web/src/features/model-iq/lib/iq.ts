@@ -151,23 +151,25 @@ export function buildIqRows(models: ModelIqStatus[]): IqRow[] {
 }
 
 /**
- * 降智率：真正采到样的格子里「不健康」的占比（0–1）。
+ * 可用率：真正采到样的格子里「可用」的占比（0–1）。
  * 沿用上一次成功结果的格子不参与统计——上游 502 只是没采到样，不算降智。
  * 一次采样都没有时返回 null，界面显示「—」。
  */
-export function iqDegradedRate(cells: ModelIqStatus['strip']): number | null {
+export function iqAvailabilityRate(
+  cells: ModelIqStatus['strip']
+): number | null {
   let sampled = 0
-  let degraded = 0
+  let available = 0
   for (const cell of cells) {
     if (!cell.sampled) {
       continue
     }
     sampled += 1
-    if (cell.verdict !== 'healthy') {
-      degraded += 1
+    if (cell.verdict === 'healthy') {
+      available += 1
     }
   }
-  return sampled === 0 ? null : degraded / sampled
+  return sampled === 0 ? null : available / sampled
 }
 
 /** 有探测在跑才继续轮询：整轮巡视或者任一格子还在测。 */

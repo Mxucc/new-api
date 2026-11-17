@@ -49,6 +49,7 @@ import type { SidebarBadges, SidebarData } from '@/components/layout/types'
 import { useAiBridgeIdentity } from '@/features/ai-bridge/hooks/use-ai-bridge-console'
 import { useConnectAvailability } from '@/features/connect/hooks/use-connect-availability'
 import { useInvitationFeatureStatus } from '@/features/invitations/hooks/use-invitation-feature-status'
+import { useStatus } from '@/hooks/use-status'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -63,6 +64,7 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
   const invitationFeature = useInvitationFeatureStatus()
   const connectAvailable = useConnectAvailability()
   const role = useAuthStore((state) => state.auth.user?.role ?? 0)
+  const { status } = useStatus()
   // Only an administrator session can open the console, and only that session
   // should probe it; everyone else keeps the entry out of the sidebar.
   const aiBridgeAvailable = useAiBridgeIdentity(role >= ROLE.ADMIN).isSuccess
@@ -99,11 +101,16 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             url: '/dashboard/models',
             icon: LayoutDashboard,
           },
-          {
-            title: t('Model IQ'),
-            url: '/model-iq',
-            icon: Brain,
-          },
+          // 没配探测目标时这页对普通用户没有内容：入口先不出现，别让人点进去看空页。
+          ...(role >= ROLE.ADMIN || status?.model_iq_configured
+            ? [
+                {
+                  title: t('Model IQ'),
+                  url: '/model-iq',
+                  icon: Brain,
+                },
+              ]
+            : []),
           {
             title: t('Service Status'),
             url: '/service-status',

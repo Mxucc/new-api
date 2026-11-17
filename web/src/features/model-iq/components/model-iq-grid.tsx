@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils'
 import {
   buildIqRows,
   iqCellClass,
-  iqDegradedRate,
+  iqAvailabilityRate,
   iqStripCellClass,
   iqStripVerdictLabelKey,
   iqVerdictLabelKey,
@@ -106,15 +106,15 @@ function ModelIqRowCell(props: ModelIqRowCellProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const status = props.status
-  const rate = iqDegradedRate(status.strip)
+  const rate = iqAvailabilityRate(status.strip)
 
   let summary = <span>—</span>
   if (status.testing) {
     summary = <Loader2 className='size-3 animate-spin' aria-hidden='true' />
   } else if (rate !== null) {
     summary = (
-      <span className={rate > 0 ? 'text-warning' : undefined}>
-        {t('{{percent}} unavailable', {
+      <span className={rate < 1 ? 'text-warning' : undefined}>
+        {t('{{percent}} available', {
           percent: `${Math.round(rate * 100)}%`,
         })}
       </span>

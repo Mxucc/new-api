@@ -222,11 +222,11 @@ describe('model IQ grid', () => {
     // 每个分组只测一个模型：模型名写在格子里，不再有模型列。
     const cell = await screen.findByTestId('model-iq-cell-default-gpt-4.1')
     expect(cell).toHaveTextContent('gpt-4.1')
-    // 全健康的一组不可用率是 0。
-    expect(cell).toHaveTextContent('0% unavailable')
-    // vip 分组的判定是 degraded：整条时间片都不可用，不可用率 100%。
+    // 全健康的一组可用率是 100%。
+    expect(cell).toHaveTextContent('100% available')
+    // vip 分组的判定是 degraded：整条时间片都不可用，可用率 0%。
     expect(screen.getByTestId('model-iq-cell-vip-gpt-4.1')).toHaveTextContent(
-      '100% unavailable'
+      '0% available'
     )
     expect(screen.getAllByText('default').length).toBeGreaterThan(0)
     expect(screen.getAllByText('vip').length).toBeGreaterThan(0)
@@ -620,15 +620,24 @@ describe('model IQ actions', () => {
       await screen.findByTestId('pelican-magpie-policy-warning')
     ).toBeInTheDocument()
   })
-
-  it('tells a reader that nothing is configured yet', async () => {
+  it('tells an admin that nothing is configured yet', async () => {
     api.getModelIqOverview.mockResolvedValue(overview([]))
-    renderPage(ROLE.USER)
+    renderPage(ROLE.ADMIN)
 
+    // 管理员要看「去配置」的提示；普通用户会被送回首页，不露这个空页。
     expect(
       await screen.findByText('No probe targets configured')
     ).toBeInTheDocument()
     expect(screen.queryByTestId('model-iq-grid')).toBeNull()
+  })
+
+  it('sends an ordinary user away while nothing is configured', async () => {
+    api.getModelIqOverview.mockResolvedValue(overview([]))
+    renderPage(ROLE.USER)
+
+    await waitFor(() => {
+      expect(screen.queryByText('No probe targets configured')).toBeNull()
+    })
   })
 })
 

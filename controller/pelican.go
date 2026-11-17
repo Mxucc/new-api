@@ -466,15 +466,21 @@ func runPelicanProbe(ctx context.Context, channel *model.Channel, modelName stri
 			break
 		}
 		score := service.ScorePelicanOutput(output)
-		record.Status = "success"
 		record.Verdict = score.Verdict
 		record.Score = score.Score
 		record.Dimensions = strings.Join(score.Dimensions, ",")
 		record.Output = score.HTML
+		record.Status = "success"
 		if score.HTML == "" {
-			// 拿到了响应但正文是空的：把 finish_reason 与用量写进错误，
-			// 预览与历史里直接能看出「预算花在思考上」这种原因。
+			// 拿到了响应但正文是空的（推理模型把预算全花在思考上最常见）：这不算
+			// 「模型不行」的可比样本，按「这次没采到样」记，时间条沿用上一次真实结果，
+			// 原因写进错误里，预览与历史直接看得见。
+			record.Status = "failed"
+			record.Score = 0
 			record.Error = service.PelicanAnswerNote(result.responseBody)
+			common.SysLog(common.LogText(
+				"pelican probe for %s/%s returned no HTML: %s",
+				group, modelName, record.Error))
 		}
 	}
 	if err := model.SavePelicanTestResult(record); err != nil {

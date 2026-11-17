@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Navigate } from '@tanstack/react-router'
 import { Brain, Loader2, Play, RefreshCw, Settings2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -125,6 +126,10 @@ export function ModelIq() {
   const sweeping = overview.data?.sweeping ?? false
   const sweepingSince = overview.data?.sweeping_since ?? 0
 
+  // 管理员没配探测目标时这页对普通用户没有内容：直接回首页，别把空页露出来。
+  if (!isAdmin && !overview.isLoading && models.length === 0) {
+    return <Navigate to='/dashboard/models' replace />
+  }
   const handleRun = (target: PelicanTarget) => {
     singleRun.mutate(target)
   }

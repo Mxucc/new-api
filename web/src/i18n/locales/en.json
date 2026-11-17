@@ -8373,7 +8373,6 @@
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Appended to the prompt. Leave empty to use the built-in instruction.",
     "Leave empty to use the translated default description.": "Leave empty to use the translated default description.",
     "Carried over from the last successful run": "Carried over from the last successful run",
-    "{{percent}} unavailable": "{{percent}} unavailable",
     "Magpie integration": "Magpie integration",
     "magpie-ops URL": "magpie-ops URL",
     "The address must start with http:// or https://.": "The address must start with http:// or https://.",
@@ -8409,6 +8408,7 @@
     "Clear history": "Clear history",
     "Delete this run": "Delete this run",
     "Repeated bad runs drag the trend down: delete the wrong ones.": "Repeated bad runs drag the trend down: delete the wrong ones.",
-    "The animation for this run could not be loaded.": "The animation for this run could not be loaded."
+    "The animation for this run could not be loaded.": "The animation for this run could not be loaded.",
+    "{{percent}} available": "{{percent}} available"
   }
 }

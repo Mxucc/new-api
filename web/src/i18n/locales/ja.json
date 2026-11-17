@@ -8373,7 +8373,6 @@
     "Appended to the prompt. Leave empty to use the built-in instruction.": "プロンプトの後ろに追加されます。空欄の場合は組み込みの指示を使います。",
     "Leave empty to use the translated default description.": "空欄の場合は翻訳済みの既定の説明を使います。",
     "Carried over from the last successful run": "前回の成功結果を流用",
-    "{{percent}} unavailable": "{{percent}} 利用不可",
     "Magpie integration": "magpie 連携",
     "magpie-ops URL": "magpie-ops の URL",
     "The address must start with http:// or https://.": "アドレスは http:// または https:// で始まる必要があります。",
@@ -8409,6 +8408,7 @@
     "Clear history": "履歴を消去",
     "Delete this run": "この記録を削除",
     "Repeated bad runs drag the trend down: delete the wrong ones.": "失敗した記録が重なると傾向が下がります。誤った記録は削除してください。",
-    "The animation for this run could not be loaded.": "この記録のアニメーションを読み込めませんでした。"
+    "The animation for this run could not be loaded.": "この記録のアニメーションを読み込めませんでした。",
+    "{{percent}} available": "{{percent}} 利用可能"
   }
 }

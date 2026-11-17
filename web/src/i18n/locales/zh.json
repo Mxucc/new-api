@@ -8373,7 +8373,6 @@
     "Appended to the prompt. Leave empty to use the built-in instruction.": "追加在题面之后；留空使用内置交付约定。",
     "Leave empty to use the translated default description.": "留空使用翻译好的默认说明。",
     "Carried over from the last successful run": "沿用上一次成功结果",
-    "{{percent}} unavailable": "{{percent}} 不可用",
     "Magpie integration": "magpie 联动",
     "magpie-ops URL": "magpie-ops 地址",
     "The address must start with http:// or https://.": "地址必须以 http:// 或 https:// 开头。",
@@ -8409,6 +8408,7 @@
     "Clear history": "清空历史",
     "Delete this run": "删除这条记录",
     "Repeated bad runs drag the trend down: delete the wrong ones.": "重复的失败记录会把趋势拉低：判错的可以逐条删掉。",
-    "The animation for this run could not be loaded.": "这条记录的动画没能加载出来。"
+    "The animation for this run could not be loaded.": "这条记录的动画没能加载出来。",
+    "{{percent}} available": "{{percent}} 可用"
   }
 }
