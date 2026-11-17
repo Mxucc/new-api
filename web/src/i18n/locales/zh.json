@@ -8385,6 +8385,7 @@
     "magpie groups could not be listed: {{message}}": "列不出 magpie 分组：{{message}}",
     "magpie group to adjust": "要调整的 magpie 分组",
     "Pick the magpie group each new-api group should adjust. magpie-ops decides which member to change.": "给每个 new-api 分组选它对应的 magpie 分组；具体动哪个成员由 magpie-ops 判定。",
+    "Linked to magpie-ops: the model comes from magpie-ops, so the model column is ignored and new-api does not probe these groups.": "已联动 magpie-ops：模型由 magpie-ops 决定，下面那列模型选择不再生效，new-api 也不会自己探测这些分组。",
     "Bound to magpie-ops: the model to test comes from magpie-ops, so there is nothing to pick here. new-api will not probe on its own.": "已绑定 magpie-ops：测哪个模型以 magpie-ops 为准，这里不用选；new-api 不会自己探测。",
     "Test the magpie-ops link": "测试 magpie-ops 连接",
     "magpie-ops measures one model per channel: the number after a group is how many of its members are actually probed.": "magpie-ops 对每个渠道只测一个模型：分组后面那个数字是「真在测的成员数/成员数」。",

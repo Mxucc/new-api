@@ -8385,6 +8385,7 @@
     "magpie groups could not be listed: {{message}}": "không liệt kê được nhóm magpie: {{message}}",
     "magpie group to adjust": "nhóm magpie cần điều chỉnh",
     "Pick the magpie group each new-api group should adjust. magpie-ops decides which member to change.": "Chọn nhóm magpie cho từng nhóm new-api. magpie-ops quyết định thành viên nào bị thay đổi.",
+    "Linked to magpie-ops: the model comes from magpie-ops, so the model column is ignored and new-api does not probe these groups.": "Linked to magpie-ops: the model comes from magpie-ops, so the model column is ignored and new-api does not probe these groups.",
     "Bound to magpie-ops: the model to test comes from magpie-ops, so there is nothing to pick here. new-api will not probe on its own.": "Bound to magpie-ops: the model to test comes from magpie-ops, so there is nothing to pick here. new-api will not probe on its own.",
     "Test the magpie-ops link": "Test the magpie-ops link",
     "magpie-ops measures one model per channel: the number after a group is how many of its members are actually probed.": "magpie-ops measures one model per channel: the number after a group is how many of its members are actually probed.",

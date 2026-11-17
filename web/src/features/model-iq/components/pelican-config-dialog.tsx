@@ -214,15 +214,7 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
   const [magpieCheck, setMagpieCheck] = useState<PelicanMagpieCheck | null>(null)
   const [magpieChecking, setMagpieChecking] = useState(false)
 
-  const magpieRows = useMemo(() => {
-    const rows: string[] = []
-    for (const group of groups) {
-      if ((draft.models[group] ?? '') !== '') {
-        rows.push(group)
-      }
-    }
-    return rows
-  }, [draft.models, groups])
+  const magpieRows = useMemo(() => groups, [groups])
 
   // 下拉里的候选：magpie-ops 给出的分组，外加已经保存过、但这次没列出来的那个。
   const magpieOptions = useMemo(() => {
@@ -385,13 +377,14 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
       <div className='space-y-5'>
         <div className='space-y-2'>
           <Label>{t('Groups to test')}</Label>
-          {config?.magpie_read_only ? (
+          {config?.magpie_read_only ||
+          draft.magpieUrl.trim() !== '' ? (
             <p
               className='text-muted-foreground text-xs'
               data-testid='pelican-read-only-note'
             >
               {t(
-                'Bound to magpie-ops: the model to test comes from magpie-ops, so there is nothing to pick here. new-api will not probe on its own.'
+                'Linked to magpie-ops: the model comes from magpie-ops, so the model column is ignored and new-api does not probe these groups.'
               )}
             </p>
           ) : (
