@@ -18,6 +18,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// pelicanMagpieReadOnlyWindowMinutes 是只读模式取结果的窗口：magpie-ops 只留
+// 24 小时的结果，这里就按一天取，超出的它也没有。
+const pelicanMagpieReadOnlyWindowMinutes = 24 * 60
+
 const (
 	// pelicanMagpieTimeout 是一次联动请求的上限：magpie-ops 就在回环上跑，
 	// 10 秒还没回就是它出了问题，不能把巡视收尾拖住。
@@ -127,6 +131,62 @@ type magpieAction struct {
 	Reason string `json:"reason"`
 	OK     bool   `json:"ok"`
 	Auto   bool   `json:"auto"`
+}
+
+// pelicanMagpieReadOnly 说 new-api 是否把测智完全交给 magpie-ops：联动了，
+// 而且至少有一个分组绑定到 magpie 分组。这时不再按 new-api 自己的
+// 「分组 → 模型」探测，模型以 magpie-ops 正在测的为准。
+func pelicanMagpieReadOnly(cfg model.PelicanTestConfig) bool {
+	if !cfg.MagpieLinked() {
+		return false
+	}
+	for _, mapping := range cfg.MagpieGroups {
+		if strings.TrimSpace(mapping.MagpieGroup) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// magpieProbeTargets 是只读模式下的巡视目标：每个绑定分组的 magpie 分组里，
+// magpie-ops 真正在测的那些成员（probeRefs；老版本没有这个字段就退回全部成员）。
+// new-api 只按它去取结果，不再自己挑模型。
+func magpieProbeTargets(ctx context.Context, cfg model.PelicanTestConfig) ([]model.PelicanProbeTarget, error) {
+	groups, err := cachedMagpieGroups(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	byId := make(map[string]magpieGroup, len(groups))
+	for _, group := range groups {
+		byId[group.Id] = group
+	}
+	var out []model.PelicanProbeTarget
+	seen := map[string]bool{}
+	for _, mapping := range cfg.MagpieGroups {
+		group, ok := byId[mapping.MagpieGroup]
+		if !ok {
+			continue
+		}
+		measured := group.ProbeRefs
+		if len(measured) == 0 {
+			for _, member := range group.Members {
+				measured = append(measured, member.Ref)
+			}
+		}
+		for _, ref := range measured {
+			_, modelName, ok := strings.Cut(ref, "/")
+			if !ok || modelName == "" {
+				continue
+			}
+			key := mapping.Group + "\x00" + modelName
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, model.PelicanProbeTarget{Group: mapping.Group, Model: modelName})
+		}
+	}
+	return out, nil
 }
 
 // pelicanMagpieGroupFor 找出这个 new-api 分组对应的 magpie 分组；没配映射就不联动。
@@ -551,10 +611,16 @@ type pelicanMagpieReused struct {
 //
 // 返回 ok=false 表示这次该自己测：没联动、没映射、窗口是 0、那边没有新鲜的答案。
 func reuseMagpieResult(ctx context.Context, cfg model.PelicanTestConfig, group, modelName string, channelId int) (pelicanMagpieReused, bool) {
+	return reuseMagpieResultWithin(ctx, cfg, group, modelName, channelId, cfg.MagpieReuseWindow())
+}
+
+// reuseMagpieResultWithin 与 reuseMagpieResult 一样，只是窗口由调用方给：
+// 只读模式（绑定 magpie 分组）要的是「它 24 小时内测过什么」，与复用窗口无关。
+func reuseMagpieResultWithin(ctx context.Context, cfg model.PelicanTestConfig, group, modelName string, channelId, windowMinutes int) (pelicanMagpieReused, bool) {
 	if !cfg.MagpieLinked() {
 		return pelicanMagpieReused{}, false
 	}
-	window := cfg.MagpieReuseWindow()
+	window := windowMinutes
 	if window <= 0 {
 		return pelicanMagpieReused{}, false
 	}

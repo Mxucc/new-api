@@ -217,6 +217,8 @@ export type PelicanConfig = {
    */
   magpie_reuse_minutes?: number | null
   /** magpie-ops 那边的分组清单，拿不到时是空数组。 */
+  /** 绑定了 magpie 分组：模型以 magpie-ops 为准，设置页不再选模型。 */
+  magpie_read_only?: boolean
   /** 每个映射分组最近一次拿到的「24 小时内最佳结果」。 */
   magpie_best?: Record<string, PelicanMagpieBest>
   /** 取最佳结果的时间，取不到时是错误信息。 */

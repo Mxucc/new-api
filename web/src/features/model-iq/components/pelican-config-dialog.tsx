@@ -385,11 +385,22 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
       <div className='space-y-5'>
         <div className='space-y-2'>
           <Label>{t('Groups to test')}</Label>
-          <p className='text-muted-foreground text-xs'>
-            {t(
-              'Pick one model per group. The sweep only tests the groups listed here.'
-            )}
-          </p>
+          {config?.magpie_read_only ? (
+            <p
+              className='text-muted-foreground text-xs'
+              data-testid='pelican-read-only-note'
+            >
+              {t(
+                'Bound to magpie-ops: the model to test comes from magpie-ops, so there is nothing to pick here. new-api will not probe on its own.'
+              )}
+            </p>
+          ) : (
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Pick one model per group. The sweep only tests the groups listed here.'
+              )}
+            </p>
+          )}
           {groups.length === 0 ? (
             <p
               className='text-muted-foreground text-xs'

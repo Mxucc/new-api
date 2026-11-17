@@ -145,6 +145,12 @@ func pelicanSweepTargets(configured []model.PelicanProbeTarget, available []mode
 // pelicanSweepPlan 读取巡视设置与当前可用组合，算出这一轮实际要测的组合。
 func pelicanSweepPlan() (model.PelicanTestConfig, []model.PelicanProbeTarget, error) {
 	cfg := model.GetPelicanTestConfig()
+	// 绑定 magpie 分组之后，模型以 magpie-ops 正在测的为准：
+	// new-api 不再挑模型，也不再自己探测，只把它的结果取回来显示。
+	if pelicanMagpieReadOnly(cfg) {
+		targets, err := magpieProbeTargets(context.Background(), cfg)
+		return cfg, targets, err
+	}
 	if len(cfg.Targets) == 0 {
 		return cfg, nil, nil
 	}
@@ -504,6 +510,17 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 		return nil, errors.New("no enabled channel serves this group/model: " + group + "/" + modelName)
 	}
 	cfg := model.GetPelicanTestConfig()
+	if pelicanMagpieReadOnly(cfg) {
+		// 只读：拿 magpie-ops 24 小时内的答案写进自己的结果表，一次探测都不发。
+		reused, ok := reuseMagpieResultWithin(ctx, cfg, group, modelName, 0, pelicanMagpieReadOnlyWindowMinutes)
+		if !ok {
+			return nil, errors.New("magpie-ops 还没有 " + group + "/" + modelName + " 的近期结果（已绑定 magpie 分组，new-api 不再自己探测）")
+		}
+		if err := model.SavePelicanTestResult(reused.Record); err != nil {
+			return nil, err
+		}
+		return reused.Record, nil
+	}
 	// 联动开着时先问一句「这个分组里的这个模型，magpie-ops 刚测过吗」：
 	// 测智是整段回答，重复测就是重复花钱，而它给出的就是同一件事的答案。
 	if reused, ok := reuseMagpieResult(ctx, cfg, group, modelName, channel.Id); ok {
@@ -771,8 +788,10 @@ func GetPelicanConfig(c *gin.Context) {
 			"magpie_groups_available": magpieGroupsAvailable,
 			"magpie_groups_error":     magpieGroupsError,
 			// 每个映射分组最近一次拿到的「最佳结果」（24 小时窗口）。
-			"magpie_best":    magpieBest(),
-			"magpie_best_at": magpieBestAt(),
+			// 绑定了 magpie 分组就是只读：模型以 magpie-ops 为准，设置页不再让选模型
+			"magpie_read_only": pelicanMagpieReadOnly(cfg),
+			"magpie_best":      magpieBest(),
+			"magpie_best_at":   magpieBestAt(),
 		},
 	})
 }
