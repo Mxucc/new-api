@@ -48,6 +48,8 @@ beforeAll(async () => {
   await i18next.use(initReactI18next).init({
     lng: 'en',
     fallbackLng: 'en',
+    // 与 src/i18n/config.ts 一致：React 自己会转义，这里再转一次会让斜杠变成 &#x2F;。
+    interpolation: { escapeValue: false },
     resources: {
       en: {
         translation: {},

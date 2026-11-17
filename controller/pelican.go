@@ -61,6 +61,15 @@ type pelicanModelStatus struct {
 	ChannelId  int      `json:"channel_id"`
 	Dimensions []string `json:"dimensions"`
 	LastError  string   `json:"last_error,omitempty"`
+	// Magpie 联动状态：Group 是映射到的 magpie 分组，AdjustedAt 是上次请求调整的时间，
+	// Error 是那次请求失败的原因（判定与处置由 magpie-ops 自己做，这里只记「请过了」）。
+	MagpieGroup      string `json:"magpie_group,omitempty"`
+	MagpieAdjustedAt int64  `json:"magpie_adjusted_at,omitempty"`
+	// MagpieActions 是上一次调整的动作明细（动了谁、做了什么、当时智商）。
+	MagpieActions []model.PelicanMagpieActionResult `json:"magpie_actions,omitempty"`
+	// MagpieResult 是没有结构化动作时的状态文本（dry run / 无需调整 / 读不到动作记录）。
+	MagpieResult string `json:"magpie_result,omitempty"`
+	MagpieError  string `json:"magpie_error,omitempty"`
 	// Testing 表示这个组合此刻正有一次探测在跑：页面据此显示加载态并保持轮询。
 	Testing bool `json:"testing"`
 	// Strip 是最近 24 小时的时间格子：判定取该时段最新的一次结果，
@@ -251,6 +260,8 @@ func GetPelicanOverview(c *gin.Context) {
 		serveable[target] = struct{}{}
 	}
 	strips := pelicanStripWindows(cfg.Targets, cfg.IntervalMinutes, successes, latestSuccess, now)
+	// 联动状态只在动作发生时写，读一次就够所有格子用。
+	magpieStates := model.GetPelicanMagpieStates()
 	// 只上报配置里的探测项：用户看到的行数就等于管理员配置的分组数。
 	statuses := make([]pelicanModelStatus, 0, len(cfg.Targets))
 	for _, target := range cfg.Targets {
@@ -262,6 +273,14 @@ func GetPelicanOverview(c *gin.Context) {
 		}
 		status.Testing = pelicanProbeActive(target)
 		status.Strip = strips[target]
+		// 联动状态按 new-api 分组记：一个分组一个 magpie 组，不按（分组, 模型）分开。
+		if state, ok := magpieStates[target.Group]; ok {
+			status.MagpieGroup = state.MagpieGroup
+			status.MagpieAdjustedAt = state.AdjustedAt
+			status.MagpieActions = state.Actions
+			status.MagpieResult = state.Result
+			status.MagpieError = state.Error
+		}
 		statuses = append(statuses, status)
 	}
 	slices.SortFunc(statuses, func(a, b pelicanModelStatus) int {
@@ -380,6 +399,7 @@ func runPelicanProbe(ctx context.Context, channel *model.Channel, modelName stri
 	if err := model.SavePelicanTestResult(record); err != nil {
 		return nil, err
 	}
+	// 联动不在这里做：一次巡视要汇总整轮结果才决定请 magpie 调整哪个分组。
 	return record, nil
 }
 
@@ -460,37 +480,34 @@ func pelicanProbeActive(target model.PelicanProbeTarget) bool {
 
 // triggerPelicanTest 是单组合探测本身的入口：校验组合、选渠道、跑一次、落库。
 // ctx 由调用方给出：异步触发与整轮巡视都用独立上下文，免得请求结束就打断探测。
-func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, testUserID int) (pelicanModelStatus, error) {
+func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, testUserID int) (*model.PelicanTestResult, error) {
 	group := strings.TrimSpace(target.Group)
 	modelName := strings.TrimSpace(target.Model)
 	if group == "" || modelName == "" {
-		return pelicanModelStatus{}, errors.New("group and model are required")
+		return nil, errors.New("group and model are required")
 	}
 	if !isPelicanChatModel(modelName) {
-		return pelicanModelStatus{}, errors.New("model does not accept chat completions")
+		return nil, errors.New("model does not accept chat completions")
 	}
 	channel, err := model.GetChannel(group, modelName, 0, nil)
 	if err != nil {
-		return pelicanModelStatus{}, err
+		return nil, err
 	}
 	if channel == nil {
-		return pelicanModelStatus{}, errors.New("no enabled channel serves this group/model: " + group + "/" + modelName)
+		return nil, errors.New("no enabled channel serves this group/model: " + group + "/" + modelName)
 	}
-	record, err := runPelicanProbe(ctx, channel, modelName, testUserID, group, model.GetPelicanTestConfig().EffectivePrompt())
-	if err != nil {
-		return pelicanModelStatus{}, err
-	}
-	return pelicanStatusOf(model.PelicanProbeTarget{Group: group, Model: modelName}, true, record), nil
+	// 记录本身要往上带：一次巡视结束时用它汇总哪些分组降智了。
+	return runPelicanProbe(ctx, channel, modelName, testUserID, group, model.GetPelicanTestConfig().EffectivePrompt())
 }
 
 // runPelicanProbeTarget 跑一次探测并把失败原因写进系统日志：探测改成异步之后
 // 已经没有调用方能收到错误，日志是唯一还能查到原因的地方。
-func runPelicanProbeTarget(ctx context.Context, target model.PelicanProbeTarget, testUserID int) error {
-	_, err := triggerPelicanTest(ctx, target, testUserID)
+func runPelicanProbeTarget(ctx context.Context, target model.PelicanProbeTarget, testUserID int) (*model.PelicanTestResult, error) {
+	record, err := triggerPelicanTest(ctx, target, testUserID)
 	if err != nil {
 		common.SysLog(common.LogText("pelican probe failed for %s/%s: %s", target.Group, target.Model, err))
 	}
-	return err
+	return record, err
 }
 
 // RunPelicanTest 让管理员按需给一个（分组, 模型）组合测智商。
@@ -523,7 +540,12 @@ func RunPelicanTest(c *gin.Context) {
 	probeUserId := pelicanProbeUserId(model.GetPelicanTestConfig())
 	go func() {
 		defer pelicanProbeEnd(target, token)
-		runPelicanProbeTarget(context.Background(), target, probeUserId)
+		record, err := runPelicanProbeTarget(context.Background(), target, probeUserId)
+		if err != nil {
+			return
+		}
+		// 单次测试就当作一轮只有这一条结果的巡视：降智才请 magpie 调整。
+		pelicanMagpieAfterSweep(context.Background(), []*model.PelicanTestResult{record})
 	}()
 	c.JSON(http.StatusAccepted, gin.H{
 		"success": true,
@@ -538,8 +560,9 @@ const pelicanSweepConcurrency = 3
 func runPelicanSweep(ctx context.Context, testUserID int, targets []model.PelicanProbeTarget) (int, int) {
 	var counters struct {
 		sync.Mutex
-		tested int
-		failed int
+		tested  int
+		failed  int
+		records []*model.PelicanTestResult
 	}
 	var wg sync.WaitGroup
 	slots := make(chan struct{}, pelicanSweepConcurrency)
@@ -548,13 +571,12 @@ func runPelicanSweep(ctx context.Context, testUserID int, targets []model.Pelica
 		wg.Go(func() {
 			defer func() { <-slots }()
 			// 同一组合已经被单次触发抢占时不重复探测，也不计为失败。
-			// 同一组合已经被单次触发抢占时不重复探测，也不计为失败。
 			token, started := pelicanProbeBegin(target)
 			if !started {
 				return
 			}
 			defer pelicanProbeEnd(target, token)
-			err := runPelicanProbeTarget(ctx, target, testUserID)
+			record, err := runPelicanProbeTarget(ctx, target, testUserID)
 			counters.Lock()
 			defer counters.Unlock()
 			if err != nil {
@@ -562,9 +584,14 @@ func runPelicanSweep(ctx context.Context, testUserID int, targets []model.Pelica
 				return
 			}
 			counters.tested++
+			if record != nil {
+				counters.records = append(counters.records, record)
+			}
 		})
 	}
 	wg.Wait()
+	// 整轮结束后才联动：按分组去重，一个分组一轮最多请 magpie 调整一次。
+	go pelicanMagpieAfterSweep(context.WithoutCancel(ctx), counters.records)
 	return counters.tested, counters.failed
 }
 
@@ -651,6 +678,13 @@ type pelicanConfigRequest struct {
 	Prompt         string `json:"prompt"`
 	PromptContract string `json:"prompt_contract"`
 	Description    string `json:"description"`
+	// magpie 联动：地址与 token 为空表示不联动，映射把 new-api 的分组接到 magpie 的路由组。
+	MagpieURL             string                     `json:"magpie_url"`
+	MagpieToken           string                     `json:"magpie_token"`
+	MagpieClear           bool                       `json:"magpie_token_clear"`
+	MagpieGroups          []model.PelicanMagpieGroup `json:"magpie_groups"`
+	MagpieCooldownMinutes int                        `json:"magpie_cooldown_minutes"`
+	MagpieDryRun          bool                       `json:"magpie_dry_run"`
 }
 
 // GetPelicanConfig 返回巡视设置与可选的（分组, 模型）组合，供后台设置页使用。
@@ -679,6 +713,16 @@ func GetPelicanConfig(c *gin.Context) {
 			ownerUsername = username
 		}
 	}
+	// magpie 的分组清单给设置页填下拉；拿不到时给一个空数组与错误原因，页面仍可手填 id。
+	magpieGroupsAvailable := []magpieGroup{}
+	magpieGroupsError := ""
+	if cfg.MagpieURL != "" && cfg.MagpieToken != "" {
+		if groups, listErr := listMagpieGroups(c.Request.Context(), cfg); listErr != nil {
+			magpieGroupsError = pelicanMagpieDetail(listErr)
+		} else {
+			magpieGroupsAvailable = groups
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -695,6 +739,14 @@ func GetPelicanConfig(c *gin.Context) {
 			"default_description": model.DefaultPelicanDescription,
 			"available_targets":   available,
 			"missing_targets":     missing,
+			// magpie 联动：token 只回显「有没有设置」，绝不把明文发回浏览器。
+			"magpie_url":              cfg.MagpieURL,
+			"magpie_token_set":        cfg.MagpieToken != "",
+			"magpie_groups":           cfg.MagpieGroups,
+			"magpie_cooldown_minutes": cfg.MagpieCooldownMinutes,
+			"magpie_dry_run":          cfg.MagpieDryRun,
+			"magpie_groups_available": magpieGroupsAvailable,
+			"magpie_groups_error":     magpieGroupsError,
 		},
 	})
 }
@@ -714,6 +766,12 @@ func UpdatePelicanConfig(c *gin.Context) {
 	}
 	if request.IntervalMinutes < 0 || request.IntervalMinutes > model.PelicanMaxIntervalMinutes {
 		common.ApiErrorMsg(c, "interval_minutes must be between 0 and 1440")
+		return
+	}
+	// magpie 联动：地址必须是 http(s)，开联动时地址与 token 都得有。
+	magpieURL := strings.TrimSpace(request.MagpieURL)
+	if magpieURL != "" && !model.PelicanMagpieURLValid(magpieURL) {
+		common.ApiErrorMsg(c, "magpie_url must start with http:// or https://")
 		return
 	}
 	probes, err := model.GetPelicanProbeTargets()
@@ -746,27 +804,70 @@ func UpdatePelicanConfig(c *gin.Context) {
 		groups[group] = struct{}{}
 		cleaned = append(cleaned, pair)
 	}
+	// token 只写不读：请求里留空表示沿用已保存的那个，要清除必须显式带 magpie_token_clear。
+	previous := model.GetPelicanTestConfig()
+	magpieToken := strings.TrimSpace(request.MagpieToken)
+	if request.MagpieClear {
+		magpieToken = ""
+	} else if magpieToken == "" {
+		magpieToken = previous.MagpieToken
+	}
+	// 映射只能指向这一轮真正要探测的分组：给不探测的分组配 magpie 组永远触发不了。
+	magpieGroups := make([]model.PelicanMagpieGroup, 0, len(request.MagpieGroups))
+	for _, mapping := range request.MagpieGroups {
+		group := strings.TrimSpace(mapping.Group)
+		magpieGroup := strings.TrimSpace(mapping.MagpieGroup)
+		if group == "" && magpieGroup == "" {
+			continue
+		}
+		if !slices.ContainsFunc(cleaned, func(target model.PelicanProbeTarget) bool { return target.Group == group }) {
+			common.ApiErrorMsg(c, "magpie group is not a probe group: "+group)
+			return
+		}
+		if !model.PelicanMagpieGroupIDValid(magpieGroup) {
+			common.ApiErrorMsg(c, "magpie_group is required for group: "+group)
+			return
+		}
+		magpieGroups = append(magpieGroups, model.PelicanMagpieGroup{Group: group, MagpieGroup: magpieGroup})
+	}
+	// 开了自动调整就必须填全：地址、token 与至少一个分组映射，缺一个都跑不起来。
+	if len(magpieGroups) > 0 && (magpieURL == "" || magpieToken == "") {
+		common.ApiErrorMsg(c, "magpie_url and magpie_token are required to adjust magpie groups")
+		return
+	}
 	if err := model.SavePelicanTestConfig(model.PelicanTestConfig{
-		Targets:         cleaned,
-		IntervalMinutes: request.IntervalMinutes,
-		OwnerUserId:     adminUserId,
-		Prompt:          request.Prompt,
-		PromptContract:  request.PromptContract,
-		Description:     request.Description,
+		Targets:               cleaned,
+		IntervalMinutes:       request.IntervalMinutes,
+		OwnerUserId:           adminUserId,
+		Prompt:                request.Prompt,
+		PromptContract:        request.PromptContract,
+		Description:           request.Description,
+		MagpieURL:             magpieURL,
+		MagpieToken:           magpieToken,
+		MagpieGroups:          magpieGroups,
+		MagpieCooldownMinutes: request.MagpieCooldownMinutes,
+		MagpieDryRun:          request.MagpieDryRun,
 	}); err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	// 回显读回落库后的值：次数与冷却在保存时会被归一化，页面要看到真正生效的数字。
+	saved := model.GetPelicanTestConfig()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"targets":          cleaned,
-			"interval_minutes": request.IntervalMinutes,
-			"owner_user_id":    adminUserId,
-			"owner_username":   c.GetString("username"),
-			"prompt":           request.Prompt,
-			"prompt_contract":  request.PromptContract,
-			"description":      request.Description,
+			"targets":                 cleaned,
+			"interval_minutes":        request.IntervalMinutes,
+			"owner_user_id":           adminUserId,
+			"owner_username":          c.GetString("username"),
+			"prompt":                  saved.Prompt,
+			"prompt_contract":         saved.PromptContract,
+			"description":             saved.Description,
+			"magpie_url":              saved.MagpieURL,
+			"magpie_token_set":        saved.MagpieToken != "",
+			"magpie_groups":           saved.MagpieGroups,
+			"magpie_cooldown_minutes": saved.MagpieCooldownMinutes,
+			"magpie_dry_run":          saved.MagpieDryRun,
 		},
 	})
 }

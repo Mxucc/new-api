@@ -145,6 +145,36 @@ export function ModelIqHoverCard(props: ModelIqHoverCardProps) {
         </p>
       ) : null}
 
+      {/* 联动状态：这个分组映射到的 magpie 分组，以及上次请求调整失败的原因。 */}
+      {status.magpie_group ? (
+        <p className='text-muted-foreground text-xs'>
+          {t('magpie group {{group}}', { group: status.magpie_group })}
+        </p>
+      ) : null}
+      {(status.magpie_actions ?? []).map((action) => (
+        <p
+          key={`${action.ref}-${action.kind}`}
+          className='text-muted-foreground text-xs'
+        >
+          {t('magpie adjusted: {{result}}', {
+            result:
+              action.score === undefined
+                ? `${action.ref} ${action.kind}`
+                : `${action.ref} ${action.kind} · ${action.score}`,
+          })}
+        </p>
+      ))}
+      {status.magpie_result ? (
+        <p className='text-muted-foreground text-xs'>
+          {t('magpie adjusted: {{result}}', { result: status.magpie_result })}
+        </p>
+      ) : null}
+      {status.magpie_error ? (
+        <p className='text-destructive text-xs'>
+          {t('magpie: {{message}}', { message: status.magpie_error })}
+        </p>
+      ) : null}
+
       <RecentScoreSparkline
         group={status.group}
         modelName={status.model_name}

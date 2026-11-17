@@ -90,6 +90,66 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
   )
 }
 
+/**
+ * 联动备注：这一格在上一次动作里被 magpie 关掉或恢复过，或者那次动作失败了。
+ * 没有联动状态时什么都不显示，格子只在真的联动过之后才多一行。
+ */
+function ModelIqMagpieNote(props: { status: ModelIqStatus }) {
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const status = props.status
+  if (status.magpie_error) {
+    return (
+      <span
+        className='text-destructive truncate text-[10px]'
+        title={status.magpie_error}
+        data-testid={`model-iq-magpie-error-${status.group}-${status.model_name}`}
+      >
+        {t('magpie: {{message}}', { message: status.magpie_error })}
+      </span>
+    )
+  }
+  if (!status.magpie_group) {
+    return null
+  }
+  // 对账明细更具体（动了谁、当时智商），没有明细时退回状态文本与「已请求调整 + 时间」。
+  const actions = status.magpie_actions ?? []
+  const result =
+    actions.length > 0
+      ? actions
+          .map((action) =>
+            action.score === undefined
+              ? `${action.ref} ${action.kind}`
+              : `${action.ref} ${action.kind} · ${action.score}`
+          )
+          .join(', ')
+      : status.magpie_result
+  if (result) {
+    return (
+      <span
+        className='text-muted-foreground truncate text-[10px]'
+        data-testid={`model-iq-magpie-${status.group}-${status.model_name}`}
+      >
+        {t('magpie adjusted: {{result}}', { result })}
+      </span>
+    )
+  }
+  const when = status.magpie_adjusted_at
+    ? formatTimestampRelative(status.magpie_adjusted_at, 'seconds', locale)
+    : ''
+  return (
+    <span
+      className='text-muted-foreground truncate text-[10px]'
+      data-testid={`model-iq-magpie-${status.group}-${status.model_name}`}
+    >
+      {t('magpie {{group}} adjusted {{time}}', {
+        group: status.magpie_group,
+        time: when,
+      })}
+    </span>
+  )
+}
+
 interface ModelIqRowCellProps {
   status: ModelIqStatus
   isAdmin: boolean
@@ -141,8 +201,11 @@ function ModelIqRowCell(props: ModelIqRowCellProps) {
               iqCellClass(status.verdict)
             )}
           >
-            <span className='min-w-0 flex-1 truncate text-xs font-medium'>
-              {status.model_name}
+            <span className='flex min-w-0 flex-1 flex-col'>
+              <span className='truncate text-xs font-medium'>
+                {status.model_name}
+              </span>
+              <ModelIqMagpieNote status={status} />
             </span>
             <ModelIqStrip status={status} />
             <span className='shrink-0 text-xs tabular-nums'>{summary}</span>

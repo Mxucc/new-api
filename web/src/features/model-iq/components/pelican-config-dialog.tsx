@@ -26,6 +26,7 @@ import { ErrorState } from '@/components/error-state'
 import { GroupBadge } from '@/components/group-badge'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -40,12 +41,25 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { getPelicanConfig, updatePelicanConfig } from '../api'
-import type { PelicanConfig, PelicanTarget } from '../types'
+import { iqVerdictLabelKey } from '../lib/iq'
+import type {
+  ModelIqVerdict,
+  PelicanConfig,
+  PelicanMagpieGroup,
+  PelicanMagpieGroupOption,
+  PelicanTarget,
+} from '../types'
 
 const MAX_INTERVAL_MINUTES = 1440
 
 /** 「这个分组不探测」在下拉里的取值：空值当选项值在部分选择器上不可靠，单独给个哨兵。 */
 const NO_MODEL = '__none__'
+
+/** 「不调整」在下拉里的哨兵：空值当选项值在部分选择器上不可靠。 */
+const NO_MAGPIE_GROUP = '__none__'
+
+/** 冷却上限跟后端一致（一周），超出范围保存会被服务端拒绝。 */
+const MAX_MAGPIE_COOLDOWN_MINUTES = 10080
 
 type PelicanConfigDraft = {
   /** 分组 -> 模型；不在表里的分组就是不探测。 */
@@ -55,6 +69,14 @@ type PelicanConfigDraft = {
   prompt: string
   promptContract: string
   description: string
+  /** magpie 联动：地址、token（留空表示沿用已保存的）与分组映射。 */
+  magpieUrl: string
+  magpieToken: string
+  magpieTokenClear: boolean
+  magpieCooldownMinutes: string
+  magpieDryRun: boolean
+  /** new-api 分组 -> magpie 分组 id；空字符串表示这个分组不调整。 */
+  magpieGroups: Record<string, string>
 }
 
 export interface PelicanConfigDialogProps {
@@ -69,12 +91,23 @@ function draftFromConfig(
   for (const target of config?.targets ?? []) {
     models[target.group] = target.model
   }
+  const magpieGroups: Record<string, string> = {}
+  for (const mapping of config?.magpie_groups ?? []) {
+    magpieGroups[mapping.group] = mapping.magpie_group
+  }
   return {
     models,
     intervalMinutes: String(config?.interval_minutes ?? 0),
     prompt: config?.prompt ?? '',
     promptContract: config?.prompt_contract ?? '',
     description: config?.description ?? '',
+    magpieUrl: config?.magpie_url ?? '',
+    // token 不回显：输入框永远从空开始，留空表示沿用已保存的那个。
+    magpieToken: '',
+    magpieTokenClear: false,
+    magpieCooldownMinutes: String(config?.magpie_cooldown_minutes ?? 30),
+    magpieDryRun: config?.magpie_dry_run ?? false,
+    magpieGroups,
   }
 }
 
@@ -162,6 +195,82 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
     intervalNumber >= 0 &&
     intervalNumber <= MAX_INTERVAL_MINUTES
 
+  // 要联动的分组 = 这一轮真正会探测的分组：映射按分组逐行填，与模型无关。
+  const magpieRows = useMemo(() => {
+    const rows: string[] = []
+    for (const group of groups) {
+      if ((draft.models[group] ?? '') !== '') {
+        rows.push(group)
+      }
+    }
+    return rows
+  }, [draft.models, groups])
+
+  // 下拉里的候选：magpie-ops 给出的分组，外加已经保存过、但这次没列出来的那个。
+  const magpieOptions = useMemo(() => {
+    const options = config?.magpie_groups_available ?? []
+    const known = new Set(options.map((option) => option.id))
+    const saved: PelicanMagpieGroup[] = config?.magpie_groups ?? []
+    const extras = saved
+      .filter((mapping) => !known.has(mapping.magpie_group))
+      .map((mapping) => ({
+        id: mapping.magpie_group,
+        name: mapping.magpie_group,
+        members: [],
+      }))
+    return [...options, ...extras]
+  }, [config])
+
+  // 两边都在巡检就是重复探测、重复花钱：选中的 magpie 分组开了策略就提示一句。
+  const magpiePolicyInterval = useMemo(() => {
+    const selected = new Set(
+      magpieRows
+        .map((group) => draft.magpieGroups[group] ?? '')
+        .filter((id) => id !== '')
+    )
+    for (const option of config?.magpie_groups_available ?? []) {
+      if (selected.has(option.id) && option.policyEnabled) {
+        return option.intervalMinutes ?? 0
+      }
+    }
+    return null
+  }, [config, draft.magpieGroups, magpieRows])
+
+  const magpieOptionById = useMemo(() => {
+    const map = new Map<string, PelicanMagpieGroupOption>()
+    for (const option of magpieOptions) {
+      map.set(option.id, option)
+    }
+    return map
+  }, [magpieOptions])
+
+  const magpieCooldownNumber = Number(draft.magpieCooldownMinutes)
+  const magpieCooldownValid =
+    Number.isInteger(magpieCooldownNumber) &&
+    magpieCooldownNumber >= 1 &&
+    magpieCooldownNumber <= MAX_MAGPIE_COOLDOWN_MINUTES
+  const magpieUrlValue = draft.magpieUrl.trim()
+  const magpieUrlValid =
+    magpieUrlValue === '' ||
+    magpieUrlValue.startsWith('http://') ||
+    magpieUrlValue.startsWith('https://')
+  // token 只写不读：输入框为空时靠「已保存」的那个，清除要显式勾选。
+  const magpieTokenReady =
+    draft.magpieToken.trim() !== '' ||
+    (config?.magpie_token_set === true && !draft.magpieTokenClear)
+  const magpieMappedGroups = magpieRows.filter(
+    (group) => (draft.magpieGroups[group] ?? '') !== ''
+  )
+  // 开了自动调整就必须填全：地址、token 与至少一个分组映射，缺一个都跑不起来。
+  const magpieReady =
+    magpieMappedGroups.length === 0 ||
+    (magpieUrlValue !== '' && magpieTokenReady)
+  const canSave =
+    intervalValid &&
+    missing.length === 0 &&
+    magpieCooldownValid &&
+    magpieUrlValid &&
+    magpieReady
   const save = useMutation({
     mutationFn: updatePelicanConfig,
     onSuccess: () => {
@@ -187,8 +296,17 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
     })
   }
 
+  const handleMagpieGroupChange = (group: string, value: string) => {
+    patchDraft({
+      magpieGroups: {
+        ...draft.magpieGroups,
+        [group]: value === NO_MAGPIE_GROUP ? '' : value,
+      },
+    })
+  }
+
   const handleSave = () => {
-    if (!intervalValid || missing.length > 0) {
+    if (!canSave) {
       return
     }
     // 每个分组最多一个模型：这里按分组各取一个，空分组直接不提交。
@@ -199,12 +317,26 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
         targets.push({ group, model })
       }
     }
+    // 只提交选好 magpie 分组的行：没选就是这个分组不调整。
+    const magpieGroups: PelicanMagpieGroup[] = []
+    for (const group of magpieMappedGroups) {
+      magpieGroups.push({
+        group,
+        magpie_group: draft.magpieGroups[group] ?? '',
+      })
+    }
     save.mutate({
       targets,
       interval_minutes: intervalNumber,
       prompt: draft.prompt,
       prompt_contract: draft.promptContract,
       description: draft.description,
+      magpie_url: draft.magpieUrl.trim(),
+      magpie_token: draft.magpieToken.trim(),
+      magpie_token_clear: draft.magpieTokenClear,
+      magpie_groups: magpieGroups,
+      magpie_cooldown_minutes: magpieCooldownNumber,
+      magpie_dry_run: draft.magpieDryRun,
     })
   }
 
@@ -381,6 +513,221 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
             {t('Leave empty to use the translated default description.')}
           </p>
         </div>
+
+        {/* magpie 联动：巡视判出降智后，请 magpie-ops 现场调整映射到的那个分组。 */}
+        <div className='space-y-2' data-testid='pelican-magpie-section'>
+          <Label>{t('Magpie integration')}</Label>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'The sweep asks magpie-ops to adjust the mapped magpie group when a probe comes back degraded. Leave the URL empty to keep the two systems independent.'
+            )}
+          </p>
+          <Input
+            aria-label={t('magpie-ops URL')}
+            placeholder='http://127.0.0.1:7788'
+            value={draft.magpieUrl}
+            aria-invalid={magpieUrlValid ? undefined : true}
+            onChange={(event) => patchDraft({ magpieUrl: event.target.value })}
+          />
+          {magpieUrlValid ? null : (
+            <p className='text-destructive text-xs'>
+              {t('The address must start with http:// or https://.')}
+            </p>
+          )}
+          <Input
+            aria-label={t('API token')}
+            type='password'
+            autoComplete='off'
+            value={draft.magpieToken}
+            placeholder={
+              config?.magpie_token_set
+                ? t('A token is saved. Leave empty to keep it.')
+                : t('API token')
+            }
+            onChange={(event) =>
+              patchDraft({ magpieToken: event.target.value })
+            }
+          />
+          {config?.magpie_token_set ? (
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='pelican-magpie-token-clear'
+                checked={draft.magpieTokenClear}
+                onCheckedChange={(checked) =>
+                  patchDraft({ magpieTokenClear: checked === true })
+                }
+              />
+              <Label
+                htmlFor='pelican-magpie-token-clear'
+                className='text-muted-foreground text-xs font-normal'
+              >
+                {t('Clear the saved token')}
+              </Label>
+            </div>
+          ) : null}
+          {config?.magpie_groups_error ? (
+            <p
+              className='text-destructive text-xs'
+              data-testid='pelican-magpie-groups-error'
+            >
+              {t('magpie groups could not be listed: {{message}}', {
+                message: config.magpie_groups_error,
+              })}
+            </p>
+          ) : null}
+          {magpieRows.length > 0 ? (
+            <div className='space-y-2'>
+              <Label>{t('magpie group to adjust')}</Label>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Pick the magpie group each new-api group should adjust. magpie-ops decides which member to change.'
+                )}
+              </p>
+              {magpieRows.map((group) => {
+                const option = magpieOptionById.get(
+                  draft.magpieGroups[group] ?? ''
+                )
+                return (
+                  <div
+                    key={group}
+                    className='space-y-1'
+                    data-testid={`pelican-magpie-group-${group}`}
+                  >
+                    <div className='flex items-center gap-2'>
+                      <div className='w-28 min-w-0 shrink-0'>
+                        <GroupBadge group={group} copyable={false} />
+                      </div>
+                      <Select
+                        value={draft.magpieGroups[group] || NO_MAGPIE_GROUP}
+                        onValueChange={(value) =>
+                          handleMagpieGroupChange(group, value ?? '')
+                        }
+                      >
+                        <SelectTrigger
+                          className='w-full'
+                          aria-label={t('magpie group for {{group}}', {
+                            group,
+                          })}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_MAGPIE_GROUP}>
+                            {t('Do not adjust')}
+                          </SelectItem>
+                          {magpieOptions.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.name === item.id
+                                ? item.id
+                                : `${item.name} (${item.id})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* 选中的分组里有什么：渠道、判定，以及是不是本工具关掉的。 */}
+                    {option && option.members.length > 0 ? (
+                      <ul className='text-muted-foreground space-y-0.5 ps-[7.5rem] text-[10px]'>
+                        {option.members.slice(0, 4).map((member) => (
+                          <li key={member.ref} className='truncate'>
+                            {[
+                              member.ref,
+                              `${t(
+                                iqVerdictLabelKey(
+                                  (member.verdict ??
+                                    'pending') as ModelIqVerdict
+                                )
+                              )}${
+                                member.score === undefined
+                                  ? ''
+                                  : ` ${member.score}`
+                              }`,
+                              member.rate === undefined
+                                ? ''
+                                : `${t('Multiplier')} ${member.rate.toFixed(2)}×`,
+                              member.disabled
+                                ? t(
+                                    member.disabledByUs
+                                      ? 'closed (ours)'
+                                      : 'closed (manual)'
+                                  )
+                                : '',
+                            ]
+                              .filter((part) => part !== '')
+                              .join(' · ')}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+          {magpiePolicyInterval === null ? null : (
+            <p
+              className='text-destructive text-xs'
+              data-testid='pelican-magpie-policy-warning'
+            >
+              {magpiePolicyInterval > 0
+                ? t(
+                    'magpie is also sweeping this group every {{minutes}} minutes: both sides running will probe twice.',
+                    { minutes: magpiePolicyInterval }
+                  )
+                : t(
+                    'magpie is also sweeping this group on its own: both sides running will probe twice.'
+                  )}
+            </p>
+          )}
+          <div className='grid grid-cols-2 items-end gap-2'>
+            <div className='space-y-1'>
+              <Label
+                htmlFor='pelican-magpie-cooldown'
+                className='text-muted-foreground text-xs font-normal'
+              >
+                {t('Minutes between two adjustments of the same group')}
+              </Label>
+              <Input
+                id='pelican-magpie-cooldown'
+                type='number'
+                min={1}
+                max={MAX_MAGPIE_COOLDOWN_MINUTES}
+                value={draft.magpieCooldownMinutes}
+                aria-invalid={magpieCooldownValid ? undefined : true}
+                onChange={(event) =>
+                  patchDraft({ magpieCooldownMinutes: event.target.value })
+                }
+              />
+            </div>
+            <div className='flex items-center gap-2 pb-1.5'>
+              <Checkbox
+                id='pelican-magpie-dry-run'
+                checked={draft.magpieDryRun}
+                onCheckedChange={(checked) =>
+                  patchDraft({ magpieDryRun: checked === true })
+                }
+              />
+              <Label
+                htmlFor='pelican-magpie-dry-run'
+                className='text-muted-foreground text-xs font-normal'
+              >
+                {t('Dry run: only log what would be adjusted')}
+              </Label>
+            </div>
+          </div>
+          {magpieCooldownValid ? null : (
+            <p className='text-destructive text-xs'>
+              {t(
+                'The cooldown must be a whole number from 1 to 10080 minutes.'
+              )}
+            </p>
+          )}
+          {magpieReady ? null : (
+            <p className='text-destructive text-xs'>
+              {t('Adjusting needs the URL and the token.')}
+            </p>
+          )}
+        </div>
       </div>
     )
   }
@@ -404,12 +751,7 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
           </Button>
           <Button
             size='sm'
-            disabled={
-              save.isPending ||
-              !intervalValid ||
-              missing.length > 0 ||
-              query.isLoading
-            }
+            disabled={save.isPending || !canSave || query.isLoading}
             onClick={handleSave}
           >
             {save.isPending ? t('Saving…') : t('Save')}

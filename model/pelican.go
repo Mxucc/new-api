@@ -1,6 +1,7 @@
 package model
 
 import (
+	"net/url"
 	"strings"
 	"time"
 
@@ -36,6 +37,15 @@ type PelicanProbeTarget struct {
 	Model string `json:"model"`
 }
 
+// PelicanMagpieGroup 是 new-api 的一个分组到 magpie 一个路由组的映射。
+// 两边之间还隔着 sub2api，provider 名对不上，所以只映射到「组」，不映射到渠道。
+type PelicanMagpieGroup struct {
+	// Group 是 new-api 的分组名，和探测目标里的分组同一个写法。
+	Group string `json:"group"`
+	// MagpieGroup 是 magpie 的分组 id，例如 never-stuck。
+	MagpieGroup string `json:"magpie_group"`
+}
+
 // PelicanTestConfig 是后台的巡视设置。探测由系统自己跑，所有用户看同一份结果：
 // 测哪些分组由管理员决定，用量记在保存这份配置的管理员名下。
 type PelicanTestConfig struct {
@@ -51,6 +61,17 @@ type PelicanTestConfig struct {
 	PromptContract string `json:"prompt_contract,omitempty"`
 	// Description 是页面上给用户看的说明，留空用前端翻译的默认说明。
 	Description string `json:"description,omitempty"`
+	// MagpieURL 是 magpie-ops 的地址（如 http://127.0.0.1:7788），空表示不联动。
+	MagpieURL string `json:"magpie_url,omitempty"`
+	// MagpieToken 是它的 API token：只在保存时写入，读取时绝不回显。
+	MagpieToken string `json:"magpie_token,omitempty"`
+	// MagpieGroups 是开了自动调整的 new-api 分组及其 magpie 分组，没列出的不联动。
+	MagpieGroups []PelicanMagpieGroup `json:"magpie_groups,omitempty"`
+	// MagpieCooldownMinutes 是同一分组两次 adjust 之间的最小间隔，默认 30。
+	// adjust 会让 magpie 现场把分组里每个成员都测一遍，不该被一次巡视打很多次。
+	MagpieCooldownMinutes int `json:"magpie_cooldown_minutes,omitempty"`
+	// MagpieDryRun 只记录「本来会调谁」，不真的改 magpie，先观察用。
+	MagpieDryRun bool `json:"magpie_dry_run,omitempty"`
 }
 
 // 题面、交付约定与页面说明的内置默认值。管理员可以整体替换它们，
@@ -66,6 +87,13 @@ const PelicanPromptMaxRunes = 4000
 
 // PelicanMaxIntervalMinutes 是巡视间隔上限（一天）：再长就没有巡视的意义了。
 const PelicanMaxIntervalMinutes = 1440
+
+// 联动冷却的默认值与上限：默认 30 分钟与 magpie-ops 自己的巡检间隔一致，
+// 上限一周，避免管理员填出一个永远等不到触发的数字。
+const (
+	PelicanMagpieDefaultCooldown   = 30
+	PelicanMagpieMaxCooldownMinute = 10080
+)
 
 // 智商时间条按巡视间隔切片：24 小时里放 24*60/interval 格，一格就是一次巡视。
 // 没采到样的格子沿用上一次成功的结果（默认是绿的），只有真失败才变色。
@@ -144,6 +172,58 @@ func pelicanConfigTargets(targets []PelicanProbeTarget) []PelicanProbeTarget {
 	return cleaned
 }
 
+// PelicanMagpieGroupIDValid 判断 magpie 分组 id 是否可用：id 会原样进 URL 与请求体，
+// 带空白或斜杠的写法在 magpie-ops 那边只会被当成未知分组。
+func PelicanMagpieGroupIDValid(id string) bool {
+	return id != "" && !strings.ContainsAny(id, " \t/\\")
+}
+
+// PelicanMagpieURLValid 判断联动地址是否可用：只接受 http/https 的绝对地址。
+func PelicanMagpieURLValid(rawURL string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	return parsed.Host != ""
+}
+
+// pelicanMagpieGroups 归一化分组映射：去掉空条目与非法 id，同一 new-api 分组只留一条。
+func pelicanMagpieGroups(groups []PelicanMagpieGroup) []PelicanMagpieGroup {
+	cleaned := make([]PelicanMagpieGroup, 0, len(groups))
+	seen := make(map[string]struct{}, len(groups))
+	for _, mapping := range groups {
+		group := strings.TrimSpace(mapping.Group)
+		magpieGroup := strings.TrimSpace(mapping.MagpieGroup)
+		if group == "" || !PelicanMagpieGroupIDValid(magpieGroup) {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		cleaned = append(cleaned, PelicanMagpieGroup{Group: group, MagpieGroup: magpieGroup})
+	}
+	return cleaned
+}
+
+// normalizePelicanMagpie 归一化联动配置：地址去尾斜杠、token 去空白、冷却落回安全区间，
+// 映射只留合法的分组。地址与 token 缺失时不抹掉映射——保存时已经拒绝过一次，
+// 这里再改只会让管理员看到自己填的东西消失。
+func (cfg *PelicanTestConfig) normalizePelicanMagpie() {
+	cfg.MagpieURL = strings.TrimRight(strings.TrimSpace(cfg.MagpieURL), "/")
+	cfg.MagpieToken = strings.TrimSpace(cfg.MagpieToken)
+	if cfg.MagpieCooldownMinutes <= 0 {
+		cfg.MagpieCooldownMinutes = PelicanMagpieDefaultCooldown
+	}
+	if cfg.MagpieCooldownMinutes > PelicanMagpieMaxCooldownMinute {
+		cfg.MagpieCooldownMinutes = PelicanMagpieMaxCooldownMinute
+	}
+	cfg.MagpieGroups = pelicanMagpieGroups(cfg.MagpieGroups)
+}
+
 // GetPelicanTestConfig 读取巡视设置；内容损坏时按「未配置」处理，一个组合都不探测。
 func GetPelicanTestConfig() PelicanTestConfig {
 	cfg := PelicanTestConfig{Targets: []PelicanProbeTarget{}}
@@ -161,6 +241,7 @@ func GetPelicanTestConfig() PelicanTestConfig {
 	cfg.Prompt = pelicanConfigText(cfg.Prompt)
 	cfg.PromptContract = pelicanConfigText(cfg.PromptContract)
 	cfg.Description = pelicanConfigText(cfg.Description)
+	cfg.normalizePelicanMagpie()
 	return cfg
 }
 
@@ -170,6 +251,7 @@ func SavePelicanTestConfig(cfg PelicanTestConfig) error {
 	cfg.Prompt = pelicanConfigText(cfg.Prompt)
 	cfg.PromptContract = pelicanConfigText(cfg.PromptContract)
 	cfg.Description = pelicanConfigText(cfg.Description)
+	cfg.normalizePelicanMagpie()
 	encoded, err := common.Marshal(cfg)
 	if err != nil {
 		return err

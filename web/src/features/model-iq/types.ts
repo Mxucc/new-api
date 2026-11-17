@@ -40,6 +40,47 @@ export type PelicanTarget = {
   model: string
 }
 
+/**
+ * new-api 的一个分组到 magpie 一个路由组的映射。两边之间还隔着 sub2api，
+ * provider 名对不上，所以只映射到组：动哪个成员由 magpie-ops 现场判定。
+ */
+export type PelicanMagpieGroup = {
+  group: string
+  /** magpie 的分组 id，例如 never-stuck。 */
+  magpie_group: string
+}
+
+/** magpie-ops 动作记录里我们关心的一小部分：动了谁、做了什么、当时智商。 */
+export type PelicanMagpieActionResult = {
+  ref: string
+  kind: string
+  /** 旧记录没有这个字段，所以可缺省；0 分是合法值。 */
+  score?: number
+}
+
+/** magpie-ops 分组里的一个成员，设置页只用来展示分组里有什么。 */
+export type PelicanMagpieMember = {
+  ref: string
+  provider?: string
+  providerName?: string
+  verdict?: string
+  score?: number
+  disabled?: boolean
+  /** 本工具关的（会自己恢复）还是管理员手工关的。 */
+  disabledByUs?: boolean
+  lastProbedAt?: string
+}
+
+/** magpie-ops GET /api/groups 里的一个分组：映射下拉的选项来自它。 */
+export type PelicanMagpieGroupOption = {
+  id: string
+  name: string
+  routing?: string
+  /** magpie-ops 自己的巡检开关：两边都跑就是重复探测。 */
+  policyEnabled?: boolean
+  intervalMinutes?: number
+  members: PelicanMagpieMember[]
+}
 /** 时间条上一小格：一格对应一次巡视间隔。没采到样时判定沿用上一次成功的结果。 */
 export type ModelIqStripCell = {
   start: number
@@ -65,6 +106,16 @@ export type ModelIqStatus = {
   channel_id: number
   dimensions: string[]
   last_error?: string
+  /** 这个分组映射到的 magpie 分组；没配联动时为空。 */
+  magpie_group?: string
+  /** 上一次请 magpie 调整这个分组的时间（Unix 秒）。 */
+  magpie_adjusted_at?: number
+  /** 上一次调整的动作明细：动了谁、做了什么、当时智商。 */
+  magpie_actions?: PelicanMagpieActionResult[]
+  /** 没有结构化动作时的状态文本：试运行 / 无需调整 / 读不到动作记录。 */
+  magpie_result?: string
+  /** 上一次调整失败的原因：magpie 停机或 token 不对时显示它。 */
+  magpie_error?: string
   /** 该组合当前有一次探测在跑：格子显示加载态，页面保持轮询。 */
   testing: boolean
   /** 最近 24 小时切成的小格，一条结果也会铺满整条。 */
@@ -140,6 +191,20 @@ export type PelicanConfig = {
   default_description: string
   available_targets: PelicanTarget[]
   missing_targets: PelicanTarget[]
+  /** magpie 联动的地址；空表示不联动。 */
+  magpie_url: string
+  /** 服务端只告诉我们「有没有保存 token」，绝不回显明文。 */
+  magpie_token_set: boolean
+  /** 开了自动调整的分组及其 magpie 分组。 */
+  magpie_groups: PelicanMagpieGroup[]
+  /** 同一分组两次调整之间的最小间隔（分钟）。 */
+  magpie_cooldown_minutes: number
+  /** 只记录本来会调谁，不真的改 magpie。 */
+  magpie_dry_run: boolean
+  /** magpie-ops 那边的分组清单，拿不到时是空数组。 */
+  magpie_groups_available: PelicanMagpieGroupOption[]
+  /** 列不出分组时的原因：magpie 停机或 token 不对。 */
+  magpie_groups_error: string
 }
 
 /** 保存巡视设置后的回执：记账管理员由服务端按会话填写。 */
@@ -151,6 +216,13 @@ export type PelicanConfigUpdate = {
   prompt: string
   prompt_contract: string
   description: string
+  magpie_url: string
+  /** 留空表示沿用已保存的 token；要清除必须显式带 magpie_token_clear。 */
+  magpie_token: string
+  magpie_token_clear: boolean
+  magpie_groups: PelicanMagpieGroup[]
+  magpie_cooldown_minutes: number
+  magpie_dry_run: boolean
 }
 
 /**

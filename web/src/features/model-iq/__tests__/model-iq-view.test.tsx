@@ -181,6 +181,13 @@ beforeEach(() => {
       { group: 'vip', model: 'gpt-4.1' },
     ],
     missing_targets: [],
+    magpie_url: '',
+    magpie_token_set: false,
+    magpie_groups: [],
+    magpie_cooldown_minutes: 30,
+    magpie_dry_run: false,
+    magpie_groups_available: [],
+    magpie_groups_error: '',
   })
   api.updatePelicanConfig.mockResolvedValue({
     targets: [{ group: 'default', model: 'gpt-4.1' }],
@@ -190,6 +197,13 @@ beforeEach(() => {
     prompt: '',
     prompt_contract: '',
     description: '',
+    magpie_url: '',
+    magpie_token_set: false,
+    magpie_groups: [],
+    magpie_cooldown_minutes: 30,
+    magpie_dry_run: false,
+    magpie_groups_available: [],
+    magpie_groups_error: '',
   })
   api.runPelicanTest.mockResolvedValue({ started: true })
   api.runAllPelicanTests.mockResolvedValue({ started: true, targets: 3 })
@@ -216,6 +230,47 @@ describe('model IQ grid', () => {
     )
     expect(screen.getAllByText('default').length).toBeGreaterThan(0)
     expect(screen.getAllByText('vip').length).toBeGreaterThan(0)
+  })
+
+  it('shows what magpie changed for a degraded group', async () => {
+    api.getModelIqOverview.mockResolvedValue(
+      overview([
+        modelStatus({
+          verdict: 'poor',
+          magpie_group: 'never-stuck',
+          magpie_adjusted_at: 1700000000,
+          magpie_result: 'gptpro/gpt-6-astra disable',
+        }),
+      ])
+    )
+    renderPage(ROLE.USER)
+
+    // 对账结果比对「已请求调整」更具体：格子里直接显示动了哪个成员。
+    const note = await screen.findByTestId('model-iq-magpie-default-gpt-4.1')
+    expect(note).toHaveTextContent('gptpro/gpt-6-astra disable')
+  })
+
+  it('shows the score behind each magpie action, and keeps old records readable', async () => {
+    api.getModelIqOverview.mockResolvedValue(
+      overview([
+        modelStatus({
+          verdict: 'poor',
+          magpie_group: 'never-stuck',
+          magpie_adjusted_at: 1700000000,
+          // 0 分是合法智商：不能被当成「没有分数」吞掉。
+          magpie_actions: [
+            { ref: 'gptpro/gpt-6-astra', kind: 'disable', score: 0 },
+            { ref: 'dli/gpt-6-astra', kind: 'enable' },
+          ],
+        }),
+      ])
+    )
+    renderPage(ROLE.USER)
+
+    const note = await screen.findByTestId('model-iq-magpie-default-gpt-4.1')
+    expect(note).toHaveTextContent('gptpro/gpt-6-astra disable · 0')
+    // 旧记录没有 score：只写 ref + kind。
+    expect(note).toHaveTextContent('dli/gpt-6-astra enable')
   })
 
   it('keeps a configured group that was never tested, with an empty cell', async () => {
@@ -436,10 +491,149 @@ describe('model IQ actions', () => {
           prompt: '',
           prompt_contract: '',
           description: '',
+          // 没配 magpie 联动时字段照常提交，全部是「不调整」的默认值。
+          magpie_url: '',
+          magpie_token: '',
+          magpie_token_clear: false,
+          magpie_groups: [],
+          magpie_cooldown_minutes: 30,
+          magpie_dry_run: false,
         },
         expect.anything()
       )
     })
+  })
+
+  it('keeps the saved magpie token secret and sends the group mapping', async () => {
+    // token 只写不读：能回显给浏览器的只有「已保存」这一个事实；
+    // 映射是 new-api 分组 -> magpie 分组，动哪个成员由 magpie-ops 判定。
+    api.getPelicanConfig.mockResolvedValue({
+      targets: [{ group: 'default', model: 'gpt-4.1' }],
+      interval_minutes: 30,
+      owner_user_id: 2,
+      owner_username: 'admin',
+      prompt: '',
+      prompt_contract: '',
+      description: '',
+      default_prompt: 'Draw a pelican.',
+      default_contract: 'Output HTML only.',
+      default_description: 'Every model gets the same request.',
+      available_targets: [
+        { group: 'default', model: 'gpt-4.1' },
+        { group: 'vip', model: 'gpt-4.1' },
+      ],
+      missing_targets: [],
+      magpie_url: 'http://127.0.0.1:7788',
+      magpie_token_set: true,
+      magpie_groups: [{ group: 'default', magpie_group: 'never-stuck' }],
+      magpie_cooldown_minutes: 30,
+      magpie_dry_run: true,
+      magpie_groups_available: [
+        { id: 'never-stuck', name: '永不卡住', routing: 'order', members: [] },
+      ],
+      magpie_groups_error: '',
+    })
+    const user = userEvent.setup()
+    renderPage(ROLE.ADMIN)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Sweep settings' })
+    )
+    const token = await screen.findByLabelText('API token')
+    expect(token).toHaveValue('')
+    expect(token).toHaveAttribute(
+      'placeholder',
+      'A token is saved. Leave empty to keep it.'
+    )
+    // 映射行 = 一个探测分组一行，下拉里是 magpie-ops 给出的分组。
+    expect(
+      screen.getByTestId('pelican-magpie-group-default')
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(api.updatePelicanConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          magpie_url: 'http://127.0.0.1:7788',
+          // 输入框留空就沿用已保存的 token，绝不把明文写回请求体。
+          magpie_token: '',
+          magpie_token_clear: false,
+          magpie_groups: [{ group: 'default', magpie_group: 'never-stuck' }],
+          magpie_cooldown_minutes: 30,
+          magpie_dry_run: true,
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it('lists the members of the mapped magpie group and who closed them', async () => {
+    api.getPelicanConfig.mockResolvedValue({
+      targets: [{ group: 'default', model: 'gpt-4.1' }],
+      interval_minutes: 30,
+      owner_user_id: 2,
+      owner_username: 'admin',
+      prompt: '',
+      prompt_contract: '',
+      description: '',
+      default_prompt: 'Draw a pelican.',
+      default_contract: 'Output HTML only.',
+      default_description: 'Every model gets the same request.',
+      available_targets: [
+        { group: 'default', model: 'gpt-4.1' },
+        { group: 'vip', model: 'gpt-4.1' },
+      ],
+      missing_targets: [],
+      magpie_url: 'http://127.0.0.1:7788',
+      magpie_token_set: true,
+      magpie_groups: [{ group: 'default', magpie_group: 'never-stuck' }],
+      magpie_cooldown_minutes: 30,
+      magpie_dry_run: false,
+      magpie_groups_available: [
+        {
+          id: 'never-stuck',
+          name: '永不卡住',
+          routing: 'order',
+          policyEnabled: true,
+          intervalMinutes: 30,
+          members: [
+            {
+              ref: 'dli/gpt-6-astra',
+              providerName: '嘀哩哩',
+              verdict: 'healthy',
+              score: 100,
+              disabled: false,
+              disabledByUs: false,
+              rate: 1.1592,
+            },
+            {
+              ref: 'gptpro/gpt-6-astra',
+              verdict: 'poor',
+              score: 30,
+              disabled: true,
+              disabledByUs: true,
+            },
+          ],
+        },
+      ],
+      magpie_groups_error: '',
+    })
+    const user = userEvent.setup()
+    renderPage(ROLE.ADMIN)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Sweep settings' })
+    )
+    const row = await screen.findByTestId('pelican-magpie-group-default')
+    // 成员当天状态直接写在映射行下面：谁被关、是不是本工具关的。
+    expect(row).toHaveTextContent('dli/gpt-6-astra')
+    expect(row).toHaveTextContent('Multiplier 1.16×')
+    expect(row).toHaveTextContent('closed (ours)')
+    // magpie 侧也在巡检时还要提示重复探测。
+    expect(
+      await screen.findByTestId('pelican-magpie-policy-warning')
+    ).toBeInTheDocument()
   })
 
   it('tells a reader that nothing is configured yet', async () => {

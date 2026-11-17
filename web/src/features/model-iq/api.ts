@@ -26,7 +26,6 @@ import type {
   PelicanHistory,
   PelicanResult,
   PelicanStartAck,
-  PelicanTarget,
 } from './types'
 
 type Envelope<T> = {
@@ -84,13 +83,9 @@ export async function getPelicanConfig(): Promise<PelicanConfig> {
   return requireServerSuccess(res.data).data
 }
 
-export async function updatePelicanConfig(payload: {
-  targets: PelicanTarget[]
-  interval_minutes: number
-  prompt: string
-  prompt_contract: string
-  description: string
-}): Promise<PelicanConfigUpdate> {
+export async function updatePelicanConfig(
+  payload: PelicanConfigUpdate
+): Promise<PelicanConfigUpdate> {
   const res = await api.put<Envelope<PelicanConfigUpdate>>(
     '/api/pelican/config',
     payload

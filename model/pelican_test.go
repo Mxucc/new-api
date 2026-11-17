@@ -209,3 +209,80 @@ func TestGetPelicanTestResultByIdReportsMissingRows(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, IsPelicanResultMissing(err))
 }
+
+func TestSavePelicanTestConfigNormalizesTheMagpieLink(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	t.Cleanup(func() { assert.NoError(t, SavePelicanTestConfig(PelicanTestConfig{})) })
+
+	require.NoError(t, SavePelicanTestConfig(PelicanTestConfig{
+		Targets: []PelicanProbeTarget{
+			{Group: "default", Model: "gpt-4.1"},
+			{Group: "vip", Model: "gpt-4.1"},
+		},
+		IntervalMinutes:       30,
+		OwnerUserId:           3,
+		MagpieURL:             "  http://127.0.0.1:7788/  ",
+		MagpieToken:           " secret token ",
+		MagpieCooldownMinutes: 0,
+		MagpieDryRun:          true,
+		MagpieGroups: []PelicanMagpieGroup{
+			{Group: " default ", MagpieGroup: " never-stuck "},
+			// 缺分组、非法 magpie 组 id、以及重复的分组条目都丢掉。
+			{Group: "", MagpieGroup: "orphan"},
+			{Group: "vip", MagpieGroup: ""},
+			{Group: "default", MagpieGroup: "fast-lane"},
+			{Group: "vip", MagpieGroup: "has space"},
+		},
+	}))
+
+	cfg := GetPelicanTestConfig()
+	assert.Equal(t, "http://127.0.0.1:7788", cfg.MagpieURL)
+	assert.Equal(t, "secret token", cfg.MagpieToken)
+	// 冷却 0 按默认 30 分钟处理：一次巡视不该给同一个分组连打多次 adjust。
+	assert.Equal(t, PelicanMagpieDefaultCooldown, cfg.MagpieCooldownMinutes)
+	assert.True(t, cfg.MagpieDryRun)
+	assert.Equal(t, []PelicanMagpieGroup{
+		{Group: "default", MagpieGroup: "never-stuck"},
+	}, cfg.MagpieGroups)
+
+	// 冷却超过上限时收回到上限，不会出现「永远等不到触发」的配置。
+	cfg.MagpieCooldownMinutes = PelicanMagpieMaxCooldownMinute + 100
+	require.NoError(t, SavePelicanTestConfig(cfg))
+	assert.Equal(t, PelicanMagpieMaxCooldownMinute, GetPelicanTestConfig().MagpieCooldownMinutes)
+}
+
+func TestPelicanMagpieAddressAndGroupValidation(t *testing.T) {
+	assert.True(t, PelicanMagpieURLValid("http://127.0.0.1:7788"))
+	assert.True(t, PelicanMagpieURLValid("https://ops.example.com"))
+	assert.False(t, PelicanMagpieURLValid("127.0.0.1:7788"))
+	assert.False(t, PelicanMagpieURLValid("ftp://ops.example.com"))
+	assert.False(t, PelicanMagpieURLValid("http://"))
+
+	// magpie 的分组 id 会原样进 URL 与请求体：带空白或斜杠的写法一律当非法。
+	assert.True(t, PelicanMagpieGroupIDValid("never-stuck"))
+	assert.False(t, PelicanMagpieGroupIDValid(""))
+	assert.False(t, PelicanMagpieGroupIDValid("never stuck"))
+	assert.False(t, PelicanMagpieGroupIDValid("never/stuck"))
+}
+
+func TestPelicanMagpieStateRoundTripsAndIgnoresBrokenJSON(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	t.Cleanup(func() { setPelicanOption(t, PelicanMagpieStateOption, "") })
+
+	require.NoError(t, UpdatePelicanMagpieState("default", func(state *PelicanMagpieState) {
+		state.MagpieGroup = "never-stuck"
+		state.AdjustedAt = 1711111111
+		state.OK = true
+	}))
+	states := GetPelicanMagpieStates()
+	require.Contains(t, states, "default")
+	assert.Equal(t, "never-stuck", states["default"].MagpieGroup)
+	assert.True(t, states["default"].OK)
+	assert.Equal(t, int64(1711111111), states["default"].AdjustedAt)
+	// 状态按 new-api 分组记：另一个分组互不影响。
+	assert.NotContains(t, states, "vip")
+
+	// 状态损坏时按「没有状态」处理：宁可不动手，也不要拿坏数据去调 magpie。
+	setPelicanOption(t, PelicanMagpieStateOption, "not-json")
+	assert.Empty(t, GetPelicanMagpieStates())
+}
