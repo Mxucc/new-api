@@ -94,7 +94,32 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
  * 联动备注：这一格在上一次动作里被 magpie 关掉或恢复过，或者那次动作失败了。
  * 没有联动状态时什么都不显示，格子只在真的联动过之后才多一行。
  */
+// 一条结果如果是从 magpie-ops 取来的，格子第二行先说明这件事：
+// 用户看到的是「别人的答案」，不是本机刚测的，来源要说清楚。
 function ModelIqMagpieNote(props: { status: ModelIqStatus }) {
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const status = props.status
+  if (status.source !== 'magpie-ops') {
+    return <ModelIqMagpieDetail status={status} />
+  }
+  const observedAt = status.observed_at || status.tested_at
+  return (
+    <>
+      <span
+        className='text-muted-foreground truncate text-[10px]'
+        title={t('This result comes from magpie-ops, so the question was not paid for twice.')}
+        data-testid={`model-iq-reused-${status.group}-${status.model_name}`}
+      >
+        {t('Reused from magpie-ops')} ·{' '}
+        {formatTimestampRelative(observedAt, 'seconds', locale)}
+      </span>
+      <ModelIqMagpieDetail status={status} />
+    </>
+  )
+}
+
+function ModelIqMagpieDetail(props: { status: ModelIqStatus }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const status = props.status

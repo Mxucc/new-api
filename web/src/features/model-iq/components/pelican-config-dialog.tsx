@@ -60,6 +60,8 @@ const NO_MAGPIE_GROUP = '__none__'
 
 /** 冷却上限跟后端一致（一周），超出范围保存会被服务端拒绝。 */
 const MAX_MAGPIE_COOLDOWN_MINUTES = 10080
+// 与服务端 model.PelicanMagpieDefaultReuse 一致：联动开着时默认复用一小时内的结果。
+const DEFAULT_MAGPIE_REUSE_MINUTES = 60
 
 type PelicanConfigDraft = {
   /** 分组 -> 模型；不在表里的分组就是不探测。 */
@@ -75,6 +77,8 @@ type PelicanConfigDraft = {
   magpieTokenClear: boolean
   magpieCooldownMinutes: string
   magpieDryRun: boolean
+  /** 复用 magpie-ops 结果的窗口；空字符串表示跟随默认。 */
+  magpieReuseMinutes: string
   /** new-api 分组 -> magpie 分组 id；空字符串表示这个分组不调整。 */
   magpieGroups: Record<string, string>
 }
@@ -107,6 +111,11 @@ function draftFromConfig(
     magpieTokenClear: false,
     magpieCooldownMinutes: String(config?.magpie_cooldown_minutes ?? 30),
     magpieDryRun: config?.magpie_dry_run ?? false,
+    magpieReuseMinutes:
+      config?.magpie_reuse_minutes === null ||
+      config?.magpie_reuse_minutes === undefined
+        ? ''
+        : String(config.magpie_reuse_minutes),
     magpieGroups,
   }
 }
@@ -244,6 +253,13 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
     return map
   }, [magpieOptions])
 
+  const magpieReuseRaw = draft.magpieReuseMinutes.trim()
+  const magpieReuseNumber = Number(magpieReuseRaw)
+  const magpieReuseValid =
+    magpieReuseRaw === '' ||
+    (Number.isInteger(magpieReuseNumber) &&
+      magpieReuseNumber >= 0 &&
+      magpieReuseNumber <= MAX_MAGPIE_COOLDOWN_MINUTES)
   const magpieCooldownNumber = Number(draft.magpieCooldownMinutes)
   const magpieCooldownValid =
     Number.isInteger(magpieCooldownNumber) &&
@@ -269,6 +285,7 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
     intervalValid &&
     missing.length === 0 &&
     magpieCooldownValid &&
+    magpieReuseValid &&
     magpieUrlValid &&
     magpieReady
   const save = useMutation({
@@ -337,6 +354,7 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
       magpie_groups: magpieGroups,
       magpie_cooldown_minutes: magpieCooldownNumber,
       magpie_dry_run: draft.magpieDryRun,
+      magpie_reuse_minutes: magpieReuseRaw === '' ? null : magpieReuseNumber,
     })
   }
 
@@ -720,6 +738,38 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
               {t(
                 'The cooldown must be a whole number from 1 to 10080 minutes.'
               )}
+            </p>
+          )}
+          <div className='space-y-1'>
+            <Label
+              htmlFor='pelican-magpie-reuse'
+              className='text-muted-foreground text-xs font-normal'
+            >
+              {t(
+                'Reuse its result within (minutes); leave empty for the default, 0 to always test here'
+              )}
+            </Label>
+            <Input
+              id='pelican-magpie-reuse'
+              type='number'
+              min={0}
+              max={MAX_MAGPIE_COOLDOWN_MINUTES}
+              placeholder={String(DEFAULT_MAGPIE_REUSE_MINUTES)}
+              value={draft.magpieReuseMinutes}
+              aria-invalid={magpieReuseValid ? undefined : true}
+              onChange={(event) =>
+                patchDraft({ magpieReuseMinutes: event.target.value })
+              }
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'When magpie-ops already probed this group a moment ago, the IQ test reuses its answer instead of paying for the same question twice.'
+              )}
+            </p>
+          </div>
+          {magpieReuseValid ? null : (
+            <p className='text-destructive text-xs'>
+              {t('The reuse window must be a whole number of minutes.')}
             </p>
           )}
           {magpieReady ? null : (

@@ -8397,6 +8397,11 @@
     "magpie is also sweeping this group every {{minutes}} minutes: both sides running will probe twice.": "magpie is also sweeping this group every {{minutes}} minutes: both sides running will probe twice.",
     "magpie is also sweeping this group on its own: both sides running will probe twice.": "magpie is also sweeping this group on its own: both sides running will probe twice.",
     "closed (ours)": "closed (ours)",
-    "closed (manual)": "closed (manual)"
+    "closed (manual)": "closed (manual)",
+    "Reused from magpie-ops": "Reused from magpie-ops",
+    "This result comes from magpie-ops, so the question was not paid for twice.": "This result comes from magpie-ops, so the question was not paid for twice.",
+    "Reuse its result within (minutes); leave empty for the default, 0 to always test here": "Reuse its result within (minutes); leave empty for the default, 0 to always test here",
+    "When magpie-ops already probed this group a moment ago, the IQ test reuses its answer instead of paying for the same question twice.": "When magpie-ops already probed this group a moment ago, the IQ test reuses its answer instead of paying for the same question twice.",
+    "The reuse window must be a whole number of minutes.": "The reuse window must be a whole number of minutes."
   }
 }

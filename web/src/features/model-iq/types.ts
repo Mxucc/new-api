@@ -106,6 +106,10 @@ export type ModelIqStatus = {
   channel_id: number
   dimensions: string[]
   last_error?: string
+  /** 这条结果的来源：空表示本机测的，`magpie-ops` 表示直接取了它的结果（没有重复花钱）。 */
+  source?: string
+  /** 它真正被测出来的时刻（复用 magpie-ops 时比 tested_at 早）。 */
+  observed_at?: number
   /** 这个分组映射到的 magpie 分组；没配联动时为空。 */
   magpie_group?: string
   /** 上一次请 magpie 调整这个分组的时间（Unix 秒）。 */
@@ -201,6 +205,11 @@ export type PelicanConfig = {
   magpie_cooldown_minutes: number
   /** 只记录本来会调谁，不真的改 magpie。 */
   magpie_dry_run: boolean
+  /**
+   * 复用 magpie-ops 结果的窗口（分钟）：联动开着时它刚测过的分组不再自己测。
+   * null 表示跟随默认（联动开着就复用 60 分钟），0 表示关掉复用。
+   */
+  magpie_reuse_minutes?: number | null
   /** magpie-ops 那边的分组清单，拿不到时是空数组。 */
   magpie_groups_available: PelicanMagpieGroupOption[]
   /** 列不出分组时的原因：magpie 停机或 token 不对。 */
@@ -223,6 +232,8 @@ export type PelicanConfigUpdate = {
   magpie_groups: PelicanMagpieGroup[]
   magpie_cooldown_minutes: number
   magpie_dry_run: boolean
+  /** 复用窗口；null 表示跟随默认，0 表示关掉。 */
+  magpie_reuse_minutes?: number | null
 }
 
 /**

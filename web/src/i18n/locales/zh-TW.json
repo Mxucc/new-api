@@ -8397,6 +8397,11 @@
     "magpie is also sweeping this group every {{minutes}} minutes: both sides running will probe twice.": "magpie 側也在每 {{minutes}} 分鐘巡檢這個分組，兩邊都開會重複探測（重複花錢）。",
     "magpie is also sweeping this group on its own: both sides running will probe twice.": "magpie 側也在自己巡檢這個分組，兩邊都開會重複探測（重複花錢）。",
     "closed (ours)": "已關閉（我們關的）",
-    "closed (manual)": "已關閉（手動關的）"
+    "closed (manual)": "已關閉（手動關的）",
+    "Reused from magpie-ops": "取自 magpie-ops",
+    "This result comes from magpie-ops, so the question was not paid for twice.": "這條結果來自 magpie-ops，所以這道題沒有重複付費。",
+    "Reuse its result within (minutes); leave empty for the default, 0 to always test here": "複用它的結果（分鐘）；留空用預設值，填 0 表示永遠自己測",
+    "When magpie-ops already probed this group a moment ago, the IQ test reuses its answer instead of paying for the same question twice.": "如果 magpie-ops 剛剛測過這個分組，測智就直接用它的答案，不會為同一道題付兩次錢。",
+    "The reuse window must be a whole number of minutes.": "複用窗口必須是整數分鐘。"
   }
 }

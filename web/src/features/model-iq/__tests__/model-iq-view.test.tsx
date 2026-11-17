@@ -232,6 +232,21 @@ describe('model IQ grid', () => {
     expect(screen.getAllByText('vip').length).toBeGreaterThan(0)
   })
 
+  it('says when a result was reused from magpie-ops', async () => {
+    const reused = modelStatus({
+      verdict: 'degraded',
+      score: 60,
+      source: 'magpie-ops',
+      observed_at: 1699999800,
+    })
+    api.getModelIqOverview.mockResolvedValue(overview([reused]))
+    renderPage(ROLE.USER)
+
+    const note = await screen.findByTestId('model-iq-reused-default-gpt-4.1')
+    // 用户要知道这条不是刚测的：同一道题没有付两次钱。
+    expect(note).toHaveTextContent('Reused from magpie-ops')
+  })
+
   it('shows what magpie changed for a degraded group', async () => {
     api.getModelIqOverview.mockResolvedValue(
       overview([
@@ -498,6 +513,8 @@ describe('model IQ actions', () => {
           magpie_groups: [],
           magpie_cooldown_minutes: 30,
           magpie_dry_run: false,
+          // 留空表示跟随默认（联动开着就复用），不是关掉。
+          magpie_reuse_minutes: null,
         },
         expect.anything()
       )
@@ -562,6 +579,7 @@ describe('model IQ actions', () => {
           magpie_groups: [{ group: 'default', magpie_group: 'never-stuck' }],
           magpie_cooldown_minutes: 30,
           magpie_dry_run: true,
+          magpie_reuse_minutes: null,
         }),
         expect.anything()
       )

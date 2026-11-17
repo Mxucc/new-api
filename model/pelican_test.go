@@ -286,3 +286,28 @@ func TestPelicanMagpieStateRoundTripsAndIgnoresBrokenJSON(t *testing.T) {
 	setPelicanOption(t, PelicanMagpieStateOption, "not-json")
 	assert.Empty(t, GetPelicanMagpieStates())
 }
+
+// 复用窗口：没配就跟着联动走（开着就复用），显式 0 表示永远自己测。
+func TestMagpieReuseWindowFollowsTheLinkage(t *testing.T) {
+	unlinked := PelicanTestConfig{}
+	require.Equal(t, 0, unlinked.MagpieReuseWindow(), "without a linkage there is nothing to reuse")
+
+	linked := PelicanTestConfig{MagpieURL: "http://127.0.0.1:7788", MagpieToken: "t",
+		MagpieGroups: []PelicanMagpieGroup{{Group: "vip", MagpieGroup: "never-stuck"}}}
+	require.True(t, linked.MagpieLinked())
+	require.Equal(t, PelicanMagpieDefaultReuse, linked.MagpieReuseWindow(),
+		"a linked install reuses by default, so the same minute is not bought twice")
+
+	off := 0
+	linked.MagpieReuseMinutes = &off
+	require.Equal(t, 0, linked.MagpieReuseWindow(), "an explicit 0 turns reuse off")
+
+	window := 15
+	linked.MagpieReuseMinutes = &window
+	require.Equal(t, 15, linked.MagpieReuseWindow())
+
+	huge := PelicanMagpieMaxCooldownMinute + 1000
+	linked.MagpieReuseMinutes = &huge
+	linked.normalizePelicanMagpie()
+	require.Equal(t, PelicanMagpieMaxCooldownMinute, *linked.MagpieReuseMinutes, "the window is clamped")
+}

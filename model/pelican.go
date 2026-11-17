@@ -24,6 +24,11 @@ type PelicanTestResult struct {
 	Output     string `json:"output" gorm:"type:text"`
 	Error      string `json:"error" gorm:"type:text"`
 	CreatedAt  int64  `json:"created_at" gorm:"bigint;index"`
+	// Source 是这条结果的来源：空表示本机真的跑了一次探测，
+	// PelicanSourceMagpie 表示直接取了 magpie-ops 的结果（没有重复花钱）。
+	Source string `json:"source,omitempty" gorm:"size:16"`
+	// ObservedAt 是那条结果真正被测出来的时刻（复用 magpie-ops 时它比 CreatedAt 早）。
+	ObservedAt int64 `json:"observed_at,omitempty" gorm:"bigint"`
 }
 
 func (PelicanTestResult) TableName() string {
@@ -65,13 +70,17 @@ type PelicanTestConfig struct {
 	MagpieURL string `json:"magpie_url,omitempty"`
 	// MagpieToken 是它的 API token：只在保存时写入，读取时绝不回显。
 	MagpieToken string `json:"magpie_token,omitempty"`
-	// MagpieGroups 是开了自动调整的 new-api 分组及其 magpie 分组，没列出的不联动。
+	// MagpieGroups 是开了联动的 new-api 分组及其 magpie 分组，没列出的不联动。
 	MagpieGroups []PelicanMagpieGroup `json:"magpie_groups,omitempty"`
 	// MagpieCooldownMinutes 是同一分组两次 adjust 之间的最小间隔，默认 30。
 	// adjust 会让 magpie 现场把分组里每个成员都测一遍，不该被一次巡视打很多次。
 	MagpieCooldownMinutes int `json:"magpie_cooldown_minutes,omitempty"`
 	// MagpieDryRun 只记录「本来会调谁」，不真的改 magpie，先观察用。
 	MagpieDryRun bool `json:"magpie_dry_run,omitempty"`
+	// MagpieReuseMinutes 是「用 magpie-ops 已有的测智结果代替自己测」的窗口：
+	// 联动开着时同一个分组里的渠道刚被它测过，这里再测一遍就是重复花钱。
+	// nil 表示跟随默认（联动开着就复用 60 分钟），0 表示不复用、永远自己测。
+	MagpieReuseMinutes *int `json:"magpie_reuse_minutes,omitempty"`
 }
 
 // 题面、交付约定与页面说明的内置默认值。管理员可以整体替换它们，
@@ -88,12 +97,18 @@ const PelicanPromptMaxRunes = 4000
 // PelicanMaxIntervalMinutes 是巡视间隔上限（一天）：再长就没有巡视的意义了。
 const PelicanMaxIntervalMinutes = 1440
 
-// 联动冷却的默认值与上限：默认 30 分钟与 magpie-ops 自己的巡检间隔一致，
+// 联动冷却与复用窗口的默认值与上限：冷却默认 30 分钟与 magpie-ops 自己的
+// 巡检间隔一致；复用窗口默认 60 分钟，联动开着时它的答案就是最新的答案。
 // 上限一周，避免管理员填出一个永远等不到触发的数字。
 const (
 	PelicanMagpieDefaultCooldown   = 30
 	PelicanMagpieMaxCooldownMinute = 10080
+	PelicanMagpieDefaultReuse      = 60
 )
+
+// PelicanSourceMagpie 标记一条结果是从 magpie-ops 取来的，不是本机跑出来的：
+// 页面据此显示来源，巡视收尾也不会为一个「别人刚测过」的分组再去请一次调整。
+const PelicanSourceMagpie = "magpie-ops"
 
 // 智商时间条按巡视间隔切片：24 小时里放 24*60/interval 格，一格就是一次巡视。
 // 没采到样的格子沿用上一次成功的结果（默认是绿的），只有真失败才变色。
@@ -222,6 +237,36 @@ func (cfg *PelicanTestConfig) normalizePelicanMagpie() {
 		cfg.MagpieCooldownMinutes = PelicanMagpieMaxCooldownMinute
 	}
 	cfg.MagpieGroups = pelicanMagpieGroups(cfg.MagpieGroups)
+	if cfg.MagpieReuseMinutes != nil {
+		reuse := *cfg.MagpieReuseMinutes
+		if reuse < 0 {
+			reuse = 0
+		}
+		if reuse > PelicanMagpieMaxCooldownMinute {
+			reuse = PelicanMagpieMaxCooldownMinute
+		}
+		cfg.MagpieReuseMinutes = &reuse
+	}
+}
+
+// MagpieLinked 报告联动是否真的可用：地址、token、映射三者缺一不可，
+// 少一个就不该发出任何请求，也不该悄悄改变探测行为。
+func (cfg PelicanTestConfig) MagpieLinked() bool {
+	return strings.TrimSpace(cfg.MagpieURL) != "" &&
+		strings.TrimSpace(cfg.MagpieToken) != "" &&
+		len(cfg.MagpieGroups) > 0
+}
+
+// MagpieReuseWindow 返回「多久以内的 magpie-ops 结果可以直接用」的分钟数，
+// 0 表示不复用。没有显式配置时，联动开着就按默认窗口复用。
+func (cfg PelicanTestConfig) MagpieReuseWindow() int {
+	if cfg.MagpieReuseMinutes == nil {
+		if cfg.MagpieLinked() {
+			return PelicanMagpieDefaultReuse
+		}
+		return 0
+	}
+	return *cfg.MagpieReuseMinutes
 }
 
 // GetPelicanTestConfig 读取巡视设置；内容损坏时按「未配置」处理，一个组合都不探测。

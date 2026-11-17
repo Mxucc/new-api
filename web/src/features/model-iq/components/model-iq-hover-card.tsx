@@ -138,6 +138,16 @@ export function ModelIqHoverCard(props: ModelIqHoverCardProps) {
         </p>
       ) : null}
 
+      {/* 从 magpie-ops 取来的结果：说清来源，以及那个答案是什么时候测出来的。 */}
+      {status.source === 'magpie-ops' ? (
+        <p className='text-muted-foreground text-xs'>
+          {t('Reused from magpie-ops')}
+          {status.observed_at
+            ? ` · ${formatTimestampRelative(status.observed_at, 'seconds', locale)}`
+            : ''}
+        </p>
+      ) : null}
+
       {/* 上游报 502 之类的错误时，这一行说明是哪条渠道测出来的。 */}
       {status.channel_id > 0 ? (
         <p className='text-muted-foreground text-xs'>

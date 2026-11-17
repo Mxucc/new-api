@@ -61,6 +61,10 @@ type pelicanModelStatus struct {
 	ChannelId  int      `json:"channel_id"`
 	Dimensions []string `json:"dimensions"`
 	LastError  string   `json:"last_error,omitempty"`
+	// Source 是这条结果的来源：空表示本机测的，magpie-ops 表示直接取了它的结果
+	// （没有重复花钱）；ObservedAt 是它真正被测出来的时刻。
+	Source     string `json:"source,omitempty"`
+	ObservedAt int64  `json:"observed_at,omitempty"`
 	// Magpie 联动状态：Group 是映射到的 magpie 分组，AdjustedAt 是上次请求调整的时间，
 	// Error 是那次请求失败的原因（判定与处置由 magpie-ops 自己做，这里只记「请过了」）。
 	MagpieGroup      string `json:"magpie_group,omitempty"`
@@ -170,6 +174,9 @@ func pelicanStatusOf(target model.PelicanProbeTarget, available bool, result *mo
 	status.ChannelId = result.ChannelId
 	status.Dimensions = splitPelicanDimensions(result.Dimensions)
 	status.LastError = result.Error
+	// 这条结果是从 magpie-ops 取来的：页面要能说出来，而不是假装本机测过。
+	status.Source = result.Source
+	status.ObservedAt = result.ObservedAt
 	return status
 }
 
@@ -496,8 +503,20 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 	if channel == nil {
 		return nil, errors.New("no enabled channel serves this group/model: " + group + "/" + modelName)
 	}
+	cfg := model.GetPelicanTestConfig()
+	// 联动开着时先问一句「这个分组里的这个模型，magpie-ops 刚测过吗」：
+	// 测智是整段回答，重复测就是重复花钱，而它给出的就是同一件事的答案。
+	if reused, ok := reuseMagpieResult(ctx, cfg, group, modelName, channel.Id); ok {
+		if err := model.SavePelicanTestResult(reused.Record); err != nil {
+			return nil, err
+		}
+		common.SysLog(common.LogText(
+			"pelican probe for %s/%s reused a magpie-ops result (%s, score %d, %s ago)",
+			group, modelName, reused.Member.Ref, reused.Member.Score, time.Since(reused.Probed).Round(time.Second)))
+		return reused.Record, nil
+	}
 	// 记录本身要往上带：一次巡视结束时用它汇总哪些分组降智了。
-	return runPelicanProbe(ctx, channel, modelName, testUserID, group, model.GetPelicanTestConfig().EffectivePrompt())
+	return runPelicanProbe(ctx, channel, modelName, testUserID, group, cfg.EffectivePrompt())
 }
 
 // runPelicanProbeTarget 跑一次探测并把失败原因写进系统日志：探测改成异步之后
@@ -685,6 +704,9 @@ type pelicanConfigRequest struct {
 	MagpieGroups          []model.PelicanMagpieGroup `json:"magpie_groups"`
 	MagpieCooldownMinutes int                        `json:"magpie_cooldown_minutes"`
 	MagpieDryRun          bool                       `json:"magpie_dry_run"`
+	// MagpieReuseMinutes 是复用 magpie-ops 结果的窗口：null 表示跟随默认
+	// （联动开着就复用），0 表示关掉复用、永远自己测。
+	MagpieReuseMinutes *int `json:"magpie_reuse_minutes"`
 }
 
 // GetPelicanConfig 返回巡视设置与可选的（分组, 模型）组合，供后台设置页使用。
@@ -745,6 +767,7 @@ func GetPelicanConfig(c *gin.Context) {
 			"magpie_groups":           cfg.MagpieGroups,
 			"magpie_cooldown_minutes": cfg.MagpieCooldownMinutes,
 			"magpie_dry_run":          cfg.MagpieDryRun,
+			"magpie_reuse_minutes":    cfg.MagpieReuseMinutes,
 			"magpie_groups_available": magpieGroupsAvailable,
 			"magpie_groups_error":     magpieGroupsError,
 		},
@@ -847,6 +870,7 @@ func UpdatePelicanConfig(c *gin.Context) {
 		MagpieGroups:          magpieGroups,
 		MagpieCooldownMinutes: request.MagpieCooldownMinutes,
 		MagpieDryRun:          request.MagpieDryRun,
+		MagpieReuseMinutes:    request.MagpieReuseMinutes,
 	}); err != nil {
 		common.ApiError(c, err)
 		return
@@ -868,6 +892,7 @@ func UpdatePelicanConfig(c *gin.Context) {
 			"magpie_groups":           saved.MagpieGroups,
 			"magpie_cooldown_minutes": saved.MagpieCooldownMinutes,
 			"magpie_dry_run":          saved.MagpieDryRun,
+			"magpie_reuse_minutes":    saved.MagpieReuseMinutes,
 		},
 	})
 }

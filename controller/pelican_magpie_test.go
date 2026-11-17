@@ -383,3 +383,111 @@ func TestPelicanMagpieReconcileReportsNothingToAdjust(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond)
 	assert.Equal(t, "checked, nothing to adjust", model.GetPelicanMagpieStates()["default"].Result)
 }
+
+// magpieGroupsPayload 造一份 magpie-ops /api/groups 的回复：同一分组里两个成员
+// 服务同一个模型，其中一个刚测过、分数更低。
+func magpieGroupsPayload(t *testing.T, probedAt time.Time) string {
+	t.Helper()
+	payload, err := common.Marshal(map[string]any{
+		"groups": []map[string]any{{
+			"id":   "never-stuck",
+			"name": "永不卡住",
+			"members": []map[string]any{
+				{"ref": "dli/gpt-6-astra", "model": "gpt-6-astra", "verdict": "healthy", "score": 100,
+					"ttftMs": 4200, "lastProbedAt": probedAt.Format(time.RFC3339Nano)},
+				{"ref": "gptpro/gpt-6-astra", "model": "gpt-6-astra", "verdict": "degraded", "score": 60,
+					"ttftMs": 9100, "lastProbedAt": probedAt.Format(time.RFC3339Nano)},
+				{"ref": "other/gpt-legacy", "model": "gpt-legacy", "verdict": "poor", "score": 20,
+					"ttftMs": 1200, "lastProbedAt": probedAt.Format(time.RFC3339Nano)},
+			},
+		}},
+	})
+	require.NoError(t, err)
+	return string(payload)
+}
+
+// linkedConfig 是一份完整的联动配置，指向假 magpie-ops。
+func linkedConfig(url string, reuse *int) model.PelicanTestConfig {
+	return model.PelicanTestConfig{
+		MagpieURL:             url,
+		MagpieToken:           "secret",
+		MagpieGroups:          []model.PelicanMagpieGroup{{Group: "vip", MagpieGroup: "never-stuck"}},
+		MagpieCooldownMinutes: 30,
+		MagpieReuseMinutes:    reuse,
+	}
+}
+
+// 联动开着时，同一个（分组, 模型）刚被 magpie-ops 测过：直接拿最差的那个答案，
+// 不再自己花钱测一遍。
+func TestReuseMagpieResultTakesTheWorstFreshMember(t *testing.T) {
+	setupPelicanMagpieDB(t)
+	server, _ := newMagpieOpsServer(t, http.StatusOK, magpieGroupsPayload(t, time.Now().Add(-2*time.Minute)))
+	pelicanMagpieGroupsAt = time.Time{}
+
+	reused, ok := reuseMagpieResult(context.Background(), linkedConfig(server.URL, nil), "vip", "gpt-6-astra", 7)
+	require.True(t, ok, "a fresh result for the same group and model should be reused")
+	assert.Equal(t, "gptpro/gpt-6-astra", reused.Member.Ref, "the worst member is what a user could land on")
+	assert.Equal(t, 60, reused.Record.Score)
+	assert.Equal(t, service.PelicanVerdictDegraded, reused.Record.Verdict)
+	assert.Equal(t, model.PelicanSourceMagpie, reused.Record.Source)
+	assert.Equal(t, 7, reused.Record.ChannelId)
+	assert.Equal(t, "vip", reused.Record.Group)
+	assert.True(t, reused.Record.ObservedAt > 0, "the moment it was really probed is kept")
+}
+
+// 窗口之外的答案不算数：那是旧答案，自己测才是对的。
+func TestReuseMagpieResultIgnoresStaleAnswers(t *testing.T) {
+	setupPelicanMagpieDB(t)
+	server, _ := newMagpieOpsServer(t, http.StatusOK, magpieGroupsPayload(t, time.Now().Add(-3*time.Hour)))
+	pelicanMagpieGroupsAt = time.Time{}
+
+	_, ok := reuseMagpieResult(context.Background(), linkedConfig(server.URL, nil), "vip", "gpt-6-astra", 7)
+	assert.False(t, ok, "a three hour old answer is not this minute's answer")
+}
+
+// 没联动、没映射、窗口为 0、模型对不上：都不该复用。
+func TestReuseMagpieResultNeedsAFreshMappedModel(t *testing.T) {
+	setupPelicanMagpieDB(t)
+	server, _ := newMagpieOpsServer(t, http.StatusOK, magpieGroupsPayload(t, time.Now()))
+	pelicanMagpieGroupsAt = time.Time{}
+
+	unlinked := linkedConfig(server.URL, nil)
+	unlinked.MagpieToken = ""
+	_, ok := reuseMagpieResult(context.Background(), unlinked, "vip", "gpt-6-astra", 1)
+	assert.False(t, ok, "without a token nothing may be reused")
+
+	_, ok = reuseMagpieResult(context.Background(), linkedConfig(server.URL, nil), "unmapped", "gpt-6-astra", 1)
+	assert.False(t, ok, "a group without a mapping is not reused")
+
+	off := 0
+	_, ok = reuseMagpieResult(context.Background(), linkedConfig(server.URL, &off), "vip", "gpt-6-astra", 1)
+	assert.False(t, ok, "a zero window means: always probe")
+
+	_, ok = reuseMagpieResult(context.Background(), linkedConfig(server.URL, nil), "vip", "gpt-5-mini", 1)
+	assert.False(t, ok, "a model magpie never probed is not reused")
+}
+
+// magpie-ops 读不到时按「自己测」处理，不能因此把探测卡住。
+func TestReuseMagpieResultFallsBackWhenMagpieIsDown(t *testing.T) {
+	setupPelicanMagpieDB(t)
+	server, _ := newMagpieOpsServer(t, http.StatusInternalServerError, `{"error":"boom"}`)
+	pelicanMagpieGroupsAt = time.Time{}
+
+	_, ok := reuseMagpieResult(context.Background(), linkedConfig(server.URL, nil), "vip", "gpt-6-astra", 1)
+	assert.False(t, ok, "an unreachable magpie-ops means: probe it yourself")
+}
+
+// 复用来的结果不该再触发一次 adjust：那个分组刚被 magpie 自己测过。
+func TestPelicanMagpieAfterSweepSkipsReusedResults(t *testing.T) {
+	setupPelicanMagpieDB(t)
+	server, calls := newMagpieOpsServer(t, http.StatusOK, `{"started":true,"group":"never-stuck","since":"2026-01-01T00:00:00Z"}`)
+	cfg := linkedConfig(server.URL, nil)
+	require.NoError(t, model.SavePelicanTestConfig(cfg))
+
+	pelicanMagpieAfterSweep(context.Background(), []*model.PelicanTestResult{{
+		Group: "vip", ModelName: "gpt-6-astra", Status: "success",
+		Verdict: service.PelicanVerdictDegraded, Score: 60, Source: model.PelicanSourceMagpie,
+	}})
+
+	assert.Empty(t, calls(), "a reused result must not ask magpie to adjust again")
+}

@@ -8397,6 +8397,11 @@
     "magpie is also sweeping this group every {{minutes}} minutes: both sides running will probe twice.": "magpie 側も {{minutes}} 分ごとにこのグループを巡回しています。両方を有効にすると二重に探測します。",
     "magpie is also sweeping this group on its own: both sides running will probe twice.": "magpie 側も独自にこのグループを巡回しています。両方を有効にすると二重に探測します。",
     "closed (ours)": "閉鎖中（本ツール）",
-    "closed (manual)": "閉鎖中（手動）"
+    "closed (manual)": "閉鎖中（手動）",
+    "Reused from magpie-ops": "magpie-ops の結果を再利用",
+    "This result comes from magpie-ops, so the question was not paid for twice.": "この結果は magpie-ops のものです。同じ質問に二重に課金していません。",
+    "Reuse its result within (minutes); leave empty for the default, 0 to always test here": "結果を再利用する期間（分）。空欄は既定値、0 は常にこちらでテスト",
+    "When magpie-ops already probed this group a moment ago, the IQ test reuses its answer instead of paying for the same question twice.": "magpie-ops がこのグループを直前にテストしていれば、IQ テストはその回答を再利用し、同じ質問に二重に支払いません。",
+    "The reuse window must be a whole number of minutes.": "再利用の期間は整数の分で指定してください。"
   }
 }

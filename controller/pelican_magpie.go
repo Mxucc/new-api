@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -263,12 +264,17 @@ func pelicanMagpieCooldownFree(cfg model.PelicanTestConfig, group string) bool {
 // 异步执行，magpie 不可用只记日志与状态，不影响探测结果落库。
 func pelicanMagpieAfterSweep(ctx context.Context, results []*model.PelicanTestResult) {
 	cfg := model.GetPelicanTestConfig()
-	if cfg.MagpieURL == "" || cfg.MagpieToken == "" || len(cfg.MagpieGroups) == 0 {
+	if !cfg.MagpieLinked() {
 		return
 	}
 	seen := make(map[string]struct{}, len(results))
 	for _, record := range results {
 		if record == nil || record.Status != "success" {
+			continue
+		}
+		// 这条结果本来就是从 magpie 取来的：那个分组刚被它自己测过，
+		// 再请一次 adjust 等于第三次掏钱，而且它已经知道该怎么处置了。
+		if record.Source == model.PelicanSourceMagpie {
 			continue
 		}
 		if record.Verdict != service.PelicanVerdictDegraded && record.Verdict != service.PelicanVerdictPoor {
@@ -341,4 +347,112 @@ func pelicanMagpieAdjust(ctx context.Context, cfg model.PelicanTestConfig, recor
 	})
 	// 调整是后台任务：隔几秒去看一看到底动了谁。独立超时，不跟着请求或被调用方的收尾走。
 	go pelicanMagpieReconcile(context.WithoutCancel(ctx), cfg, record.Group, magpieGroup, since)
+}
+
+// pelicanMagpieGroupsCache 让一轮巡视只读一次 magpie-ops 的分组清单：
+// 一个分组一个目标，10 个目标就是 10 次 HTTP，没必要。
+// 变量而不是常量，测试里可以直接清空。
+var (
+	pelicanMagpieGroupsMu       sync.Mutex
+	pelicanMagpieGroupsAt       time.Time
+	pelicanMagpieGroupsSnapshot []magpieGroup
+	pelicanMagpieGroupsTTL      = 20 * time.Second
+)
+
+// cachedMagpieGroups 读 magpie-ops 的分组清单，短时间内的重复调用复用同一份。
+// 读不到就返回错误，调用方按「这次自己测」处理：拿不到别人的答案，自己测才是对的。
+func cachedMagpieGroups(ctx context.Context, cfg model.PelicanTestConfig) ([]magpieGroup, error) {
+	pelicanMagpieGroupsMu.Lock()
+	if !pelicanMagpieGroupsAt.IsZero() && time.Since(pelicanMagpieGroupsAt) < pelicanMagpieGroupsTTL {
+		groups := pelicanMagpieGroupsSnapshot
+		pelicanMagpieGroupsMu.Unlock()
+		return groups, nil
+	}
+	pelicanMagpieGroupsMu.Unlock()
+
+	groups, err := listMagpieGroups(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	pelicanMagpieGroupsMu.Lock()
+	pelicanMagpieGroupsSnapshot, pelicanMagpieGroupsAt = groups, time.Now()
+	pelicanMagpieGroupsMu.Unlock()
+	return groups, nil
+}
+
+// pelicanMagpieReused 是一次「用 magpie-ops 的结果代替自己测」的判定结果。
+type pelicanMagpieReused struct {
+	Record  *model.PelicanTestResult
+	Member  magpieGroupMember
+	Probed  time.Time
+	GroupId string
+}
+
+// reuseMagpieResult 看 magpie-ops 最近有没有替我们测过这个（分组, 模型）：
+// 同一个 magpie 分组里，模型名相同的成员如果刚被测过，就把最差的那个答案拿过来用。
+//
+// 为什么取最差：magpie 的分组是多渠道轮询，用户实际可能落到任何一个成员上；
+// 与 magpie-ops 自己的处置口径一致（它也是按最差的成员决定要不要动手）。
+//
+// 返回 ok=false 表示这次该自己测：没联动、没映射、窗口是 0、那边没有新鲜的答案。
+func reuseMagpieResult(ctx context.Context, cfg model.PelicanTestConfig, group, modelName string, channelId int) (pelicanMagpieReused, bool) {
+	if !cfg.MagpieLinked() {
+		return pelicanMagpieReused{}, false
+	}
+	window := cfg.MagpieReuseWindow()
+	if window <= 0 {
+		return pelicanMagpieReused{}, false
+	}
+	magpieGroup, mapped := pelicanMagpieGroupFor(cfg, group)
+	if !mapped {
+		return pelicanMagpieReused{}, false
+	}
+	groups, err := cachedMagpieGroups(ctx, cfg)
+	if err != nil {
+		common.SysLog(common.LogText("pelican magpie: cannot reuse a result for %s/%s: %s", group, modelName, err))
+		return pelicanMagpieReused{}, false
+	}
+	var chosen magpieGroupMember
+	chosenAt := time.Time{}
+	chosenGroup := ""
+	for _, candidate := range groups {
+		if candidate.Id != magpieGroup {
+			continue
+		}
+		for _, member := range candidate.Members {
+			if !strings.EqualFold(strings.TrimSpace(member.Model), modelName) {
+				continue
+			}
+			// 从没测过的成员（pending）不算答案
+			if member.Verdict == "" || member.Verdict == "pending" {
+				continue
+			}
+			probedAt, err := time.Parse(time.RFC3339Nano, member.LastProbedAt)
+			if err != nil {
+				continue
+			}
+			if time.Since(probedAt) > time.Duration(window)*time.Minute {
+				continue
+			}
+			if chosenGroup == "" || member.Score < chosen.Score {
+				chosen, chosenAt, chosenGroup = member, probedAt, candidate.Id
+			}
+		}
+	}
+	if chosenGroup == "" {
+		return pelicanMagpieReused{}, false
+	}
+	record := &model.PelicanTestResult{
+		ModelName:  modelName,
+		Group:      group,
+		ChannelId:  channelId,
+		Status:     "success",
+		Verdict:    chosen.Verdict,
+		Score:      chosen.Score,
+		LatencyMs:  chosen.TtftMs,
+		CreatedAt:  time.Now().Unix(),
+		Source:     model.PelicanSourceMagpie,
+		ObservedAt: chosenAt.Unix(),
+	}
+	return pelicanMagpieReused{Record: record, Member: chosen, Probed: chosenAt, GroupId: chosenGroup}, true
 }
