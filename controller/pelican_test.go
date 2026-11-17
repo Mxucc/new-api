@@ -1,11 +1,14 @@
 package controller
 
 import (
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -163,4 +166,20 @@ func TestPelicanStatusBeatsPicksTheHighestScoreInAGroup(t *testing.T) {
 	// 没测过的不能顶掉已经有结论的那个，反过来可以。
 	assert.False(t, pelicanStatusBeats(untested, worse))
 	assert.True(t, pelicanStatusBeats(worse, untested))
+}
+
+// 上游地址、渠道与内部路径只给管理员看：普通用户拿到空串，页面用自己的通用说明。
+func TestPelicanVisibleErrorHidesUpstreamDetailsFromUsers(t *testing.T) {
+	raw := `Post "http://sub.example/v1/chat/completions": dial tcp: no such host`
+
+	user := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	user.Set("role", common.RoleCommonUser)
+	assert.Empty(t, pelicanVisibleError(user, raw))
+
+	admin := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	admin.Set("role", common.RoleAdminUser)
+	assert.Equal(t, raw, pelicanVisibleError(admin, raw))
+
+	// 本来就没有错误时不用编一个出来。
+	assert.Empty(t, pelicanVisibleError(admin, ""))
 }

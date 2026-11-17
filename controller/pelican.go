@@ -198,6 +198,18 @@ func pelicanStatusBeats(candidate, current pelicanModelStatus) bool {
 	return candidate.Score > current.Score
 }
 
+// pelicanVisibleError 决定这条错误能不能发给请求者：文本里常带上游地址、渠道名与
+// 内部路径，对外就是泄漏。普通用户拿到空字符串，页面回退成自己翻译的通用说明。
+func pelicanVisibleError(c *gin.Context, message string) string {
+	if message == "" {
+		return ""
+	}
+	if c.GetInt("role") >= common.RoleAdminUser {
+		return message
+	}
+	return ""
+}
+
 // pelicanStripWindows 按巡视间隔把最近 24 小时切成小格（30 分钟 = 48 格，1 小时 = 24 格）。
 // 一格对应一次巡视：采到了就显示那次判定；没采到（含上游 502 这类传输失败）就沿用
 // 上一次成功的结果——默认是绿的，只有真正拿到输出的降智才变色。
@@ -328,19 +340,26 @@ func GetPelicanOverview(c *gin.Context) {
 			status.MagpieResult = state.Result
 			status.MagpieError = state.Error
 		}
+		// 原始错误里有上游地址、渠道与内部路径：只有管理员能看到。
+		status.LastError = pelicanVisibleError(c, status.LastError)
 		statuses = append(statuses, status)
 	}
 	// 一个分组只留智商最高的那个成员：magpie-ops 只往高分的渠道调度，低分的它自己会
-	// 关掉，把所有成员都列出来只会把页面变成渠道清单。
-	leading := make(map[string]pelicanModelStatus, len(statuses))
+	members := make(map[string][]pelicanModelStatus, len(statuses))
 	for _, status := range statuses {
-		if current, ok := leading[status.Group]; !ok || pelicanStatusBeats(status, current) {
-			leading[status.Group] = status
-		}
+		members[status.Group] = append(members[status.Group], status)
 	}
 	statuses = statuses[:0]
-	for _, status := range leading {
-		statuses = append(statuses, status)
+	for group, groupMembers := range members {
+		var pick pelicanModelStatus
+		for _, member := range groupMembers {
+			if pick.Group == "" || pelicanStatusBeats(member, pick) {
+				pick = member
+			}
+		}
+		pick.Strip = pelicanGroupStrip(groupMembers)
+		statuses = append(statuses, pick)
+	}
 	}
 	slices.SortFunc(statuses, func(a, b pelicanModelStatus) int {
 		return strings.Compare(a.Group, b.Group)
@@ -415,7 +434,7 @@ func GetPelicanResult(c *gin.Context) {
 			"channel_id":  result.ChannelId,
 			"dimensions":  splitPelicanDimensions(result.Dimensions),
 			"output":      output,
-			"error":       outputErr,
+			"error":       pelicanVisibleError(c, outputErr),
 			"created_at":  result.CreatedAt,
 			"source":      result.Source,
 			"observed_at": result.ObservedAt,
@@ -767,7 +786,7 @@ func GetPelicanHistory(c *gin.Context) {
 			"latency_ms": record.LatencyMs,
 			"channel_id": record.ChannelId,
 			"dimensions": splitPelicanDimensions(record.Dimensions),
-			"error":      record.Error,
+			"error":      pelicanVisibleError(c, record.Error),
 			"created_at": record.CreatedAt,
 		})
 	}
