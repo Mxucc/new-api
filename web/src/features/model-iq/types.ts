@@ -69,6 +69,10 @@ export type PelicanMagpieMember = {
   /** 本工具关的（会自己恢复）还是管理员手工关的。 */
   disabledByUs?: boolean
   lastProbedAt?: string
+  /** magpie-ops 里「不列入自动化」：不排序、不处置。 */
+  excluded?: boolean
+  /** 排除时是否仍然测智（只测不处置）。 */
+  probe?: boolean
 }
 
 /** magpie-ops GET /api/groups 里的一个分组：映射下拉的选项来自它。 */
@@ -80,6 +84,8 @@ export type PelicanMagpieGroupOption = {
   policyEnabled?: boolean
   intervalMinutes?: number
   members: PelicanMagpieMember[]
+  /** magpie-ops 真正会测的成员：一个渠道只测一个模型，比 members 少。 */
+  probeRefs?: string[]
 }
 /** 时间条上一小格：一格对应一次巡视间隔。没采到样时判定沿用上一次成功的结果。 */
 export type ModelIqStripCell = {

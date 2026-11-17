@@ -53,6 +53,10 @@ type magpieGroupMember struct {
 	Rate         float64 `json:"rate"`
 	TtftMs       int64   `json:"ttftMs"`
 	LastProbedAt string  `json:"lastProbedAt"`
+	// Excluded 是 magpie-ops 那边「不列入自动化」的渠道：它不会被排序、
+	// 也不会被处置；Probe 说明排除时是否仍然测智。
+	Excluded bool `json:"excluded"`
+	Probe    bool `json:"probe"`
 }
 
 // magpieGroup 是 magpie-ops GET /api/groups 里的一个分组。
@@ -64,6 +68,9 @@ type magpieGroup struct {
 	PolicyEnabled   bool                `json:"policyEnabled"`
 	IntervalMinutes int                 `json:"intervalMinutes"`
 	Members         []magpieGroupMember `json:"members"`
+	// ProbeRefs 是这一组里 magpie-ops 真正会测的成员：一个渠道只测一个
+	// 模型，所以成员数往往比它多。设置页用它说明「有几个是真的在测的」。
+	ProbeRefs []string `json:"probeRefs"`
 }
 
 // magpieAction 是 magpie-ops GET /api/actions 里的一条动作记录。

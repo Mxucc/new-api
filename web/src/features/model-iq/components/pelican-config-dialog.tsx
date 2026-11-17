@@ -601,6 +601,22 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
                   'Pick the magpie group each new-api group should adjust. magpie-ops decides which member to change.'
                 )}
               </p>
+              <p
+                className='text-muted-foreground text-xs'
+                data-testid='pelican-magpie-one-model'
+              >
+                {t(
+                  'magpie-ops measures one model per channel: the number after a group is how many of its members are actually probed.'
+                )}
+              </p>
+              <p
+                className='text-muted-foreground text-xs'
+                data-testid='pelican-magpie-excluded'
+              >
+                {t(
+                  'A channel marked \u201cnot automated\u201d in magpie-ops is never adjusted here, and is only probed if magpie-ops is told to keep testing it.'
+                )}
+              </p>
               {magpieRows.map((group) => {
                 const option = magpieOptionById.get(
                   draft.magpieGroups[group] ?? ''
@@ -638,6 +654,9 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
                               {item.name === item.id
                                 ? item.id
                                 : `${item.name} (${item.id})`}
+                              {item.probeRefs && item.probeRefs.length > 0
+                                ? ` · ${item.probeRefs.length}/${item.members.length}`
+                                : ''}
                             </SelectItem>
                           ))}
                         </SelectContent>
