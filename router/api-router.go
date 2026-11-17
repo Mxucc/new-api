@@ -57,6 +57,8 @@ func SetApiRouter(router *gin.Engine) {
 			pelicanAdminRoute.POST("/test", middleware.CriticalRateLimit(), controller.RunPelicanTest)
 			pelicanAdminRoute.POST("/test-all", middleware.CriticalRateLimit(), controller.RunAllPelicanTests)
 			pelicanAdminRoute.GET("/config", controller.GetPelicanConfig)
+			// 联动自检：地址、token、分组列表、/api/best 是否都在
+			pelicanAdminRoute.GET("/magpie/check", controller.CheckMagpieLink)
 			pelicanAdminRoute.PUT("/config", controller.UpdatePelicanConfig)
 			// 被动式服务状态：只读真实请求的聚合结果，不对模型发探测。
 			apiRouter.GET("/service-status", middleware.UserAuth(), controller.GetServiceStatus)

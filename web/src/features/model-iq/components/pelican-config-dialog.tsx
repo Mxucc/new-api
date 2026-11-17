@@ -40,10 +40,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { getPelicanConfig, updatePelicanConfig } from '../api'
+import {
+  checkPelicanMagpieLink,
+  getPelicanConfig,
+  updatePelicanConfig,
+} from '../api'
 import { iqVerdictLabelKey } from '../lib/iq'
 import type {
   ModelIqVerdict,
+  PelicanMagpieCheck,
   PelicanConfig,
   PelicanMagpieGroup,
   PelicanMagpieGroupOption,
@@ -205,6 +210,10 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
     intervalNumber <= MAX_INTERVAL_MINUTES
 
   // 要联动的分组 = 这一轮真正会探测的分组：映射按分组逐行填，与模型无关。
+  // 「测试连接」的结果：当场看清是地址不对、token 不对，还是版本太旧
+  const [magpieCheck, setMagpieCheck] = useState<PelicanMagpieCheck | null>(null)
+  const [magpieChecking, setMagpieChecking] = useState(false)
+
   const magpieRows = useMemo(() => {
     const rows: string[] = []
     for (const group of groups) {
@@ -552,6 +561,45 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
               {t('The address must start with http:// or https://.')}
             </p>
           )}
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              disabled={magpieChecking || !magpieUrlValid || !magpieTokenReady}
+              onClick={async () => {
+                setMagpieChecking(true)
+                try {
+                  setMagpieCheck(await checkPelicanMagpieLink())
+                } catch (error) {
+                  handleServerError(error, t)
+                } finally {
+                  setMagpieChecking(false)
+                }
+              }}
+            >
+              {magpieChecking ? t('Loading') : t('Test the magpie-ops link')}
+            </Button>
+            {magpieCheck ? (
+              <span
+                className={
+                  magpieCheck.ok
+                    ? 'text-muted-foreground text-xs'
+                    : 'text-destructive text-xs'
+                }
+                data-testid='pelican-magpie-check'
+              >
+                {magpieCheck.ok
+                  ? `${magpieCheck.version ?? ''} · ${
+                      magpieCheck.groups ?? 0
+                    } groups${magpieCheck.best ? ' · /api/best' : ' · no /api/best'}`
+                  : (magpieCheck.error ??
+                    magpieCheck.groups_error ??
+                    magpieCheck.best_error ??
+                    'failed')}
+              </span>
+            ) : null}
+          </div>
           <Input
             aria-label={t('API token')}
             type='password'

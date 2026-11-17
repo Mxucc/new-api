@@ -8385,6 +8385,7 @@
     "magpie groups could not be listed: {{message}}": "列不出 magpie 分組：{{message}}",
     "magpie group to adjust": "要調整的 magpie 分組",
     "Pick the magpie group each new-api group should adjust. magpie-ops decides which member to change.": "為每個 new-api 分組選擇對應的 magpie 分組；實際動哪個成員由 magpie-ops 判定。",
+    "Test the magpie-ops link": "測試 magpie-ops 連線",
     "magpie-ops measures one model per channel: the number after a group is how many of its members are actually probed.": "magpie-ops 對每個渠道只測一個模型：分組後面那個數字是「真在測的成員數/成員數」。",
     "A channel marked “not automated” in magpie-ops is never adjusted here, and is only probed if magpie-ops is told to keep testing it.": "在 magpie-ops 裡設成「不列入自動化」的渠道，這裡不會被調整；除非那邊也開了「仍然測智」，否則連測都不測。",
     "magpie group for {{group}}": "{{group}} 對應的 magpie 分組",

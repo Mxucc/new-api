@@ -92,3 +92,23 @@ export async function updatePelicanConfig(
   )
   return requireServerSuccess(res.data).data
 }
+
+/** 联动自检：地址通不通、token 认不认、有没有 /api/best。只读。 */
+export type PelicanMagpieCheck = {
+  linked: boolean
+  url?: string
+  ok?: boolean
+  version?: string
+  groups?: number
+  best?: boolean
+  error?: string
+  groups_error?: string
+  best_error?: string
+}
+
+export async function checkPelicanMagpieLink(): Promise<PelicanMagpieCheck> {
+  const res = await api.get<Envelope<PelicanMagpieCheck>>(
+    '/api/pelican/magpie/check'
+  )
+  return requireServerSuccess(res.data).data
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -176,7 +177,16 @@ func pelicanMagpieRequest(ctx context.Context, cfg model.PelicanTestConfig, meth
 		return nil, err
 	}
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return nil, fmt.Errorf("magpie-ops %s: %s", response.Status, strings.TrimSpace(string(payload)))
+		detail := strings.TrimSpace(string(payload))
+		if detail == "" {
+			detail = "（没有响应体）"
+		}
+		return nil, fmt.Errorf("magpie-ops %s %s: %s", method, cfg.MagpieURL+path, response.Status+" "+detail)
+	}
+	if len(payload) == 0 {
+		// 200 但 0 字节：地址接到了别处（反向代理吞了请求、或者指到了静态服务），
+		// 这个错必须说清，否则只看到 "unexpected end of JSON input"
+		return nil, fmt.Errorf("magpie-ops %s %s 返回 HTTP %d 但内容为空（0 字节）：地址可能不是 magpie-ops，或中间的反向代理没把请求转过去", method, cfg.MagpieURL+path, response.StatusCode)
 	}
 	return payload, nil
 }
@@ -217,7 +227,8 @@ func listMagpieActions(ctx context.Context, cfg model.PelicanTestConfig, magpieG
 		Actions []magpieAction `json:"actions"`
 	}
 	if err := common.Unmarshal(payload, &reply); err != nil {
-		return nil, fmt.Errorf("magpie-ops reply: %w", err)
+		return nil, fmt.Errorf("magpie-ops %s/api/groups 的回复不是 JSON（%d 字节，开头 %q）：%w",
+			cfg.MagpieURL, len(payload), snippet(payload), err)
 	}
 	return reply.Actions, nil
 }
@@ -301,6 +312,47 @@ func pelicanMagpieCooldownFree(cfg model.PelicanTestConfig, group string) bool {
 		return true
 	}
 	return time.Since(time.Unix(state.AdjustedAt, 0)) >= time.Duration(cfg.MagpieCooldownMinutes)*time.Minute
+}
+
+// CheckMagpieLink 让设置页当场验证一次联动：地址通不通、token 认不认、
+// 能不能列出分组、magpie-ops 是哪个版本、有没有 /api/best。
+// 只发 GET，不改 magpie 任何东西。
+func CheckMagpieLink(c *gin.Context) {
+	cfg := model.GetPelicanTestConfig()
+	if strings.TrimSpace(cfg.MagpieURL) == "" {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"linked": false, "error": "还没填 magpie-ops 地址"}})
+		return
+	}
+	if strings.TrimSpace(cfg.MagpieToken) == "" {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"linked": false, "error": "还没填 magpie-ops token"}})
+		return
+	}
+	out := gin.H{"linked": true, "url": cfg.MagpieURL}
+	ctx := c.Request.Context()
+	if body, err := pelicanMagpieRequest(ctx, cfg, http.MethodGet, "/api/health", nil); err != nil {
+		out["error"] = pelicanMagpieDetail(err)
+	} else {
+		var health struct {
+			OK      bool   `json:"ok"`
+			Version string `json:"version"`
+			Magpie  string `json:"magpie"`
+		}
+		_ = common.Unmarshal(body, &health)
+		out["ok"] = health.OK
+		out["version"] = health.Version
+	}
+	if groups, err := listMagpieGroups(ctx, cfg); err != nil {
+		out["groups_error"] = pelicanMagpieDetail(err)
+	} else {
+		out["groups"] = len(groups)
+	}
+	// 有 /api/best 才算 magpie-ops 够新：分组最佳结果靠它
+	if _, err := pelicanMagpieRequest(ctx, cfg, http.MethodGet, "/api/best", nil); err != nil {
+		out["best_error"] = pelicanMagpieDetail(err)
+	} else {
+		out["best"] = true
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
 }
 
 // magpieBestCache 记住每个映射分组最近一次拿到的「分组最佳结果」。
@@ -566,4 +618,13 @@ func magpieBestAt() string {
 		return err
 	}
 	return at.UTC().Format(time.RFC3339)
+}
+
+// snippet 是响应体开头的一小段，放进错误信息里足够定位问题，又不会太长。
+func snippet(b []byte) string {
+	s := strings.TrimSpace(string(b))
+	if len(s) > 80 {
+		return s[:80] + "…"
+	}
+	return s
 }
