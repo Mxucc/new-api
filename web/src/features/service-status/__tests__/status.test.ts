@@ -30,53 +30,33 @@ import type { ServiceStatus } from '../types'
 
 describe('service status presentation', () => {
   it('labels and colors every status band', () => {
-    const bands: ServiceStatus[] = [
-      'operational',
-      'degraded',
-      'partial',
-      'unknown',
-    ]
+    const bands: ServiceStatus[] = ['available', 'unavailable']
     expect(bands.map(serviceStatusLabelKey)).toEqual([
-      'Operational',
-      'Degraded',
-      'Partial outage',
-      'No traffic',
+      'Available',
+      'Unavailable',
     ])
-    expect(bands.map(serviceStatusVariant)).toEqual([
-      'success',
-      'warning',
-      'danger',
-      'neutral',
-    ])
+    expect(bands.map(serviceStatusVariant)).toEqual(['success', 'danger'])
   })
 
-  it('treats a slot without traffic as available', () => {
-    expect(serviceStatusCellClass('operational')).toBe('bg-success')
-    expect(serviceStatusCellClass('degraded')).toBe('bg-warning')
-    expect(serviceStatusCellClass('partial')).toBe('bg-destructive')
-    // 没有流量的格子按可用处理，状态条保持连续。
-    expect(serviceStatusCellClass('unknown')).toBe('bg-success')
+  it('paints an available slot green and an unavailable one red', () => {
+    expect(serviceStatusCellClass('available')).toBe('bg-success')
+    expect(serviceStatusCellClass('unavailable')).toBe('bg-destructive')
   })
 
   it('describes a band with a sentence a user can act on', () => {
-    expect(serviceStatusHeadlineKey('operational')).toBe(
+    expect(serviceStatusHeadlineKey('available')).toBe(
       'Requests are being served normally.'
     )
-    expect(serviceStatusHeadlineKey('degraded')).toBe(
+    expect(serviceStatusHeadlineKey('unavailable')).toBe(
       'Some requests failed in this window.'
-    )
-    expect(serviceStatusHeadlineKey('partial')).toBe(
-      'A significant share of requests failed in this window.'
-    )
-    expect(serviceStatusHeadlineKey('unknown')).toBe(
-      'No traffic in this window yet.'
     )
   })
 
-  it('falls back to the unknown band for an unrecognized status', () => {
+  it('falls back to available for an unrecognized status', () => {
     const surprise = 'maintenance' as ServiceStatus
-    expect(serviceStatusLabelKey(surprise)).toBe('No traffic')
-    expect(serviceStatusVariant(surprise)).toBe('neutral')
+    expect(serviceStatusLabelKey(surprise)).toBe('Available')
+    expect(serviceStatusVariant(surprise)).toBe('success')
+    expect(serviceStatusCellClass(surprise)).toBe('bg-success')
   })
 
   it('describes the cell width in minutes or hours', () => {

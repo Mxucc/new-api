@@ -7,11 +7,11 @@ import (
 
 // 服务状态页是被动式的：它只读真实请求留下的聚合数据（perf_metrics），
 // 不对模型额外发探测请求，所以状态反映的是「用户实际调用时发生了什么」。
+// 服务状态只有两档：可用与不可用。可用率 >= 99% 记可用，其余记不可用；
+// 区间内没有流量也算可用——没人用不等于挂了。
 const (
-	ServiceStatusOperational = "operational" // 可用率 >= 99%
-	ServiceStatusDegraded    = "degraded"    // 可用率 >= 95%
-	ServiceStatusPartial     = "partial"     // 低于 95%
-	ServiceStatusUnknown     = "unknown"     // 区间内没有流量
+	ServiceStatusAvailable   = "available"
+	ServiceStatusUnavailable = "unavailable"
 )
 
 // serviceStatusCellCount 是状态条上的格子数量，窗口多长都保持同样的视觉密度。
@@ -58,20 +58,13 @@ type ServiceStatusView struct {
 	Models      []ServiceStatusModel `json:"models"`
 }
 
-// ServiceStatusOfSuccessRate 把可用率换算成状态档位；没有流量时返回 unknown，
+// ServiceStatusOfSuccessRate 把可用率换算成状态；没有流量时返回可用，
 // 不把「没人用」当成「挂了」。
 func ServiceStatusOfSuccessRate(successRate float64, requests int64) string {
-	if requests <= 0 {
-		return ServiceStatusUnknown
+	if requests <= 0 || successRate >= 99 {
+		return ServiceStatusAvailable
 	}
-	switch {
-	case successRate >= 99:
-		return ServiceStatusOperational
-	case successRate >= 95:
-		return ServiceStatusDegraded
-	default:
-		return ServiceStatusPartial
-	}
+	return ServiceStatusUnavailable
 }
 
 // successRatePercent 返回两位小数的可用率百分比，和性能页的口径一致。
@@ -111,21 +104,21 @@ func (c serviceStatusCounters) cell(start int64) ServiceStatusCell {
 	}
 }
 
-// emptyServiceStatusCells 先铺满格子，没有流量的格子保持 unknown，
-// 这样状态条的时间轴始终完整。
+// emptyServiceStatusCells 先铺满格子，没有流量的格子按可用处理，
+// 这样状态条的时间轴始终连续，也不会把「没人用」画成故障。
 func emptyServiceStatusCells(windowStart, cellSeconds int64) []ServiceStatusCell {
 	cells := make([]ServiceStatusCell, serviceStatusCellCount)
 	for i := range cells {
 		cells[i] = ServiceStatusCell{
 			Start:  windowStart + int64(i)*cellSeconds,
-			Status: ServiceStatusUnknown,
+			Status: ServiceStatusAvailable,
 		}
 	}
 	return cells
 }
 
 // BuildServiceStatus 把被动采样聚合成状态页数据。
-// 时间桶按固定格子宽度落位；窗口内没有流量的格子留 unknown。
+// 时间桶按固定格子宽度落位；窗口内没有流量的格子按可用处理。
 func BuildServiceStatus(samples []ServiceStatusSample, hours int, now time.Time) ServiceStatusView {
 	if hours <= 0 {
 		hours = 24

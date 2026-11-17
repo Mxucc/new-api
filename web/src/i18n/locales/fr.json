@@ -103,7 +103,6 @@
     "A repair task is already running. Please try again later": "Une tâche de réparation est déjà en cours. Veuillez réessayer plus tard",
     "A security operation is already in progress.": "Une opération de sécurité est déjà en cours.",
     "A selected model no longer exists. Reload the model list.": "Un modèle sélectionné n’existe plus. Rechargez la liste.",
-    "A significant share of requests failed in this window.": "Une part importante des requêtes a échoué sur cette période.",
     "A symbol": "Un symbole",
     "A token can select at most {{max}} Auto groups": "Un jeton peut sélectionner au plus {{max}} groupes Auto",
     "A token that never expires stays valid until you revoke it. Set an expiration date when possible.": "Un jeton qui n’expire jamais reste valide jusqu’à sa révocation. Définissez une date d’expiration si possible.",
@@ -4414,7 +4413,6 @@
     "No text in the file": "Aucun texte dans le fichier",
     "No token found.": "Aucun jeton trouvé.",
     "No tools configured": "Aucun outil configuré",
-    "No traffic": "Aucun trafic",
     "No traffic in this window yet.": "Aucun trafic sur cette période.",
     "No unsaved changes": "Aucune modification non enregistrée",
     "No upstream price differences found": "Aucune différence de prix amont trouvée",
@@ -4645,7 +4643,6 @@
     "Operation cancelled": "Opération annulée",
     "Operation failed": "Opération échouée",
     "Operation successful": "Opération réussie",
-    "Operational": "Opérationnel",
     "Operations": "Opérations",
     "Operator": "Auteur de l’opération",
     "Operator Admin": "Admin opérateur",
@@ -4764,7 +4761,6 @@
     "Parsed plugin metadata": "Métadonnées du plugin analysées",
     "Parsed {{count}} service account file(s)": "{{count}} fichier(s) de compte de service analysé(s)",
     "Partial Submission": "Soumission partielle",
-    "Partial outage": "Panne partielle",
     "Partly shown": "Affichage partiel",
     "Pass Headers": "Transmettre les en-têtes",
     "Pass Through Body": "Corps de transmission directe",
@@ -8376,6 +8372,7 @@
     "Leave empty to use the built-in question.": "Laissez vide pour utiliser la question intégrée.",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Ajoutée à la consigne. Laissez vide pour utiliser la consigne intégrée.",
     "Leave empty to use the translated default description.": "Laissez vide pour utiliser la description traduite par défaut.",
-    "Carried over from the last successful run": "Repris du dernier test réussi"
+    "Carried over from the last successful run": "Repris du dernier test réussi",
+    "{{percent}} unavailable": "{{percent}} indisponible"
   }
 }

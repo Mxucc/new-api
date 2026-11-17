@@ -36,6 +36,7 @@ import {
   iqCellClass,
   iqDegradedRate,
   iqStripCellClass,
+  iqStripVerdictLabelKey,
   iqVerdictLabelKey,
   pelicanTargetLabel,
 } from '../lib/iq'
@@ -69,10 +70,7 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
     >
       {cells.map((cell) => {
         const when = formatTimestampRelative(cell.start, 'seconds', locale)
-        const verdict =
-          cell.verdict === 'pending'
-            ? t('Not tested')
-            : t(iqVerdictLabelKey(cell.verdict))
+        const verdict = t(iqStripVerdictLabelKey(cell.verdict))
         const detail = cell.sampled
           ? `${when} · ${verdict}`
           : `${when} · ${verdict} · ${t('Carried over from the last successful run')}`
@@ -116,7 +114,9 @@ function ModelIqRowCell(props: ModelIqRowCellProps) {
   } else if (rate !== null) {
     summary = (
       <span className={rate > 0 ? 'text-warning' : undefined}>
-        {t('Degraded {{percent}}', { percent: `${Math.round(rate * 100)}%` })}
+        {t('{{percent}} unavailable', {
+          percent: `${Math.round(rate * 100)}%`,
+        })}
       </span>
     )
   }

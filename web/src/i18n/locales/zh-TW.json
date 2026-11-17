@@ -103,7 +103,6 @@
     "A repair task is already running. Please try again later": "已經有一個修復任務在執行中，請稍後再試",
     "A security operation is already in progress.": "已有安全操作正在進行。",
     "A selected model no longer exists. Reload the model list.": "所選模型已不存在，請重新載入模型清單。",
-    "A significant share of requests failed in this window.": "該區間內失敗請求佔比明顯。",
     "A symbol": "包含符號",
     "A token can select at most {{max}} Auto groups": "每個令牌最多可選擇 {{max}} 個 Auto 分組",
     "A token that never expires stays valid until you revoke it. Set an expiration date when possible.": "永不過期的令牌在撤銷前一直有效，建議設定過期時間。",
@@ -4414,7 +4413,6 @@
     "No text in the file": "檔案中沒有文字",
     "No token found.": "未找到令牌。",
     "No tools configured": "未設定工具",
-    "No traffic": "無流量",
     "No traffic in this window yet.": "該區間內還沒有流量。",
     "No unsaved changes": "沒有未儲存的變更",
     "No upstream price differences found": "未發現上游價格差異",
@@ -4645,7 +4643,6 @@
     "Operation cancelled": "操作已取消",
     "Operation failed": "操作失敗",
     "Operation successful": "操作成功",
-    "Operational": "可用",
     "Operations": "運維",
     "Operator": "操作者",
     "Operator Admin": "操作管理員",
@@ -4764,7 +4761,6 @@
     "Parsed plugin metadata": "解析出的外掛元数据",
     "Parsed {{count}} service account file(s)": "已解析 {{count}} 個服務賬號檔案",
     "Partial Submission": "部分提交確認",
-    "Partial outage": "部分不可用",
     "Partly shown": "部分顯示",
     "Pass Headers": "透傳請求頭",
     "Pass Through Body": "透傳請求體",
@@ -7303,7 +7299,7 @@
     "Unauthorized, invalid user info": "無權進行此操作，使用者資訊無效",
     "Unauthorized, not logged in and no access token provided": "無權進行此操作，未登入且未提供 access token",
     "Unauthorized, the access token has expired": "存取權杖已過期",
-    "Unavailable": "無法顯示",
+    "Unavailable": "不可用",
     "Unbind": "解綁",
     "Unbind failed": "解綁失敗",
     "Unbound successfully": "解綁成功",
@@ -8376,6 +8372,7 @@
     "Leave empty to use the built-in question.": "留空使用內建題目。",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "附加在題面之後；留空使用內建交付約定。",
     "Leave empty to use the translated default description.": "留空使用翻譯好的預設說明。",
-    "Carried over from the last successful run": "沿用上一次成功結果"
+    "Carried over from the last successful run": "沿用上一次成功結果",
+    "{{percent}} unavailable": "{{percent}} 不可用"
   }
 }

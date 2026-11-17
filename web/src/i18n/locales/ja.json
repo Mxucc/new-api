@@ -103,7 +103,6 @@
     "A repair task is already running. Please try again later": "修復タスクが既に実行中です。後でもう一度お試しください",
     "A security operation is already in progress.": "セキュリティ操作を実行中です。",
     "A selected model no longer exists. Reload the model list.": "選択したモデルは既に削除されています。一覧を再読み込みしてください。",
-    "A significant share of requests failed in this window.": "この期間は失敗したリクエストの割合が高くなっています。",
     "A symbol": "記号",
     "A token can select at most {{max}} Auto groups": "1 つのトークンで選択できる Auto グループは最大 {{max}} 個です",
     "A token that never expires stays valid until you revoke it. Set an expiration date when possible.": "無期限のトークンは取り消すまで有効です。可能な限り有効期限を設定してください。",
@@ -772,7 +771,7 @@
     "Availability": "可用率",
     "Availability (last 24h)": "可用性（過去 24 時間）",
     "Availability over time": "時系列の可用率",
-    "Available": "空き",
+    "Available": "利用可能",
     "Available Amount": "Available Rebate Amount",
     "Available Balance": "利用可能残高",
     "Available Models": "利用可能なモデル",
@@ -4414,7 +4413,6 @@
     "No text in the file": "ファイルに文字がありません",
     "No token found.": "トークンが見つかりません。",
     "No tools configured": "ツールが未設定です",
-    "No traffic": "トラフィックなし",
     "No traffic in this window yet.": "この期間のトラフィックはまだありません。",
     "No unsaved changes": "未保存の変更はありません",
     "No upstream price differences found": "上流価格の差異は見つかりませんでした",
@@ -4645,7 +4643,6 @@
     "Operation cancelled": "操作がキャンセルされました",
     "Operation failed": "操作に失敗しました",
     "Operation successful": "操作が成功しました",
-    "Operational": "正常稼働",
     "Operations": "運用",
     "Operator": "操作者",
     "Operator Admin": "オペレーター管理",
@@ -4764,7 +4761,6 @@
     "Parsed plugin metadata": "解析されたプラグインメタデータ",
     "Parsed {{count}} service account file(s)": "__ PH_0 __サービスアカウントファイルを解析しました",
     "Partial Submission": "部分送信",
-    "Partial outage": "一部障害",
     "Partly shown": "一部表示",
     "Pass Headers": "ヘッダーをパススルー",
     "Pass Through Body": "ボディをパススルー",
@@ -7303,7 +7299,7 @@
     "Unauthorized, invalid user info": "権限がありません。ユーザー情報が無効です",
     "Unauthorized, not logged in and no access token provided": "権限がありません。ログインしておらず、アクセストークンも指定されていません",
     "Unauthorized, the access token has expired": "権限がありません。アクセストークンの有効期限が切れています",
-    "Unavailable": "表示不可",
+    "Unavailable": "利用不可",
     "Unbind": "連携解除",
     "Unbind failed": "連携解除に失敗しました",
     "Unbound successfully": "連携を解除しました",
@@ -8376,6 +8372,7 @@
     "Leave empty to use the built-in question.": "空欄の場合は組み込みの設問を使います。",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "プロンプトの後ろに追加されます。空欄の場合は組み込みの指示を使います。",
     "Leave empty to use the translated default description.": "空欄の場合は翻訳済みの既定の説明を使います。",
-    "Carried over from the last successful run": "前回の成功結果を流用"
+    "Carried over from the last successful run": "前回の成功結果を流用",
+    "{{percent}} unavailable": "{{percent}} 利用不可"
   }
 }

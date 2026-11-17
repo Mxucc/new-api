@@ -103,7 +103,6 @@
     "A repair task is already running. Please try again later": "Задача восстановления уже выполняется. Попробуйте позже",
     "A security operation is already in progress.": "Операция безопасности уже выполняется.",
     "A selected model no longer exists. Reload the model list.": "Выбранная модель больше не существует. Обновите список моделей.",
-    "A significant share of requests failed in this window.": "В этом периоде значительная доля запросов завершилась ошибкой.",
     "A symbol": "Спецсимвол",
     "A token can select at most {{max}} Auto groups": "Токен может выбрать не более {{max}} групп Auto",
     "A token that never expires stays valid until you revoke it. Set an expiration date when possible.": "Бессрочный токен действует, пока вы его не отзовёте. По возможности задайте срок действия.",
@@ -4414,7 +4413,6 @@
     "No text in the file": "В файле нет текста",
     "No token found.": "Токен не найден.",
     "No tools configured": "Нет настроенных инструментов",
-    "No traffic": "Нет трафика",
     "No traffic in this window yet.": "В этом периоде трафика пока нет.",
     "No unsaved changes": "Нет несохраненных изменений",
     "No upstream price differences found": "Различий в ценах провайдера не найдено",
@@ -4645,7 +4643,6 @@
     "Operation cancelled": "Операция отменена",
     "Operation failed": "Операция не удалась",
     "Operation successful": "Операция выполнена успешно",
-    "Operational": "Работает",
     "Operations": "Операции",
     "Operator": "Исполнитель",
     "Operator Admin": "Оператор-администратор",
@@ -4764,7 +4761,6 @@
     "Parsed plugin metadata": "Распознанные метаданные плагина",
     "Parsed {{count}} service account file(s)": "Проанализировано файлов сервисного аккаунта {{count}}",
     "Partial Submission": "Частичная отправка",
-    "Partial outage": "Частичный сбой",
     "Partly shown": "Частично",
     "Pass Headers": "Пропустить заголовки",
     "Pass Through Body": "Передача тела запроса",
@@ -8376,6 +8372,7 @@
     "Leave empty to use the built-in question.": "Оставьте пустым, чтобы использовать встроенный вопрос.",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Добавляется к заданию. Оставьте пустым для встроенного требования.",
     "Leave empty to use the translated default description.": "Оставьте пустым, чтобы использовать переведённое описание по умолчанию.",
-    "Carried over from the last successful run": "По последней успешной проверке"
+    "Carried over from the last successful run": "По последней успешной проверке",
+    "{{percent}} unavailable": "{{percent}} недоступно"
   }
 }

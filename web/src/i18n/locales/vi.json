@@ -103,7 +103,6 @@
     "A repair task is already running. Please try again later": "Đã có tác vụ sửa chữa đang chạy. Vui lòng thử lại sau",
     "A security operation is already in progress.": "Một thao tác bảo mật đang được thực hiện.",
     "A selected model no longer exists. Reload the model list.": "Một mô hình đã chọn không còn tồn tại. Hãy tải lại danh sách.",
-    "A significant share of requests failed in this window.": "Tỷ lệ yêu cầu thất bại trong khoảng này khá cao.",
     "A symbol": "Một ký hiệu",
     "A token can select at most {{max}} Auto groups": "Mỗi token chỉ được chọn tối đa {{max}} nhóm Auto",
     "A token that never expires stays valid until you revoke it. Set an expiration date when possible.": "Token không hết hạn sẽ còn hiệu lực cho đến khi bạn thu hồi. Nên đặt thời hạn khi có thể.",
@@ -4414,7 +4413,6 @@
     "No text in the file": "Tệp không có chữ",
     "No token found.": "Không tìm thấy mã thông báo.",
     "No tools configured": "Chưa cấu hình công cụ nào",
-    "No traffic": "Không có lưu lượng",
     "No traffic in this window yet.": "Khoảng này chưa có lưu lượng.",
     "No unsaved changes": "Không có thay đổi chưa lưu",
     "No upstream price differences found": "Không tìm thấy sự khác biệt về giá upstream",
@@ -4645,7 +4643,6 @@
     "Operation cancelled": "Đã hủy thao tác",
     "Operation failed": "Thao tác thất bại",
     "Operation successful": "Thao tác thành công",
-    "Operational": "Hoạt động tốt",
     "Operations": "Vận hành",
     "Operator": "Người thực hiện",
     "Operator Admin": "Quản trị viên vận hành",
@@ -4764,7 +4761,6 @@
     "Parsed plugin metadata": "Siêu dữ liệu plugin đã phân tích",
     "Parsed {{count}} service account file(s)": "Đã phân tích {{count}} tệp tài khoản dịch vụ",
     "Partial Submission": "Gửi một phần",
-    "Partial outage": "Sự cố cục bộ",
     "Partly shown": "Hiển thị một phần",
     "Pass Headers": "Chuyển tiếp tiêu đề",
     "Pass Through Body": "Xuyên qua cơ thể",
@@ -7303,7 +7299,7 @@
     "Unauthorized, invalid user info": "Không có quyền, thông tin người dùng không hợp lệ",
     "Unauthorized, not logged in and no access token provided": "Không có quyền: chưa đăng nhập và không cung cấp token truy cập",
     "Unauthorized, the access token has expired": "Không có quyền, token truy cập đã hết hạn",
-    "Unavailable": "Không thể hiển thị",
+    "Unavailable": "Không khả dụng",
     "Unbind": "Hủy liên kết",
     "Unbind failed": "Hủy liên kết thất bại",
     "Unbound successfully": "Hủy liên kết thành công",
@@ -8376,6 +8372,7 @@
     "Leave empty to use the built-in question.": "Để trống để dùng câu hỏi mặc định.",
     "Appended to the prompt. Leave empty to use the built-in instruction.": "Được nối sau đề bài. Để trống để dùng yêu cầu mặc định.",
     "Leave empty to use the translated default description.": "Để trống để dùng mô tả mặc định đã dịch.",
-    "Carried over from the last successful run": "Kế thừa lần kiểm tra thành công gần nhất"
+    "Carried over from the last successful run": "Kế thừa lần kiểm tra thành công gần nhất",
+    "{{percent}} unavailable": "{{percent}} không khả dụng"
   }
 }

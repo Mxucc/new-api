@@ -826,9 +826,44 @@ func StartPelicanScheduler() {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
+			// 每分钟先补测当前不可用的目标，再按配置间隔跑常规巡视。
+			runPelicanRecoverySweep()
 			runPelicanScheduledSweep()
 		}
 	}()
+}
+
+// pelicanRecoveryTargets 挑出需要立刻补测的目标：上一次成功的结果不是「可用」，
+// 或者根本还没有成功记录。可用率是二值的：只要最近一次成功是健康的就算可用。
+func pelicanRecoveryTargets(targets []model.PelicanProbeTarget, latestSuccess map[model.PelicanProbeTarget]*model.PelicanTestResult) []model.PelicanProbeTarget {
+	pending := make([]model.PelicanProbeTarget, 0, len(targets))
+	for _, target := range targets {
+		record := latestSuccess[target]
+		if record != nil && record.Verdict == service.PelicanVerdictHealthy {
+			continue
+		}
+		pending = append(pending, target)
+	}
+	return pending
+}
+
+// runPelicanRecoverySweep 把「上一次测试不可用」的目标每分钟补测一次，直到测回可用：
+// 掉智或失败的组合不必等到下一个巡视间隔。每个组合各自有登记锁，不会和常规巡视重复测。
+func runPelicanRecoverySweep() {
+	cfg, targets, err := pelicanSweepPlan()
+	if err != nil || len(targets) == 0 {
+		return
+	}
+	latestSuccess, err := model.GetLatestPelicanSuccesses()
+	if err != nil {
+		return
+	}
+	pending := pelicanRecoveryTargets(targets, latestSuccess)
+	if len(pending) == 0 {
+		return
+	}
+	tested, failed := runPelicanSweep(context.Background(), pelicanProbeUserId(cfg), pending)
+	common.SysLog(common.LogText("pelican recovery sweep finished: %d tested, %d failed", tested, failed))
 }
 
 // runPelicanScheduledSweep 到点就跑一轮；上一轮没跑完时直接跳过，避免叠加。

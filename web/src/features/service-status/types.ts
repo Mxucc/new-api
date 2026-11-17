@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-/** 状态档位由真实请求的可用率推出，unknown 表示区间内没有流量。 */
-export type ServiceStatus = 'operational' | 'degraded' | 'partial' | 'unknown'
+/** 服务状态只有两档：可用与不可用（区间内没有流量按可用处理）。 */
+export type ServiceStatus = 'available' | 'unavailable'
 
 export type ServiceStatusCell = {
   start: number

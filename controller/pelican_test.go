@@ -136,3 +136,17 @@ func TestPelicanStripWindowsKeepsTransportFailuresOutOfTheStrip(t *testing.T) {
 		assert.False(t, cell.Sampled, "cell %d", i)
 	}
 }
+
+func TestPelicanRecoveryTargetsOnlyPicksUnavailableOnes(t *testing.T) {
+	healthy := model.PelicanProbeTarget{Group: "default", Model: "gpt-4.1"}
+	degraded := model.PelicanProbeTarget{Group: "vip", Model: "gpt-4.1"}
+	untested := model.PelicanProbeTarget{Group: "free", Model: "claude"}
+	latestSuccess := map[model.PelicanProbeTarget]*model.PelicanTestResult{
+		healthy:  {Group: "default", ModelName: "gpt-4.1", Verdict: "healthy"},
+		degraded: {Group: "vip", ModelName: "gpt-4.1", Verdict: "degraded"},
+	}
+
+	// 可用（healthy）的不补测；掉智的和从没成功过的每分钟都要补测。
+	assert.Equal(t, []model.PelicanProbeTarget{degraded, untested},
+		pelicanRecoveryTargets([]model.PelicanProbeTarget{healthy, degraded, untested}, latestSuccess))
+}

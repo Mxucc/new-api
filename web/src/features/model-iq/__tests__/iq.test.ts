@@ -26,6 +26,7 @@ import {
   iqHasScore,
   iqNeedsPolling,
   iqStripCellClass,
+  iqStripVerdictLabelKey,
   iqVerdictLabelKey,
   iqVerdictVariant,
   pelicanTargetLabel,
@@ -174,12 +175,24 @@ describe('summarizeModelIq', () => {
   })
 
   describe('iqStripCellClass', () => {
-    it('paints a sampled segment and leaves an unsampled one empty', () => {
+    it('paints an available segment green and everything else red', () => {
       expect(iqStripCellClass('healthy')).toContain('bg-success')
-      expect(iqStripCellClass('degraded')).toContain('bg-warning')
+      // 时间条只有可用与不可用两档：降智、差、失败都算不可用。
+      expect(iqStripCellClass('degraded')).toContain('bg-destructive')
       expect(iqStripCellClass('poor')).toContain('bg-destructive')
+      expect(iqStripCellClass('failed')).toContain('bg-destructive')
       // 没采到样的格子是灰的：一次失败不会把整条时间线染红。
       expect(iqStripCellClass('pending')).toContain('bg-muted')
+    })
+  })
+
+  describe('iqStripVerdictLabelKey', () => {
+    it('speaks in two words only: available or unavailable', () => {
+      expect(iqStripVerdictLabelKey('healthy')).toBe('Available')
+      expect(iqStripVerdictLabelKey('degraded')).toBe('Unavailable')
+      expect(iqStripVerdictLabelKey('poor')).toBe('Unavailable')
+      expect(iqStripVerdictLabelKey('failed')).toBe('Unavailable')
+      expect(iqStripVerdictLabelKey('pending')).toBe('Not tested')
     })
   })
 

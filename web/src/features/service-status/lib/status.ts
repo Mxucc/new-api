@@ -28,52 +28,46 @@ export const SERVICE_STATUS_WINDOWS = [
 ] as const
 
 const STATUS_LABEL_KEYS: Record<ServiceStatus, string> = {
-  operational: 'Operational',
-  degraded: 'Degraded',
-  partial: 'Partial outage',
-  unknown: 'No traffic',
+  available: 'Available',
+  unavailable: 'Unavailable',
 }
 
 const STATUS_VARIANTS: Record<ServiceStatus, StatusVariant> = {
-  operational: 'success',
-  degraded: 'warning',
-  partial: 'danger',
-  unknown: 'neutral',
+  available: 'success',
+  unavailable: 'danger',
 }
 
 const STATUS_HEADLINE_KEYS: Record<ServiceStatus, string> = {
-  operational: 'Requests are being served normally.',
-  degraded: 'Some requests failed in this window.',
-  partial: 'A significant share of requests failed in this window.',
-  unknown: 'No traffic in this window yet.',
+  available: 'Requests are being served normally.',
+  unavailable: 'Some requests failed in this window.',
 }
 
 const STATUS_CELL_CLASSES: Record<ServiceStatus, string> = {
-  operational: 'bg-success',
-  degraded: 'bg-warning',
-  partial: 'bg-destructive',
-  // 没有流量的格子按可用处理：状态条保持连续，不画成缺失的灰块。
-  unknown: 'bg-success',
+  available: 'bg-success',
+  unavailable: 'bg-destructive',
 }
 
 export function serviceStatusLabelKey(status: ServiceStatus): string {
-  return STATUS_LABEL_KEYS[status] ?? STATUS_LABEL_KEYS.unknown
+  return STATUS_LABEL_KEYS[status] ?? STATUS_LABEL_KEYS.available
 }
 
 export function serviceStatusVariant(status: ServiceStatus): StatusVariant {
-  return STATUS_VARIANTS[status] ?? 'neutral'
+  return STATUS_VARIANTS[status] ?? 'success'
 }
 
 export function serviceStatusHeadlineKey(status: ServiceStatus): string {
-  return STATUS_HEADLINE_KEYS[status] ?? STATUS_HEADLINE_KEYS.unknown
+  return STATUS_HEADLINE_KEYS[status] ?? STATUS_HEADLINE_KEYS.available
 }
 
 export function serviceStatusCellClass(status: ServiceStatus): string {
-  return STATUS_CELL_CLASSES[status] ?? STATUS_CELL_CLASSES.unknown
+  return STATUS_CELL_CLASSES[status] ?? STATUS_CELL_CLASSES.available
 }
 
 /** 状态行的标题：状态按（分组, 模型）统计，标题要同时写清两者。 */
-export function serviceStatusTargetLabel(group: string, modelName: string): string {
+export function serviceStatusTargetLabel(
+  group: string,
+  modelName: string
+): string {
   return `${group} · ${modelName}`
 }
 

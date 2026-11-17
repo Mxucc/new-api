@@ -15,11 +15,13 @@ func TestServiceStatusOfSuccessRate(t *testing.T) {
 		reports int64
 		want    string
 	}{
-		{name: "no traffic is unknown, not an outage", rate: 0, reports: 0, want: ServiceStatusUnknown},
-		{name: "99% is operational", rate: 99, reports: 1000, want: ServiceStatusOperational},
-		{name: "just below 99% is degraded", rate: 98.99, reports: 1000, want: ServiceStatusDegraded},
-		{name: "95% is still degraded", rate: 95, reports: 1000, want: ServiceStatusDegraded},
-		{name: "below 95% is partial", rate: 94.99, reports: 1000, want: ServiceStatusPartial},
+		// 服务状态只有可用与不可用：没人用不算挂了。
+		{name: "no traffic is available", rate: 0, reports: 0, want: ServiceStatusAvailable},
+		{name: "99% is available", rate: 99, reports: 1000, want: ServiceStatusAvailable},
+		{name: "100% is available", rate: 100, reports: 1000, want: ServiceStatusAvailable},
+		{name: "just below 99% is unavailable", rate: 98.99, reports: 1000, want: ServiceStatusUnavailable},
+		{name: "95% is unavailable", rate: 95, reports: 1000, want: ServiceStatusUnavailable},
+		{name: "half failing is unavailable", rate: 50, reports: 1000, want: ServiceStatusUnavailable},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -48,21 +50,21 @@ func TestBuildServiceStatusPlacesSamplesOnTheCellGrid(t *testing.T) {
 	last := view.Cells[len(view.Cells)-1]
 	assert.Equal(t, int64(100), last.Requests)
 	assert.InDelta(t, 100.0, last.SuccessRate, 0.001)
-	assert.Equal(t, ServiceStatusOperational, last.Status)
+	assert.Equal(t, ServiceStatusAvailable, last.Status)
 
 	// 倒数第二格：只有 gpt-4.1 的 10 请求 5 成功 → 50%。
 	second := view.Cells[len(view.Cells)-2]
 	assert.Equal(t, int64(10), second.Requests)
 	assert.InDelta(t, 50.0, second.SuccessRate, 0.001)
-	assert.Equal(t, ServiceStatusPartial, second.Status)
+	assert.Equal(t, ServiceStatusUnavailable, second.Status)
 
-	// 没有流量的格子保持 unknown，时间轴完整。
-	assert.Equal(t, ServiceStatusUnknown, view.Cells[0].Status)
+	// 没有流量的格子按可用处理，时间轴完整且不会画成故障。
+	assert.Equal(t, ServiceStatusAvailable, view.Cells[0].Status)
 	assert.Zero(t, view.Cells[0].Requests)
 
 	assert.Equal(t, int64(110), view.Requests)
 	assert.InDelta(t, 95.45, view.SuccessRate, 0.01)
-	assert.Equal(t, ServiceStatusDegraded, view.Status)
+	assert.Equal(t, ServiceStatusUnavailable, view.Status)
 }
 
 func TestBuildServiceStatusAggregatesPerModel(t *testing.T) {
@@ -84,24 +86,25 @@ func TestBuildServiceStatusAggregatesPerModel(t *testing.T) {
 	gpt := view.Models[0]
 	assert.Equal(t, int64(100), gpt.Requests)
 	assert.InDelta(t, 98.0, gpt.SuccessRate, 0.001)
-	assert.Equal(t, ServiceStatusDegraded, gpt.Status)
+	assert.Equal(t, ServiceStatusUnavailable, gpt.Status)
 	// 延迟按请求数加权：(60*800 + 40*1700) / 100 = 1160。
 	assert.Equal(t, int64(1160), gpt.AvgLatencyMs)
 	assert.Equal(t, 48, len(gpt.Cells))
-	assert.Equal(t, ServiceStatusOperational, gpt.Cells[47].Status)
-	assert.Equal(t, ServiceStatusDegraded, gpt.Cells[44].Status)
+	assert.Equal(t, ServiceStatusAvailable, gpt.Cells[47].Status)
+	assert.Equal(t, ServiceStatusUnavailable, gpt.Cells[44].Status)
 
 	// 窗口外的 500 次失败不能污染 claude 的状态。
 	assert.False(t, view.Models[1].ModelName == "claude" && view.Models[1].Requests > 1)
 	assert.Equal(t, int64(1), view.Models[1].Requests)
-	assert.Equal(t, ServiceStatusOperational, view.Models[1].Status)
+	assert.Equal(t, ServiceStatusAvailable, view.Models[1].Status)
 }
 
-func TestBuildServiceStatusWithoutTrafficReportsUnknown(t *testing.T) {
+func TestBuildServiceStatusWithoutTrafficReportsAvailable(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	view := BuildServiceStatus(nil, 72, now)
 
-	assert.Equal(t, ServiceStatusUnknown, view.Status)
+	// 没有任何流量：状态是可用（不是故障），时间轴按可用铺满。
+	assert.Equal(t, ServiceStatusAvailable, view.Status)
 	assert.Zero(t, view.Requests)
 	assert.Zero(t, view.DataThrough)
 	assert.Empty(t, view.Models)
@@ -110,6 +113,6 @@ func TestBuildServiceStatusWithoutTrafficReportsUnknown(t *testing.T) {
 	assert.Equal(t, int64(5400), view.CellSeconds)
 	require.Len(t, view.Cells, 48)
 	for _, cell := range view.Cells {
-		assert.Equal(t, ServiceStatusUnknown, cell.Status)
+		assert.Equal(t, ServiceStatusAvailable, cell.Status)
 	}
 }

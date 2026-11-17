@@ -33,7 +33,7 @@ vi.mock('../api', () => api)
 const EMPTY_CELL: Partial<ServiceStatusCell> = {
   requests: 0,
   success_rate: 0,
-  status: 'unknown',
+  status: 'available',
 }
 
 function cell(overrides: Partial<ServiceStatusCell> = {}): ServiceStatusCell {
@@ -41,7 +41,7 @@ function cell(overrides: Partial<ServiceStatusCell> = {}): ServiceStatusCell {
     start: 1_700_000_000,
     requests: 100,
     success_rate: 100,
-    status: 'operational',
+    status: 'available',
     ...overrides,
   }
 }
@@ -56,8 +56,8 @@ function view(overrides: Partial<ServiceStatusView> = {}): ServiceStatusView {
     data_through: 1_700_085_000,
     requests: 4200,
     success_rate: 99.52,
-    status: 'operational',
-    cells: [cell(), cell({ start: 1_700_001_800, status: 'degraded' })],
+    status: 'available',
+    cells: [cell(), cell({ start: 1_700_001_800, status: 'unavailable' })],
     models: [
       {
         group: 'default',
@@ -65,7 +65,7 @@ function view(overrides: Partial<ServiceStatusView> = {}): ServiceStatusView {
         requests: 4000,
         success_rate: 99.7,
         avg_latency_ms: 900,
-        status: 'operational',
+        status: 'available',
         cells: [
           cell(),
           // 这一段没有流量：状态条不应该为它画灰块。
@@ -78,8 +78,8 @@ function view(overrides: Partial<ServiceStatusView> = {}): ServiceStatusView {
         requests: 200,
         success_rate: 92.5,
         avg_latency_ms: 2100,
-        status: 'partial',
-        cells: [cell({ status: 'partial', success_rate: 92.5 })],
+        status: 'unavailable',
+        cells: [cell({ status: 'unavailable', success_rate: 92.5 })],
       },
     ],
     ...overrides,
@@ -141,7 +141,9 @@ describe('service status page', () => {
   it('renders every time slice and treats empty slices as available', async () => {
     renderPage()
 
-    const row = await screen.findByTestId('service-status-model-default-gpt-4.1')
+    const row = await screen.findByTestId(
+      'service-status-model-default-gpt-4.1'
+    )
     expect(within(row).getByTestId('service-status-cell-0')).toBeVisible()
     // 第二格没有流量，但按可用处理，所以也要渲染出来。
     expect(within(row).getByTestId('service-status-cell-1')).toBeVisible()
@@ -167,7 +169,7 @@ describe('service status page', () => {
       view({
         requests: 0,
         success_rate: 0,
-        status: 'unknown',
+        status: 'available',
         data_through: 0,
         models: [],
         cells: [cell({ ...EMPTY_CELL })],

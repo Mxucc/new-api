@@ -110,18 +110,28 @@ export function iqCellClass(verdict: ModelIqVerdict): string {
   return VERDICT_CELL_CLASSES[verdict] ?? VERDICT_CELL_CLASSES.pending
 }
 
+// 智商格子也只有两档：可用（healthy）与不可用（其余判定）。failed 是传输失败，
+// 会被当成「这次没采到样」，不会进时间条。
 const STRIP_CELL_CLASSES: Record<ModelIqVerdict, string> = {
   healthy: 'bg-success',
-  degraded: 'bg-warning',
+  degraded: 'bg-destructive',
   poor: 'bg-destructive',
   failed: 'bg-destructive',
-  // 没采到样的格子留空：不借用邻近结果，否则一次失败会把整条时间线染红。
+  // 一次都没测过的格子留灰。
   pending: 'bg-muted',
 }
 
-/** 时间条上一小格的颜色：实心色块，和状态页一致；没采样的格子是灰的。 */
+/** 时间条上一小格的颜色：可用绿、不可用红，没测过是灰的。 */
 export function iqStripCellClass(verdict: ModelIqVerdict): string {
   return STRIP_CELL_CLASSES[verdict] ?? STRIP_CELL_CLASSES.pending
+}
+
+/** 时间条上一小格的文案：同样只有可用与不可用两档。 */
+export function iqStripVerdictLabelKey(verdict: ModelIqVerdict): string {
+  if (verdict === 'pending') {
+    return 'Not tested'
+  }
+  return verdict === 'healthy' ? 'Available' : 'Unavailable'
 }
 
 /** 一行 = 一个探测项。每个分组只配一个模型，所以不需要模型列，模型名写在格子里。 */
