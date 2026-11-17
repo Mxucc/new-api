@@ -770,6 +770,9 @@ func GetPelicanConfig(c *gin.Context) {
 			"magpie_reuse_minutes":    cfg.MagpieReuseMinutes,
 			"magpie_groups_available": magpieGroupsAvailable,
 			"magpie_groups_error":     magpieGroupsError,
+			// 每个映射分组最近一次拿到的「最佳结果」（24 小时窗口）。
+			"magpie_best":    magpieBest(),
+			"magpie_best_at": magpieBestAt(),
 		},
 	})
 }

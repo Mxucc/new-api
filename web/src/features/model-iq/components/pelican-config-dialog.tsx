@@ -696,6 +696,21 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
                         ))}
                       </ul>
                     ) : null}
+                    {/* magpie-ops 那边这个分组 24 小时内的最高分：降智也算，
+                        只要分最高——new-api 要看的是这个分组最好能做到什么。 */}
+                    {(() => {
+                      const mapped = draft.magpieGroups[group] ?? ''
+                      const best = config?.magpie_best?.[mapped]
+                      if (!best || !best.best) return null
+                      return (
+                        <p
+                          className='text-muted-foreground ps-[7.5rem] text-[10px]'
+                          data-testid={`pelican-magpie-best-${group}`}
+                        >
+                          {`best ${best.best.score} · ${best.best.ref} · ${best.hours}h · n=${best.considered}`}
+                        </p>
+                      )
+                    })()}
                   </div>
                 )
               })}

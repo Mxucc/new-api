@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -57,6 +58,42 @@ type magpieGroupMember struct {
 	// 也不会被处置；Probe 说明排除时是否仍然测智。
 	Excluded bool `json:"excluded"`
 	Probe    bool `json:"probe"`
+}
+
+// magpieBestOf 是 magpie-ops GET /api/best 里的最佳结果：一个分组在窗口内
+// 拿到的最高分。降智也算——只要分最高，new-api 要的是这个分组「最好什么样」。
+type magpieBestOf struct {
+	Ref     string  `json:"ref"`
+	Model   string  `json:"model"`
+	Score   int     `json:"score"`
+	Verdict string  `json:"verdict"`
+	At      string  `json:"at"`
+	Rate    float64 `json:"rate"`
+}
+
+// magpieBestAnswer 是 GET /api/best 的回复。
+type magpieBestAnswer struct {
+	Group      string        `json:"group"`
+	Since      string        `json:"since"`
+	Hours      int           `json:"hours"`
+	Considered int           `json:"considered"`
+	Best       *magpieBestOf `json:"best"`
+}
+
+func fetchMagpieBest(ctx context.Context, cfg model.PelicanTestConfig, magpieGroup string, hours int) (magpieBestAnswer, error) {
+	var best magpieBestAnswer
+	if hours <= 0 {
+		hours = 24
+	}
+	path := fmt.Sprintf("/api/best?group=%s&hours=%d", url.QueryEscape(magpieGroup), hours)
+	body, err := pelicanMagpieRequest(ctx, cfg, http.MethodGet, path, nil)
+	if err != nil {
+		return best, err
+	}
+	if err := json.Unmarshal(body, &best); err != nil {
+		return best, fmt.Errorf("magpie best: %w", err)
+	}
+	return best, nil
 }
 
 // magpieGroup 是 magpie-ops GET /api/groups 里的一个分组。
@@ -266,6 +303,53 @@ func pelicanMagpieCooldownFree(cfg model.PelicanTestConfig, group string) bool {
 	return time.Since(time.Unix(state.AdjustedAt, 0)) >= time.Duration(cfg.MagpieCooldownMinutes)*time.Minute
 }
 
+// magpieBestCache 记住每个映射分组最近一次拿到的「分组最佳结果」。
+// 巡视结束后刷一次，设置页读缓存，不在页面请求里等 magpie。
+var magpieBestCache = struct {
+	mu   sync.Mutex
+	at   time.Time
+	best map[string]magpieBestAnswer
+	err  string
+}{best: map[string]magpieBestAnswer{}}
+
+// refreshMagpieBest 给每个映射到的 magpie 分组取一次 24 小时内的最佳结果。
+// 一个分组一次请求：拿的是 magpie-ops 已经测过的数，不再花探测费。
+func refreshMagpieBest(ctx context.Context, cfg model.PelicanTestConfig) {
+	groups := map[string]struct{}{}
+	for _, mapping := range cfg.MagpieGroups {
+		if strings.TrimSpace(mapping.MagpieGroup) != "" {
+			groups[mapping.MagpieGroup] = struct{}{}
+		}
+	}
+	if len(groups) == 0 {
+		return
+	}
+	best := make(map[string]magpieBestAnswer, len(groups))
+	errText := ""
+	for group := range groups {
+		got, err := fetchMagpieBest(ctx, cfg, group, 24)
+		if err != nil {
+			errText = pelicanMagpieDetail(err)
+			continue
+		}
+		best[group] = got
+	}
+	magpieBestCache.mu.Lock()
+	magpieBestCache.at, magpieBestCache.best, magpieBestCache.err = time.Now(), best, errText
+	magpieBestCache.mu.Unlock()
+}
+
+// magpieBestSnapshot 是给设置页看的一份拷贝。
+func magpieBestSnapshot() (map[string]magpieBestAnswer, time.Time, string) {
+	magpieBestCache.mu.Lock()
+	defer magpieBestCache.mu.Unlock()
+	out := make(map[string]magpieBestAnswer, len(magpieBestCache.best))
+	for k, v := range magpieBestCache.best {
+		out[k] = v
+	}
+	return out, magpieBestCache.at, magpieBestCache.err
+}
+
 // pelicanMagpieAfterSweep 在一轮探测结束后联动 magpie-ops：把这一轮里降智的分组去重，
 // 对配了映射且不在冷却期的分组各请 magpie 调整一次（一个分组一轮最多一次）。
 // 异步执行，magpie 不可用只记日志与状态，不影响探测结果落库。
@@ -274,6 +358,9 @@ func pelicanMagpieAfterSweep(ctx context.Context, results []*model.PelicanTestRe
 	if !cfg.MagpieLinked() {
 		return
 	}
+	// 每轮测完都问一次「这些分组各自的最好成绩是多少」：new-api 要的是分组
+	// 的能力上限，不是某条渠道这一次的分数。
+	refreshMagpieBest(ctx, cfg)
 	seen := make(map[string]struct{}, len(results))
 	for _, record := range results {
 		if record == nil || record.Status != "success" {
@@ -462,4 +549,21 @@ func reuseMagpieResult(ctx context.Context, cfg model.PelicanTestConfig, group, 
 		ObservedAt: chosenAt.Unix(),
 	}
 	return pelicanMagpieReused{Record: record, Member: chosen, Probed: chosenAt, GroupId: chosenGroup}, true
+}
+
+// magpieBest 与 magpieBestAt 给设置页用：拿的是缓存，不在请求里等 magpie。
+func magpieBest() map[string]magpieBestAnswer {
+	best, _, _ := magpieBestSnapshot()
+	return best
+}
+
+func magpieBestAt() string {
+	_, at, err := magpieBestSnapshot()
+	if at.IsZero() {
+		return ""
+	}
+	if err != "" {
+		return err
+	}
+	return at.UTC().Format(time.RFC3339)
 }

@@ -217,6 +217,10 @@ export type PelicanConfig = {
    */
   magpie_reuse_minutes?: number | null
   /** magpie-ops 那边的分组清单，拿不到时是空数组。 */
+  /** 每个映射分组最近一次拿到的「24 小时内最佳结果」。 */
+  magpie_best?: Record<string, PelicanMagpieBest>
+  /** 取最佳结果的时间，取不到时是错误信息。 */
+  magpie_best_at?: string
   magpie_groups_available: PelicanMagpieGroupOption[]
   /** 列不出分组时的原因：magpie 停机或 token 不对。 */
   magpie_groups_error: string
@@ -251,4 +255,19 @@ export type PelicanStartAck = {
   running?: boolean
   /** 整轮巡视本轮要测的组合数，单组合触发时不返回。 */
   targets?: number
+}
+
+/** magpie-ops 给的一个分组的「最佳结果」：24 小时内最高分（降智也算）。 */
+export type PelicanMagpieBest = {
+  group: string
+  hours: number
+  considered: number
+  best?: {
+    ref: string
+    model?: string
+    score: number
+    verdict?: string
+    at?: string
+    rate?: number
+  }
 }
