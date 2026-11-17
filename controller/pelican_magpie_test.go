@@ -26,6 +26,18 @@ type magpieCall struct {
 	Authorization string
 }
 
+// magpieAdjustCalls 只看 adjust：一轮巡视现在还会问 /api/best（分组最佳结果），
+// 那是另一件事，不该混进「adjust 只发了几次」的断言里。
+func magpieAdjustCalls(calls []magpieCall) []magpieCall {
+	out := make([]magpieCall, 0, len(calls))
+	for _, c := range calls {
+		if c.Path == "/api/adjust" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // setupPelicanMagpieDB 给联动测试准备一份独立的 SQLite：配置与联动状态都写在 option 里。
 func setupPelicanMagpieDB(t *testing.T) {
 	t.Helper()
@@ -192,7 +204,7 @@ func TestPelicanMagpieAfterSweepAdjustsEachDegradedGroupOnce(t *testing.T) {
 		probeResult("vip", "failed", service.PelicanVerdictFailed, 0),
 	})
 
-	sent := calls()
+	sent := magpieAdjustCalls(calls())
 	require.Len(t, sent, 2)
 	assert.Equal(t, "/api/adjust", sent[0].Path)
 	assert.Equal(t, "never-stuck", sent[0].Group)
@@ -217,7 +229,7 @@ func TestPelicanMagpieAfterSweepSkipsUnmappedHealthyAndCoolingGroups(t *testing.
 		probeResult("vip", "success", service.PelicanVerdictPoor, 30),
 		probeResult("default", "success", service.PelicanVerdictHealthy, 100),
 	})
-	assert.Empty(t, calls())
+	assert.Empty(t, magpieAdjustCalls(calls()))
 
 	// 冷却期内不再重复请求：调整会让 magpie 把整个分组现场测一遍。
 	require.NoError(t, model.UpdatePelicanMagpieState("default", func(state *model.PelicanMagpieState) {
@@ -227,7 +239,7 @@ func TestPelicanMagpieAfterSweepSkipsUnmappedHealthyAndCoolingGroups(t *testing.
 	pelicanMagpieAfterSweep(context.Background(), []*model.PelicanTestResult{
 		probeResult("default", "success", service.PelicanVerdictPoor, 30),
 	})
-	assert.Empty(t, calls())
+	assert.Empty(t, magpieAdjustCalls(calls()))
 
 	// 冷却过期后重试。
 	require.NoError(t, model.UpdatePelicanMagpieState("default", func(state *model.PelicanMagpieState) {
@@ -236,7 +248,7 @@ func TestPelicanMagpieAfterSweepSkipsUnmappedHealthyAndCoolingGroups(t *testing.
 	pelicanMagpieAfterSweep(context.Background(), []*model.PelicanTestResult{
 		probeResult("default", "success", service.PelicanVerdictPoor, 30),
 	})
-	assert.Len(t, calls(), 1)
+	assert.Len(t, magpieAdjustCalls(calls()), 1)
 }
 
 func TestPelicanMagpieAfterSweepDryRunOnlyRecordsTheIntent(t *testing.T) {
@@ -251,8 +263,8 @@ func TestPelicanMagpieAfterSweepDryRunOnlyRecordsTheIntent(t *testing.T) {
 		probeResult("default", "success", service.PelicanVerdictPoor, 30),
 	})
 
-	// dry run 只记状态，magpie 那边一条请求都收不到。
-	assert.Empty(t, calls())
+	// dry run 只记状态，magpie 那边一条 adjust 都收不到。
+	assert.Empty(t, magpieAdjustCalls(calls()))
 	state := model.GetPelicanMagpieStates()["default"]
 	assert.Equal(t, "never-stuck", state.MagpieGroup)
 	assert.True(t, state.OK)
@@ -269,7 +281,7 @@ func TestPelicanMagpieAfterSweepKeepsAFailedAdjustInTheState(t *testing.T) {
 		probeResult("default", "success", service.PelicanVerdictPoor, 30),
 	})
 
-	require.Len(t, calls(), 1)
+	require.Len(t, magpieAdjustCalls(calls()), 1)
 	state := model.GetPelicanMagpieStates()["default"]
 	assert.False(t, state.OK)
 	assert.Contains(t, state.Error, "401")
@@ -489,5 +501,46 @@ func TestPelicanMagpieAfterSweepSkipsReusedResults(t *testing.T) {
 		Verdict: service.PelicanVerdictDegraded, Score: 60, Source: model.PelicanSourceMagpie,
 	}})
 
-	assert.Empty(t, calls(), "a reused result must not ask magpie to adjust again")
+	assert.Empty(t, magpieAdjustCalls(calls()), "a reused result must not ask magpie to adjust again")
+}
+
+// 线上 260 个分组的 /api/groups 有 700KB 左右：回复超过旧的 256KB 上限时
+// 会被截断，JSON 只解析出 "unexpected end of JSON input"。这里把大回复钉住。
+func TestListMagpieGroupsHandlesALargeReply(t *testing.T) {
+	setupPelicanMagpieDB(t)
+	// 造一个 ~700KB 的回复：260 个分组、每个 12 个成员
+	var b strings.Builder
+	b.WriteString(`{"groups":[`)
+	for g := 0; g < 260; g++ {
+		if g > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString(`{"id":"group-`)
+		b.WriteString(strings.Repeat("g", 8))
+		b.WriteString(`-`)
+		b.WriteString(strings.Repeat("0", 4))
+		b.WriteString(`","name":"some group name","routing":"order","members":[`)
+		for m := 0; m < 12; m++ {
+			if m > 0 {
+				b.WriteString(",")
+			}
+			b.WriteString(`{"ref":"provider-`)
+			b.WriteString(strings.Repeat("p", 12))
+			b.WriteString(`/model-name-`)
+			b.WriteString(strings.Repeat("m", 12))
+			b.WriteString(`","provider":"provider","model":"model","verdict":"healthy","score":90}`)
+		}
+		b.WriteString(`]}`)
+	}
+	b.WriteString(`]}`)
+	require.Greater(t, len(b.String()), 256<<10, "这个回复必须比旧上限大，否则测不出截断")
+
+	server, _ := newMagpieOpsServer(t, http.StatusOK, b.String())
+	groups, err := listMagpieGroups(context.Background(), model.PelicanTestConfig{
+		MagpieURL:   server.URL,
+		MagpieToken: "secret-token",
+	})
+	require.NoError(t, err)
+	assert.Len(t, groups, 260)
+	assert.Len(t, groups[0].Members, 12)
 }

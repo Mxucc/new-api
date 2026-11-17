@@ -21,7 +21,12 @@ import (
 const (
 	// pelicanMagpieTimeout 是一次联动请求的上限：magpie-ops 就在回环上跑，
 	// 10 秒还没回就是它出了问题，不能把巡视收尾拖住。
-	pelicanMagpieTimeout = 10 * time.Second
+	pelicanMagpieTimeout = 20 * time.Second
+	// pelicanMagpieBodyLimit 是一次联动回复的上限。线上一个 magpie-ops
+	// 有 260 个分组、每个分组十几个成员，/api/groups 就有 700KB 左右；
+	// 之前这里只有 256KB，读满就停，JSON 自然是半截的
+	// （"unexpected end of JSON input" 就是这么来的）。
+	pelicanMagpieBodyLimit = 32 << 20
 	// pelicanMagpieDetailMaxRunes 是写进状态与日志的失败原因长度上限。
 	pelicanMagpieDetailMaxRunes = 200
 )
@@ -172,9 +177,13 @@ func pelicanMagpieRequest(ctx context.Context, cfg model.PelicanTestConfig, meth
 		return nil, err
 	}
 	defer response.Body.Close()
-	payload, err := io.ReadAll(io.LimitReader(response.Body, 256<<10))
+	payload, err := io.ReadAll(io.LimitReader(response.Body, pelicanMagpieBodyLimit))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("magpie-ops %s %s: 读回复失败：%w", method, cfg.MagpieURL+path, err)
+	}
+	if int64(len(payload)) >= pelicanMagpieBodyLimit {
+		// 读满上限说明回复比上限还大：报「太大」，不要让它伪装成 JSON 语法错
+		return nil, fmt.Errorf("magpie-ops %s %s 的回复超过 %d 字节上限（可能分组太多）", method, cfg.MagpieURL+path, pelicanMagpieBodyLimit)
 	}
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		detail := strings.TrimSpace(string(payload))
