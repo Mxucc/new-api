@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -149,4 +150,17 @@ func TestPelicanRecoveryTargetsOnlyPicksUnavailableOnes(t *testing.T) {
 	// 可用（healthy）的不补测；掉智的和从没成功过的每分钟都要补测。
 	assert.Equal(t, []model.PelicanProbeTarget{degraded, untested},
 		pelicanRecoveryTargets([]model.PelicanProbeTarget{healthy, degraded, untested}, latestSuccess))
+}
+
+// 一个分组只留智商最高的成员：低分的会被 magpie-ops 自己关掉，列出来只是噪音。
+func TestPelicanStatusBeatsPicksTheHighestScoreInAGroup(t *testing.T) {
+	best := pelicanModelStatus{Group: "codex-max", ModelName: "gpt-6.1-sol", Verdict: "healthy", Score: 100}
+	worse := pelicanModelStatus{Group: "codex-max", ModelName: "gpt-6.1-terra", Verdict: "poor", Score: 20}
+	untested := pelicanModelStatus{Group: "codex-max", ModelName: "gpt-5.5", Verdict: service.PelicanVerdictPending}
+
+	assert.True(t, pelicanStatusBeats(best, worse))
+	assert.False(t, pelicanStatusBeats(worse, best))
+	// 没测过的不能顶掉已经有结论的那个，反过来可以。
+	assert.False(t, pelicanStatusBeats(untested, worse))
+	assert.True(t, pelicanStatusBeats(worse, untested))
 }

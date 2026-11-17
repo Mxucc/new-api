@@ -186,6 +186,17 @@ func pelicanStatusOf(target model.PelicanProbeTarget, available bool, result *mo
 	return status
 }
 
+// pelicanStatusBeats 决定同一个分组里谁代表这一行：先看有没有测出结论，
+// 再比智商分。两边都没测过时留第一个，页面照样能显示「未测试」。
+func pelicanStatusBeats(candidate, current pelicanModelStatus) bool {
+	candidateTested := candidate.Verdict != service.PelicanVerdictPending
+	currentTested := current.Verdict != service.PelicanVerdictPending
+	if candidateTested != currentTested {
+		return candidateTested
+	}
+	return candidate.Score > current.Score
+}
+
 // pelicanStripWindows 按巡视间隔把最近 24 小时切成小格（30 分钟 = 48 格，1 小时 = 24 格）。
 // 一格对应一次巡视：采到了就显示那次判定；没采到（含上游 502 这类传输失败）就沿用
 // 上一次成功的结果——默认是绿的，只有真正拿到输出的降智才变色。
@@ -318,11 +329,20 @@ func GetPelicanOverview(c *gin.Context) {
 		}
 		statuses = append(statuses, status)
 	}
-	slices.SortFunc(statuses, func(a, b pelicanModelStatus) int {
-		if byGroup := strings.Compare(a.Group, b.Group); byGroup != 0 {
-			return byGroup
+	// 一个分组只留智商最高的那个成员：magpie-ops 只往高分的渠道调度，低分的它自己会
+	// 关掉，把所有成员都列出来只会把页面变成渠道清单。
+	leading := make(map[string]pelicanModelStatus, len(statuses))
+	for _, status := range statuses {
+		if current, ok := leading[status.Group]; !ok || pelicanStatusBeats(status, current) {
+			leading[status.Group] = status
 		}
-		return strings.Compare(a.ModelName, b.ModelName)
+	}
+	statuses = statuses[:0]
+	for _, status := range leading {
+		statuses = append(statuses, status)
+	}
+	slices.SortFunc(statuses, func(a, b pelicanModelStatus) int {
+		return strings.Compare(a.Group, b.Group)
 	})
 	latestTestedAt := int64(0)
 	for _, status := range statuses {

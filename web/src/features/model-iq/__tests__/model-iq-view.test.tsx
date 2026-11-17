@@ -232,80 +232,27 @@ describe('model IQ grid', () => {
     expect(screen.getAllByText('vip').length).toBeGreaterThan(0)
   })
 
-  it('tells an admin when a result was reused instead of paid for twice', async () => {
-    const reused = modelStatus({
-      verdict: 'degraded',
-      score: 60,
-      source: 'magpie-ops',
-      observed_at: 1699999800,
-    })
-    api.getModelIqOverview.mockResolvedValue(overview([reused]))
-    renderPage(ROLE.ADMIN)
-
-    const note = await screen.findByTestId('model-iq-reused-default-gpt-4.1')
-    expect(note).toHaveTextContent('Reused from magpie-ops')
-  })
-
-  it('keeps every magpie detail away from ordinary users', async () => {
+  it('never shows routing-tool details on the page, not even to an admin', async () => {
     api.getModelIqOverview.mockResolvedValue(
       overview([
         modelStatus({
           verdict: 'poor',
           source: 'magpie-ops',
           observed_at: 1699999800,
-          magpie_group: 'never-stuck',
-          magpie_result: 'gptpro/gpt-6-astra disable',
-        }),
-      ])
-    )
-    renderPage(ROLE.USER)
-
-    // 普通用户只需要知道「可用 / 不可用」：背后接了哪套调度工具跟他们无关。
-    await screen.findByTestId('model-iq-cell-default-gpt-4.1')
-    expect(screen.queryByTestId('model-iq-reused-default-gpt-4.1')).toBeNull()
-    expect(screen.queryByText('Reused from magpie-ops')).toBeNull()
-    expect(screen.queryByTestId('model-iq-magpie-default-gpt-4.1')).toBeNull()
-  })
-
-  it('shows what magpie changed for a degraded group', async () => {
-    api.getModelIqOverview.mockResolvedValue(
-      overview([
-        modelStatus({
-          verdict: 'poor',
-          magpie_group: 'never-stuck',
+          magpie_group: 'gpt-0.25',
           magpie_adjusted_at: 1700000000,
           magpie_result: 'gptpro/gpt-6-astra disable',
-        }),
-      ])
-    )
-    renderPage(ROLE.ADMIN)
-
-    // 对账结果比对「已请求调整」更具体：格子里直接显示动了哪个成员。
-    const note = await screen.findByTestId('model-iq-magpie-default-gpt-4.1')
-    expect(note).toHaveTextContent('gptpro/gpt-6-astra disable')
-  })
-
-  it('shows the score behind each magpie action, and keeps old records readable', async () => {
-    api.getModelIqOverview.mockResolvedValue(
-      overview([
-        modelStatus({
-          verdict: 'poor',
-          magpie_group: 'never-stuck',
-          magpie_adjusted_at: 1700000000,
-          // 0 分是合法智商：不能被当成「没有分数」吞掉。
           magpie_actions: [
             { ref: 'gptpro/gpt-6-astra', kind: 'disable', score: 0 },
-            { ref: 'dli/gpt-6-astra', kind: 'enable' },
           ],
         }),
       ])
     )
     renderPage(ROLE.ADMIN)
 
-    const note = await screen.findByTestId('model-iq-magpie-default-gpt-4.1')
-    expect(note).toHaveTextContent('gptpro/gpt-6-astra disable · 0')
-    // 旧记录没有 score：只写 ref + kind。
-    expect(note).toHaveTextContent('dli/gpt-6-astra enable')
+    // 背后接了哪套调度工具、动了哪个渠道都是内部信息：页面上一个字都不出现。
+    await screen.findByTestId('model-iq-cell-default-gpt-4.1')
+    expect(screen.queryByText(/magpie/i)).toBeNull()
   })
 
   it('keeps a configured group that was never tested, with an empty cell', async () => {

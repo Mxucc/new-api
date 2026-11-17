@@ -90,95 +90,6 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
   )
 }
 
-/**
- * 联动备注：这一格在上一次动作里被 magpie 关掉或恢复过，或者那次动作失败了。
- * 这些都是运维细节，只有管理员要看——普通用户只需要知道模型可用不可用。
- */
-function ModelIqMagpieNote(props: { status: ModelIqStatus; isAdmin: boolean }) {
-  const { t, i18n } = useTranslation()
-  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  // 联动细节是运维信息：普通用户只看得到「可用 / 不可用」。
-  if (!props.isAdmin) {
-    return null
-  }
-  const status = props.status
-  if (status.source !== 'magpie-ops') {
-    return <ModelIqMagpieDetail status={status} />
-  }
-  const observedAt = status.observed_at || status.tested_at
-  return (
-    <>
-      <span
-        className='text-muted-foreground truncate text-[10px]'
-        title={t(
-          'This result comes from magpie-ops, so the question was not paid for twice.'
-        )}
-        data-testid={`model-iq-reused-${status.group}-${status.model_name}`}
-      >
-        {t('Reused from magpie-ops')} ·{' '}
-        {formatTimestampRelative(observedAt, 'seconds', locale)}
-      </span>
-      <ModelIqMagpieDetail status={status} />
-    </>
-  )
-}
-
-function ModelIqMagpieDetail(props: { status: ModelIqStatus }) {
-  const { t, i18n } = useTranslation()
-  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  const status = props.status
-  if (status.magpie_error) {
-    return (
-      <span
-        className='text-destructive truncate text-[10px]'
-        title={status.magpie_error}
-        data-testid={`model-iq-magpie-error-${status.group}-${status.model_name}`}
-      >
-        {t('magpie: {{message}}', { message: status.magpie_error })}
-      </span>
-    )
-  }
-  if (!status.magpie_group) {
-    return null
-  }
-  // 对账明细更具体（动了谁、当时智商），没有明细时退回状态文本与「已请求调整 + 时间」。
-  const actions = status.magpie_actions ?? []
-  const result =
-    actions.length > 0
-      ? actions
-          .map((action) =>
-            action.score === undefined
-              ? `${action.ref} ${action.kind}`
-              : `${action.ref} ${action.kind} · ${action.score}`
-          )
-          .join(', ')
-      : status.magpie_result
-  if (result) {
-    return (
-      <span
-        className='text-muted-foreground truncate text-[10px]'
-        data-testid={`model-iq-magpie-${status.group}-${status.model_name}`}
-      >
-        {t('magpie adjusted: {{result}}', { result })}
-      </span>
-    )
-  }
-  const when = status.magpie_adjusted_at
-    ? formatTimestampRelative(status.magpie_adjusted_at, 'seconds', locale)
-    : ''
-  return (
-    <span
-      className='text-muted-foreground truncate text-[10px]'
-      data-testid={`model-iq-magpie-${status.group}-${status.model_name}`}
-    >
-      {t('magpie {{group}} adjusted {{time}}', {
-        group: status.magpie_group,
-        time: when,
-      })}
-    </span>
-  )
-}
-
 interface ModelIqRowCellProps {
   status: ModelIqStatus
   isAdmin: boolean
@@ -234,7 +145,6 @@ function ModelIqRowCell(props: ModelIqRowCellProps) {
               <span className='truncate text-xs font-medium'>
                 {status.model_name}
               </span>
-              <ModelIqMagpieNote status={status} isAdmin={props.isAdmin} />
             </span>
             <ModelIqStrip status={status} />
             <span className='shrink-0 text-xs tabular-nums'>{summary}</span>
