@@ -232,7 +232,7 @@ describe('model IQ grid', () => {
     expect(screen.getAllByText('vip').length).toBeGreaterThan(0)
   })
 
-  it('says when a result was reused from magpie-ops', async () => {
+  it('tells an admin when a result was reused instead of paid for twice', async () => {
     const reused = modelStatus({
       verdict: 'degraded',
       score: 60,
@@ -240,11 +240,31 @@ describe('model IQ grid', () => {
       observed_at: 1699999800,
     })
     api.getModelIqOverview.mockResolvedValue(overview([reused]))
-    renderPage(ROLE.USER)
+    renderPage(ROLE.ADMIN)
 
     const note = await screen.findByTestId('model-iq-reused-default-gpt-4.1')
-    // 用户要知道这条不是刚测的：同一道题没有付两次钱。
     expect(note).toHaveTextContent('Reused from magpie-ops')
+  })
+
+  it('keeps every magpie detail away from ordinary users', async () => {
+    api.getModelIqOverview.mockResolvedValue(
+      overview([
+        modelStatus({
+          verdict: 'poor',
+          source: 'magpie-ops',
+          observed_at: 1699999800,
+          magpie_group: 'never-stuck',
+          magpie_result: 'gptpro/gpt-6-astra disable',
+        }),
+      ])
+    )
+    renderPage(ROLE.USER)
+
+    // 普通用户只需要知道「可用 / 不可用」：背后接了哪套调度工具跟他们无关。
+    await screen.findByTestId('model-iq-cell-default-gpt-4.1')
+    expect(screen.queryByTestId('model-iq-reused-default-gpt-4.1')).toBeNull()
+    expect(screen.queryByText('Reused from magpie-ops')).toBeNull()
+    expect(screen.queryByTestId('model-iq-magpie-default-gpt-4.1')).toBeNull()
   })
 
   it('shows what magpie changed for a degraded group', async () => {
@@ -258,7 +278,7 @@ describe('model IQ grid', () => {
         }),
       ])
     )
-    renderPage(ROLE.USER)
+    renderPage(ROLE.ADMIN)
 
     // 对账结果比对「已请求调整」更具体：格子里直接显示动了哪个成员。
     const note = await screen.findByTestId('model-iq-magpie-default-gpt-4.1')
@@ -280,7 +300,7 @@ describe('model IQ grid', () => {
         }),
       ])
     )
-    renderPage(ROLE.USER)
+    renderPage(ROLE.ADMIN)
 
     const note = await screen.findByTestId('model-iq-magpie-default-gpt-4.1')
     expect(note).toHaveTextContent('gptpro/gpt-6-astra disable · 0')

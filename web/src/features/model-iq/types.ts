@@ -159,6 +159,10 @@ export type PelicanResult = {
   output: string
   error: string
   created_at: number
+  /** 空表示本机测的；`magpie-ops` 表示这条结论直接取了 magpie-ops 的结果。 */
+  source?: string
+  /** 复用 magpie-ops 时它真正被测出来的时刻。 */
+  observed_at?: number
 }
 
 /** 历史记录里的一个点：只有元数据，不含动画源码。 */

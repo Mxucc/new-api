@@ -16,17 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
-import { Activity } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Activity, Trash2 } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
+import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import {
   ChartContainer,
   ChartTooltip,
@@ -37,7 +39,11 @@ import { formatLatency } from '@/features/performance-metrics/lib/format'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestamp } from '@/lib/format'
 
-import { getPelicanHistory } from '../api'
+import {
+  clearPelicanHistory,
+  deletePelicanResult,
+  getPelicanHistory,
+} from '../api'
 import {
   iqVerdictLabelKey,
   iqVerdictVariant,
@@ -52,6 +58,8 @@ export interface PelicanHistoryDialogProps {
   target: PelicanTarget | null
   /** 点某一条记录就看它当时的动画：历史里每条都能预览。 */
   onPreview: (resultId: number) => void
+  /** 只有管理员能删：写错的结论留在图上会误导所有人。 */
+  isAdmin: boolean
   onOpenChange: (open: boolean) => void
 }
 
@@ -66,6 +74,27 @@ export function PelicanHistoryDialog(props: PelicanHistoryDialogProps) {
     queryKey: ['model-iq', 'history', group, modelName],
     queryFn: () => getPelicanHistory(group, modelName),
     enabled: props.target !== null,
+  })
+
+  const queryClient = useQueryClient()
+  // 删完把这一页的所有查询都刷新：概览、时间条与历史一起更新，不留旧数。
+  const refresh = () =>
+    void queryClient.invalidateQueries({ queryKey: ['model-iq'] })
+  const removeOne = useMutation({
+    mutationFn: (id: number) => deletePelicanResult(id),
+    onSuccess: () => {
+      refresh()
+      toast.success(t('Run deleted'))
+    },
+    onError: () => toast.error(t('Failed to delete the run')),
+  })
+  const clearAll = useMutation({
+    mutationFn: () => clearPelicanHistory(group, modelName),
+    onSuccess: (removed) => {
+      refresh()
+      toast.success(t('Deleted {{count}} runs', { count: removed }))
+    },
+    onError: () => toast.error(t('Failed to delete the runs')),
   })
 
   const chartConfig = useMemo<ChartConfig>(
@@ -159,15 +188,34 @@ export function PelicanHistoryDialog(props: PelicanHistoryDialogProps) {
           </LineChart>
         </ChartContainer>
 
+        {props.isAdmin ? (
+          <div className='flex items-center justify-between gap-2'>
+            <span className='text-muted-foreground text-xs'>
+              {t(
+                'Repeated bad runs drag the trend down: delete the wrong ones.'
+              )}
+            </span>
+            <Button
+              variant='outline'
+              size='sm'
+              disabled={clearAll.isPending}
+              onClick={() => clearAll.mutate()}
+            >
+              <Trash2 data-icon='inline-start' />
+              {t('Clear history')}
+            </Button>
+          </div>
+        ) : null}
+
         <ul className='divide-y' data-testid='pelican-history-recent'>
           {recentRuns.map((run) => (
-            <li key={run.id}>
+            <li key={run.id} className='flex items-center gap-1'>
               <button
                 type='button'
                 data-testid={`pelican-history-run-${run.id}`}
                 title={t('Preview')}
                 onClick={() => props.onPreview(run.id)}
-                className='hover:bg-muted flex w-full flex-wrap items-center justify-between gap-2 rounded px-1 py-1.5 text-left text-xs transition-colors'
+                className='hover:bg-muted flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2 rounded px-1 py-1.5 text-left text-xs transition-colors'
               >
                 <span className='text-muted-foreground'>
                   {formatTimestamp(run.created_at)}
@@ -186,6 +234,18 @@ export function PelicanHistoryDialog(props: PelicanHistoryDialogProps) {
                   </span>
                 </span>
               </button>
+              {props.isAdmin ? (
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  aria-label={t('Delete this run')}
+                  data-testid={`pelican-history-delete-${run.id}`}
+                  disabled={removeOne.isPending}
+                  onClick={() => removeOne.mutate(run.id)}
+                >
+                  <Trash2 />
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>

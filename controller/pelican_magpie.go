@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -68,6 +69,9 @@ type magpieGroupMember struct {
 	// 也不会被处置；Probe 说明排除时是否仍然测智。
 	Excluded bool `json:"excluded"`
 	Probe    bool `json:"probe"`
+	// LastResultID 是这条判定背后的结果 id：复用结论时拿它回 /api/result
+	// 取模型当时交的动画，不然页面上只有分数、没有可看的东西。
+	LastResultID string `json:"lastResultId"`
 }
 
 // magpieBestOf 是 magpie-ops GET /api/best 里的最佳结果：一个分组在窗口内
@@ -104,6 +108,32 @@ func fetchMagpieBest(ctx context.Context, cfg model.PelicanTestConfig, magpieGro
 		return best, fmt.Errorf("magpie best: %w", err)
 	}
 	return best, nil
+}
+
+// magpieResult 是 magpie-ops GET /api/result 的一条结果：这里只取预览要用的几项。
+type magpieResult struct {
+	ID    string `json:"id"`
+	Ref   string `json:"ref"`
+	Model string `json:"model"`
+	HTML  string `json:"html"`
+	Error string `json:"error"`
+}
+
+// fetchMagpieResult 按结果 id 回 magpie-ops 取那条模型交付的动画。
+// 复用的结论本机只有分数没有原文，预览必须回来取一次。
+func fetchMagpieResult(ctx context.Context, cfg model.PelicanTestConfig, id string) (magpieResult, error) {
+	var result magpieResult
+	if strings.TrimSpace(id) == "" {
+		return result, errors.New("magpie-ops result id is empty")
+	}
+	body, err := pelicanMagpieRequest(ctx, cfg, http.MethodGet, "/api/result?id="+url.QueryEscape(id), nil)
+	if err != nil {
+		return result, err
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return result, fmt.Errorf("magpie result: %w", err)
+	}
+	return result, nil
 }
 
 // magpieGroup 是 magpie-ops GET /api/groups 里的一个分组。
@@ -674,6 +704,8 @@ func reuseMagpieResultWithin(ctx context.Context, cfg model.PelicanTestConfig, g
 		CreatedAt:  time.Now().Unix(),
 		Source:     model.PelicanSourceMagpie,
 		ObservedAt: chosenAt.Unix(),
+		// 记下那边的结果 id：预览要回 magpie-ops 取模型当时交的动画。
+		MagpieResultId: chosen.LastResultID,
 	}
 	return pelicanMagpieReused{Record: record, Member: chosen, Probed: chosenAt, GroupId: chosenGroup}, true
 }

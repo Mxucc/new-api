@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"net/url"
 	"strings"
 	"time"
@@ -29,6 +30,9 @@ type PelicanTestResult struct {
 	Source string `json:"source,omitempty" gorm:"size:16"`
 	// ObservedAt 是那条结果真正被测出来的时刻（复用 magpie-ops 时它比 CreatedAt 早）。
 	ObservedAt int64 `json:"observed_at,omitempty" gorm:"bigint"`
+	// MagpieResultId 是复用 magpie-ops 结论时它在那边的主键：预览动画要拿它
+	// 回 magpie-ops 取原文，本机不再重复存一份 HTML。
+	MagpieResultId string `json:"magpie_result_id,omitempty" gorm:"size:64"`
 }
 
 func (PelicanTestResult) TableName() string {
@@ -440,4 +444,23 @@ func GetPelicanTestHistory(group, modelName string, limit int) ([]PelicanTestRes
 // IsPelicanResultMissing reports whether the load failed because the row is gone.
 func IsPelicanResultMissing(err error) bool {
 	return err == gorm.ErrRecordNotFound
+}
+
+// DeletePelicanTestResult 删掉一条记录：管理员用它清掉写错的结论。
+func DeletePelicanTestResult(id int64) error {
+	return DB.Where("id = ?", id).Delete(&PelicanTestResult{}).Error
+}
+
+// DeletePelicanTestResults 删掉一个（分组, 模型）的历史。两个参数都必须给：
+// 页面只会按一行清，不给通配的「全清」，免得一次误操作抹掉所有人的历史。
+// 只删记录不动设置：清完之后巡视照常接着写新结果。
+func DeletePelicanTestResults(group, modelName string) (int64, error) {
+	if group == "" || modelName == "" {
+		return 0, errors.New("group and model are required")
+	}
+	result := DB.Model(&PelicanTestResult{}).
+		Where(commonGroupCol+" = ?", group).
+		Where("model_name = ?", modelName).
+		Delete(&PelicanTestResult{})
+	return result.RowsAffected, result.Error
 }

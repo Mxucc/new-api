@@ -268,17 +268,33 @@ func GetPelicanOverview(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	serveable := make(map[model.PelicanProbeTarget]struct{}, len(cfg.Targets))
+	// 只读联动（绑定了 magpie 分组）时模型的取舍以 magpie-ops 为准：页面要显示它
+	// 真正在测的那些成员，否则巡视把结果写进结果表也没人看得到。
+	readOnly := pelicanMagpieReadOnly(cfg)
+	targets := cfg.Targets
+	if readOnly {
+		magpieTargets, magpieErr := magpieProbeTargets(c.Request.Context(), cfg)
+		if magpieErr != nil {
+			common.SysLog(common.LogText("pelican magpie: cannot list the measured members: %s", magpieErr.Error()))
+		} else {
+			targets = magpieTargets
+		}
+	}
+	serveable := make(map[model.PelicanProbeTarget]struct{}, len(targets))
 	for _, target := range pelicanAvailableTargets(probes) {
 		serveable[target] = struct{}{}
 	}
-	strips := pelicanStripWindows(cfg.Targets, cfg.IntervalMinutes, successes, latestSuccess, now)
+	strips := pelicanStripWindows(targets, cfg.IntervalMinutes, successes, latestSuccess, now)
 	// 联动状态只在动作发生时写，读一次就够所有格子用。
 	magpieStates := model.GetPelicanMagpieStates()
-	// 只上报配置里的探测项：用户看到的行数就等于管理员配置的分组数。
-	statuses := make([]pelicanModelStatus, 0, len(cfg.Targets))
-	for _, target := range cfg.Targets {
+	// 只上报要显示的探测项：只读联动时是 magpie 正在测的成员，否则是管理员配置的分组。
+	statuses := make([]pelicanModelStatus, 0, len(targets))
+	for _, target := range targets {
 		_, served := serveable[target]
+		// 只读联动的组合由 magpie-ops 测，本机有没有渠道不影响它是否被测。
+		if readOnly {
+			served = true
+		}
 		status := pelicanStatusOf(target, served, latestSuccess[target])
 		// 最近一次如果只是传输失败（502 之类），不改变判定，只把错误留给排查用。
 		if newest := latest[target]; newest != nil && newest.Status == "failed" {
@@ -287,8 +303,14 @@ func GetPelicanOverview(c *gin.Context) {
 		status.Testing = pelicanProbeActive(target)
 		status.Strip = strips[target]
 		// 联动状态按 new-api 分组记：一个分组一个 magpie 组，不按（分组, 模型）分开。
+		// 还没请 magpie 调整过时，先显示配置里映射到的分组，否则页面上看不到联动开着。
+		if mapped, ok := pelicanMagpieGroupFor(cfg, target.Group); ok {
+			status.MagpieGroup = mapped
+		}
 		if state, ok := magpieStates[target.Group]; ok {
-			status.MagpieGroup = state.MagpieGroup
+			if state.MagpieGroup != "" {
+				status.MagpieGroup = state.MagpieGroup
+			}
 			status.MagpieAdjustedAt = state.AdjustedAt
 			status.MagpieActions = state.Actions
 			status.MagpieResult = state.Result
@@ -341,21 +363,41 @@ func GetPelicanResult(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 复用的结论本机只有分数，动画留在 magpie-ops 那边：预览时回去取一次，
+	// 取不到就说「这条动画没加载出来」，不把联动细节甩给普通用户。
+	output, outputErr := result.Output, result.Error
+	if output == "" && result.MagpieResultId != "" {
+		cfg := model.GetPelicanTestConfig()
+		if cfg.MagpieURL != "" && cfg.MagpieToken != "" {
+			fetched, fetchErr := fetchMagpieResult(c.Request.Context(), cfg, result.MagpieResultId)
+			switch {
+			case fetchErr != nil:
+				common.SysLog(common.LogText("pelican preview: cannot fetch result %s: %s", result.MagpieResultId, fetchErr.Error()))
+				outputErr = "The animation for this run could not be loaded."
+			case fetched.Error != "":
+				outputErr = fetched.Error
+			default:
+				output = fetched.HTML
+			}
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"id":         result.Id,
-			"group":      result.Group,
-			"model_name": result.ModelName,
-			"status":     result.Status,
-			"verdict":    result.Verdict,
-			"score":      result.Score,
-			"latency_ms": result.LatencyMs,
-			"channel_id": result.ChannelId,
-			"dimensions": splitPelicanDimensions(result.Dimensions),
-			"output":     result.Output,
-			"error":      result.Error,
-			"created_at": result.CreatedAt,
+			"id":          result.Id,
+			"group":       result.Group,
+			"model_name":  result.ModelName,
+			"status":      result.Status,
+			"verdict":     result.Verdict,
+			"score":       result.Score,
+			"latency_ms":  result.LatencyMs,
+			"channel_id":  result.ChannelId,
+			"dimensions":  splitPelicanDimensions(result.Dimensions),
+			"output":      output,
+			"error":       outputErr,
+			"created_at":  result.CreatedAt,
+			"source":      result.Source,
+			"observed_at": result.ObservedAt,
 		},
 	})
 }
@@ -705,6 +747,37 @@ func GetPelicanHistory(c *gin.Context) {
 			"history":    history,
 		},
 	})
+}
+
+// DeletePelicanResult 删掉一条历史：管理员用它清掉写错的结论，图表与时间条跟着变。
+func DeletePelicanResult(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		common.ApiErrorMsg(c, "invalid result id")
+		return
+	}
+	if err := model.DeletePelicanTestResult(id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+}
+
+// ClearPelicanHistory 清掉一个（分组, 模型）的历史：两个参数都要给，不做「全清」。
+// 删除不影响巡视设置与正在跑的探测。
+func ClearPelicanHistory(c *gin.Context) {
+	group := strings.TrimSpace(c.Query("group"))
+	modelName := strings.TrimSpace(c.Query("model"))
+	if group == "" || modelName == "" {
+		common.ApiErrorMsg(c, "group and model are required")
+		return
+	}
+	removed, err := model.DeletePelicanTestResults(group, modelName)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"removed": removed}})
 }
 
 type pelicanConfigRequest struct {

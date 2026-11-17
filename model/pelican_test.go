@@ -311,3 +311,35 @@ func TestMagpieReuseWindowFollowsTheLinkage(t *testing.T) {
 	linked.normalizePelicanMagpie()
 	require.Equal(t, PelicanMagpieMaxCooldownMinute, *linked.MagpieReuseMinutes, "the window is clamped")
 }
+
+func TestDeletePelicanTestResultsScopesToThePair(t *testing.T) {
+	resetPelicanResults(t)
+	rows := []PelicanTestResult{
+		{ModelName: "gpt-4.1", Group: "default", Status: "success", CreatedAt: 100},
+		{ModelName: "gpt-4.1", Group: "vip", Status: "success", CreatedAt: 101},
+		{ModelName: "claude", Group: "default", Status: "success", CreatedAt: 102},
+	}
+	for i := range rows {
+		require.NoError(t, DB.Create(&rows[i]).Error)
+	}
+
+	// 只删这一对：别的分组与别的模型都不动。
+	removed, err := DeletePelicanTestResults("default", "gpt-4.1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), removed)
+
+	var left []PelicanTestResult
+	require.NoError(t, DB.Find(&left).Error)
+	require.Len(t, left, 2)
+
+	// 一条一条删也要真的删掉。
+	require.NoError(t, DeletePelicanTestResult(left[0].Id))
+	require.NoError(t, DB.Find(&left).Error)
+	require.Len(t, left, 1)
+
+	// 两个都不给不算「全清」：直接拒绝，免得一次误操作抹掉所有历史。
+	_, err = DeletePelicanTestResults("", "")
+	require.Error(t, err)
+	require.NoError(t, DB.Find(&left).Error)
+	assert.Len(t, left, 1)
+}

@@ -112,3 +112,21 @@ export async function checkPelicanMagpieLink(): Promise<PelicanMagpieCheck> {
   )
   return requireServerSuccess(res.data).data
 }
+
+/** 删掉一条写错的结论：管理员用它清掉判错的记录，图表与时间条跟着变。 */
+export async function deletePelicanResult(id: number): Promise<void> {
+  const res = await api.delete<Envelope<unknown>>(`/api/pelican/results/${id}`)
+  requireServerSuccess(res.data)
+}
+
+/** 清掉一个（分组, 模型）的历史：页面只按一行清，不做「全清」。 */
+export async function clearPelicanHistory(
+  group: string,
+  modelName: string
+): Promise<number> {
+  const res = await api.delete<Envelope<{ removed: number }>>(
+    '/api/pelican/history',
+    { params: { group, model: modelName } }
+  )
+  return requireServerSuccess(res.data).data.removed
+}

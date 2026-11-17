@@ -269,6 +269,7 @@ export function ModelIq() {
 
       <PelicanHistoryDialog
         target={historyTarget}
+        isAdmin={isAdmin}
         onPreview={(resultId) => {
           // 历史里点一条就看它当时的画面：先关掉历史，别把两个弹窗叠在一起。
           setPreview({

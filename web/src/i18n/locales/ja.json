@@ -8407,6 +8407,14 @@
     "This result comes from magpie-ops, so the question was not paid for twice.": "この結果は magpie-ops のものです。同じ質問に二重に課金していません。",
     "Reuse its result within (minutes); leave empty for the default, 0 to always test here": "結果を再利用する期間（分）。空欄は既定値、0 は常にこちらでテスト",
     "When magpie-ops already probed this group a moment ago, the IQ test reuses its answer instead of paying for the same question twice.": "magpie-ops がこのグループを直前にテストしていれば、IQ テストはその回答を再利用し、同じ質問に二重に支払いません。",
-    "The reuse window must be a whole number of minutes.": "再利用の期間は整数の分で指定してください。"
+    "The reuse window must be a whole number of minutes.": "再利用の期間は整数の分で指定してください。",
+    "Run deleted": "記録を削除しました",
+    "Failed to delete the run": "記録の削除に失敗しました",
+    "Deleted {{count}} runs": "{{count}} 件の記録を削除しました",
+    "Failed to delete the runs": "記録の一括削除に失敗しました",
+    "Clear history": "履歴を消去",
+    "Delete this run": "この記録を削除",
+    "Repeated bad runs drag the trend down: delete the wrong ones.": "失敗した記録が重なると傾向が下がります。誤った記録は削除してください。",
+    "The animation for this run could not be loaded.": "この記録のアニメーションを読み込めませんでした。"
   }
 }

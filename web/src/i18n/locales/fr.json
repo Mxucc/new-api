@@ -8407,6 +8407,14 @@
     "This result comes from magpie-ops, so the question was not paid for twice.": "Ce résultat vient de magpie-ops : la question n'a pas été payée deux fois.",
     "Reuse its result within (minutes); leave empty for the default, 0 to always test here": "Réutiliser son résultat pendant (minutes) ; vide = valeur par défaut, 0 = toujours tester ici",
     "When magpie-ops already probed this group a moment ago, the IQ test reuses its answer instead of paying for the same question twice.": "Si magpie-ops vient de tester ce groupe, le test de QI réutilise sa réponse au lieu de payer deux fois la même question.",
-    "The reuse window must be a whole number of minutes.": "La fenêtre de réutilisation doit être un nombre entier de minutes."
+    "The reuse window must be a whole number of minutes.": "La fenêtre de réutilisation doit être un nombre entier de minutes.",
+    "Run deleted": "Exécution supprimée",
+    "Failed to delete the run": "Échec de la suppression de l'exécution",
+    "Deleted {{count}} runs": "{{count}} exécutions supprimées",
+    "Failed to delete the runs": "Échec de la suppression des exécutions",
+    "Clear history": "Effacer l'historique",
+    "Delete this run": "Supprimer cette exécution",
+    "Repeated bad runs drag the trend down: delete the wrong ones.": "Les exécutions ratées répétées tirent la tendance vers le bas : supprimez celles qui sont fausses.",
+    "The animation for this run could not be loaded.": "L'animation de cette exécution n'a pas pu être chargée."
   }
 }

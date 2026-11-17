@@ -60,6 +60,9 @@ func SetApiRouter(router *gin.Engine) {
 			// 联动自检：地址、token、分组列表、/api/best 是否都在
 			pelicanAdminRoute.GET("/magpie/check", controller.CheckMagpieLink)
 			pelicanAdminRoute.PUT("/config", controller.UpdatePelicanConfig)
+			// 写错的结论要能删掉：一条一条删，或者按分组整段清。
+			pelicanAdminRoute.DELETE("/results/:id", controller.DeletePelicanResult)
+			pelicanAdminRoute.DELETE("/history", controller.ClearPelicanHistory)
 			// 被动式服务状态：只读真实请求的聚合结果，不对模型发探测。
 			apiRouter.GET("/service-status", middleware.UserAuth(), controller.GetServiceStatus)
 		}

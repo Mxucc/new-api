@@ -138,8 +138,8 @@ export function ModelIqHoverCard(props: ModelIqHoverCardProps) {
         </p>
       ) : null}
 
-      {/* 从 magpie-ops 取来的结果：说清来源，以及那个答案是什么时候测出来的。 */}
-      {status.source === 'magpie-ops' ? (
+      {/* 复用来的结论只有管理员需要知道；普通用户看结论与动画就够了。 */}
+      {props.isAdmin && status.source === 'magpie-ops' ? (
         <p className='text-muted-foreground text-xs'>
           {t('Reused from magpie-ops')}
           {status.observed_at
@@ -155,34 +155,40 @@ export function ModelIqHoverCard(props: ModelIqHoverCardProps) {
         </p>
       ) : null}
 
-      {/* 联动状态：这个分组映射到的 magpie 分组，以及上次请求调整失败的原因。 */}
-      {status.magpie_group ? (
-        <p className='text-muted-foreground text-xs'>
-          {t('magpie group {{group}}', { group: status.magpie_group })}
-        </p>
-      ) : null}
-      {(status.magpie_actions ?? []).map((action) => (
-        <p
-          key={`${action.ref}-${action.kind}`}
-          className='text-muted-foreground text-xs'
-        >
-          {t('magpie adjusted: {{result}}', {
-            result:
-              action.score === undefined
-                ? `${action.ref} ${action.kind}`
-                : `${action.ref} ${action.kind} · ${action.score}`,
-          })}
-        </p>
-      ))}
-      {status.magpie_result ? (
-        <p className='text-muted-foreground text-xs'>
-          {t('magpie adjusted: {{result}}', { result: status.magpie_result })}
-        </p>
-      ) : null}
-      {status.magpie_error ? (
-        <p className='text-destructive text-xs'>
-          {t('magpie: {{message}}', { message: status.magpie_error })}
-        </p>
+      {/* 联动状态只有管理员要看：普通用户不需要知道背后接了哪套调度工具。 */}
+      {props.isAdmin ? (
+        <>
+          {status.magpie_group ? (
+            <p className='text-muted-foreground text-xs'>
+              {t('magpie group {{group}}', { group: status.magpie_group })}
+            </p>
+          ) : null}
+          {(status.magpie_actions ?? []).map((action) => (
+            <p
+              key={`${action.ref}-${action.kind}`}
+              className='text-muted-foreground text-xs'
+            >
+              {t('magpie adjusted: {{result}}', {
+                result:
+                  action.score === undefined
+                    ? `${action.ref} ${action.kind}`
+                    : `${action.ref} ${action.kind} · ${action.score}`,
+              })}
+            </p>
+          ))}
+          {status.magpie_result ? (
+            <p className='text-muted-foreground text-xs'>
+              {t('magpie adjusted: {{result}}', {
+                result: status.magpie_result,
+              })}
+            </p>
+          ) : null}
+          {status.magpie_error ? (
+            <p className='text-destructive text-xs'>
+              {t('magpie: {{message}}', { message: status.magpie_error })}
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       <RecentScoreSparkline

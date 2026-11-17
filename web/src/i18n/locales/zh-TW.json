@@ -8407,6 +8407,14 @@
     "This result comes from magpie-ops, so the question was not paid for twice.": "這條結果來自 magpie-ops，所以這道題沒有重複付費。",
     "Reuse its result within (minutes); leave empty for the default, 0 to always test here": "複用它的結果（分鐘）；留空用預設值，填 0 表示永遠自己測",
     "When magpie-ops already probed this group a moment ago, the IQ test reuses its answer instead of paying for the same question twice.": "如果 magpie-ops 剛剛測過這個分組，測智就直接用它的答案，不會為同一道題付兩次錢。",
-    "The reuse window must be a whole number of minutes.": "複用窗口必須是整數分鐘。"
+    "The reuse window must be a whole number of minutes.": "複用窗口必須是整數分鐘。",
+    "Run deleted": "已刪除該筆記錄",
+    "Failed to delete the run": "刪除該筆記錄失敗",
+    "Deleted {{count}} runs": "已刪除 {{count}} 筆記錄",
+    "Failed to delete the runs": "批次刪除記錄失敗",
+    "Clear history": "清空歷史",
+    "Delete this run": "刪除這筆記錄",
+    "Repeated bad runs drag the trend down: delete the wrong ones.": "重複的失敗記錄會把趨勢拉低：判錯的可以逐筆刪掉。",
+    "The animation for this run could not be loaded.": "這筆記錄的動畫沒能載入。"
   }
 }

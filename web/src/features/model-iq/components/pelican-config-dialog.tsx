@@ -211,7 +211,9 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
 
   // 要联动的分组 = 这一轮真正会探测的分组：映射按分组逐行填，与模型无关。
   // 「测试连接」的结果：当场看清是地址不对、token 不对，还是版本太旧
-  const [magpieCheck, setMagpieCheck] = useState<PelicanMagpieCheck | null>(null)
+  const [magpieCheck, setMagpieCheck] = useState<PelicanMagpieCheck | null>(
+    null
+  )
   const [magpieChecking, setMagpieChecking] = useState(false)
 
   const magpieRows = useMemo(() => groups, [groups])
@@ -377,8 +379,7 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
       <div className='space-y-5'>
         <div className='space-y-2'>
           <Label>{t('Groups to test')}</Label>
-          {config?.magpie_read_only ||
-          draft.magpieUrl.trim() !== '' ? (
+          {config?.magpie_read_only || draft.magpieUrl.trim() !== '' ? (
             <p
               className='text-muted-foreground text-xs'
               data-testid='pelican-read-only-note'

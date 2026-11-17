@@ -78,6 +78,7 @@ export function PelicanPreviewDialog(props: PelicanPreviewDialogProps) {
       </div>
     )
   } else {
+    // 没有画面可看时先说真正的原因（模型的报错或取回落空），没有报错才用通用说明。
     body = (
       <p className='text-muted-foreground text-sm'>
         {query.data?.error ||

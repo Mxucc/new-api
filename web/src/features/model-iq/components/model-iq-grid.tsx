@@ -92,13 +92,15 @@ function ModelIqStrip(props: { status: ModelIqStatus }) {
 
 /**
  * 联动备注：这一格在上一次动作里被 magpie 关掉或恢复过，或者那次动作失败了。
- * 没有联动状态时什么都不显示，格子只在真的联动过之后才多一行。
+ * 这些都是运维细节，只有管理员要看——普通用户只需要知道模型可用不可用。
  */
-// 一条结果如果是从 magpie-ops 取来的，格子第二行先说明这件事：
-// 用户看到的是「别人的答案」，不是本机刚测的，来源要说清楚。
-function ModelIqMagpieNote(props: { status: ModelIqStatus }) {
+function ModelIqMagpieNote(props: { status: ModelIqStatus; isAdmin: boolean }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  // 联动细节是运维信息：普通用户只看得到「可用 / 不可用」。
+  if (!props.isAdmin) {
+    return null
+  }
   const status = props.status
   if (status.source !== 'magpie-ops') {
     return <ModelIqMagpieDetail status={status} />
@@ -108,7 +110,9 @@ function ModelIqMagpieNote(props: { status: ModelIqStatus }) {
     <>
       <span
         className='text-muted-foreground truncate text-[10px]'
-        title={t('This result comes from magpie-ops, so the question was not paid for twice.')}
+        title={t(
+          'This result comes from magpie-ops, so the question was not paid for twice.'
+        )}
         data-testid={`model-iq-reused-${status.group}-${status.model_name}`}
       >
         {t('Reused from magpie-ops')} ·{' '}
@@ -230,7 +234,7 @@ function ModelIqRowCell(props: ModelIqRowCellProps) {
               <span className='truncate text-xs font-medium'>
                 {status.model_name}
               </span>
-              <ModelIqMagpieNote status={status} />
+              <ModelIqMagpieNote status={status} isAdmin={props.isAdmin} />
             </span>
             <ModelIqStrip status={status} />
             <span className='shrink-0 text-xs tabular-nums'>{summary}</span>
