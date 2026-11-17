@@ -625,6 +625,48 @@ func cachedMagpieGroups(ctx context.Context, cfg model.PelicanTestConfig) ([]mag
 	return groups, nil
 }
 
+// pelicanLadderSlot 是 magpie 倍率阶梯上的一档：哪个模型的哪一档。
+type pelicanLadderSlot struct {
+	family string
+	tier   float64
+}
+
+// magpieRateLadders 读 magpie 的倍率阶梯（GET /api/rategroups），返回「分组 id → 阶梯位置」。
+// 分组 id 形如 <model>-<tier>x，同一 model 的各档是一段可以用便宜档顶上的链。
+func magpieRateLadders(ctx context.Context, cfg model.PelicanTestConfig) map[string]pelicanLadderSlot {
+	if !cfg.MagpieLinked() {
+		return nil
+	}
+	body, err := pelicanMagpieRequest(ctx, cfg, http.MethodGet, "/api/rategroups", nil)
+	if err != nil {
+		common.SysLog(common.LogText("pelican magpie: cannot list the rate ladder: %s", err.Error()))
+		return nil
+	}
+	var view struct {
+		Specs []struct {
+			Model string `json:"model"`
+			Rungs []struct {
+				ID   string  `json:"id"`
+				Tier float64 `json:"tier"`
+			} `json:"rungs"`
+		} `json:"specs"`
+	}
+	if err := json.Unmarshal(body, &view); err != nil {
+		common.SysLog(common.LogText("pelican magpie: the rate ladder is not JSON: %s", err.Error()))
+		return nil
+	}
+	slots := make(map[string]pelicanLadderSlot)
+	for _, spec := range view.Specs {
+		for _, rung := range spec.Rungs {
+			if rung.ID == "" {
+				continue
+			}
+			slots[rung.ID] = pelicanLadderSlot{family: spec.Model, tier: rung.Tier}
+		}
+	}
+	return slots
+}
+
 // pelicanMagpieReused 是一次「用 magpie-ops 的结果代替自己测」的判定结果。
 type pelicanMagpieReused struct {
 	Record  *model.PelicanTestResult

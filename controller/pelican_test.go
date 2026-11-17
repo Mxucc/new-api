@@ -183,3 +183,41 @@ func TestPelicanVisibleErrorHidesUpstreamDetailsFromUsers(t *testing.T) {
 	// 本来就没有错误时不用编一个出来。
 	assert.Empty(t, pelicanVisibleError(admin, ""))
 }
+
+// 高倍率那一档自己挂了、便宜那档能服务：这一行算可用（回退不对外解释）。
+func TestPelicanMergeLaddersTreatsACheaperTierAsServing(t *testing.T) {
+	cfg := model.PelicanTestConfig{MagpieGroups: []model.PelicanMagpieGroup{
+		{Group: "pro-25", MagpieGroup: "gpt-x-0.25x"},
+		{Group: "pro-15", MagpieGroup: "gpt-x-0.15x"},
+		{Group: "pro-10", MagpieGroup: "gpt-x-0.1x"},
+	}}
+	slots := map[string]pelicanLadderSlot{
+		"gpt-x-0.25x": {family: "gpt-x", tier: 0.25},
+		"gpt-x-0.15x": {family: "gpt-x", tier: 0.15},
+		"gpt-x-0.1x":  {family: "gpt-x", tier: 0.1},
+	}
+	cell := func(verdict string) []pelicanStripCell {
+		return []pelicanStripCell{{Start: 1, Verdict: verdict, Sampled: true}}
+	}
+	statuses := []pelicanModelStatus{
+		{Group: "pro-25", Verdict: service.PelicanVerdictDegraded, Strip: cell(service.PelicanVerdictDegraded)},
+		{Group: "pro-15", Verdict: service.PelicanVerdictDegraded, Strip: cell(service.PelicanVerdictDegraded)},
+		{Group: "pro-10", Verdict: service.PelicanVerdictHealthy, Strip: cell(service.PelicanVerdictHealthy)},
+	}
+
+	pelicanMergeLadders(statuses, cfg, slots)
+
+	// 便宜那档能服务：上面两档都算可用。
+	assert.Equal(t, service.PelicanVerdictHealthy, statuses[0].Verdict)
+	assert.Equal(t, service.PelicanVerdictHealthy, statuses[1].Verdict)
+	assert.Equal(t, service.PelicanVerdictHealthy, statuses[2].Verdict)
+
+	// 整条链都挂了就没有可用的档，谁也不能被带绿。
+	down := []pelicanModelStatus{
+		{Group: "pro-25", Verdict: service.PelicanVerdictDegraded, Strip: cell(service.PelicanVerdictDegraded)},
+		{Group: "pro-10", Verdict: service.PelicanVerdictPoor, Strip: cell(service.PelicanVerdictPoor)},
+	}
+	pelicanMergeLadders(down, cfg, slots)
+	assert.Equal(t, service.PelicanVerdictDegraded, down[0].Verdict)
+	assert.Equal(t, service.PelicanVerdictPoor, down[1].Verdict)
+}

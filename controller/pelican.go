@@ -144,22 +144,29 @@ func pelicanSweepTargets(configured []model.PelicanProbeTarget, available []mode
 }
 
 // pelicanSweepPlan 读取巡视设置与当前可用组合，算出这一轮实际要测的组合。
+// 两边同时跑：映射到 magpie 的分组由它测、本机不再自测；没映射的分组照旧自己测。
 func pelicanSweepPlan() (model.PelicanTestConfig, []model.PelicanProbeTarget, error) {
 	cfg := model.GetPelicanTestConfig()
-	// 绑定 magpie 分组之后，模型以 magpie-ops 正在测的为准：
-	// new-api 不再挑模型，也不再自己探测，只把它的结果取回来显示。
-	if pelicanMagpieReadOnly(cfg) {
-		targets, err := magpieProbeTargets(context.Background(), cfg)
-		return cfg, targets, err
+	local := make([]model.PelicanProbeTarget, 0, len(cfg.Targets))
+	for _, target := range cfg.Targets {
+		if _, mapped := pelicanMagpieGroupFor(cfg, target.Group); mapped {
+			continue
+		}
+		local = append(local, target)
 	}
-	if len(cfg.Targets) == 0 {
-		return cfg, nil, nil
+	magpieTargets, magpieErr := magpieProbeTargets(context.Background(), cfg)
+	if magpieErr != nil && len(local) == 0 {
+		return cfg, nil, magpieErr
 	}
-	probes, err := model.GetPelicanProbeTargets()
-	if err != nil {
-		return cfg, nil, err
+	targets := make([]model.PelicanProbeTarget, 0, len(local)+len(magpieTargets))
+	if len(local) > 0 {
+		probes, err := model.GetPelicanProbeTargets()
+		if err != nil {
+			return cfg, nil, err
+		}
+		targets = append(targets, pelicanSweepTargets(local, pelicanAvailableTargets(probes))...)
 	}
-	return cfg, pelicanSweepTargets(cfg.Targets, pelicanAvailableTargets(probes)), nil
+	return cfg, append(targets, magpieTargets...), nil
 }
 
 func pelicanStatusOf(target model.PelicanProbeTarget, available bool, result *model.PelicanTestResult) pelicanModelStatus {
@@ -213,6 +220,76 @@ func pelicanVisibleError(c *gin.Context, message string) string {
 // pelicanStripWindows 按巡视间隔把最近 24 小时切成小格（30 分钟 = 48 格，1 小时 = 24 格）。
 // 一格对应一次巡视：采到了就显示那次判定；没采到（含上游 502 这类传输失败）就沿用
 // 上一次成功的结果——默认是绿的，只有真正拿到输出的降智才变色。
+
+// pelicanMergeLadders 把同一倍率阶梯上更便宜那几档的可用情况并进来。阶梯来自 magpie
+// 的 /api/rategroups：同一 model 的各档是一条链，高倍率那档挂了低档还会接着服务。
+func pelicanMergeLadders(statuses []pelicanModelStatus, cfg model.PelicanTestConfig, slots map[string]pelicanLadderSlot) {
+	if len(slots) == 0 {
+		return
+	}
+	for i := range statuses {
+		magpieGroup, mapped := pelicanMagpieGroupFor(cfg, statuses[i].Group)
+		if !mapped {
+			continue
+		}
+		own, onLadder := slots[magpieGroup]
+		if !onLadder {
+			continue
+		}
+		for j := range statuses {
+			if j == i {
+				continue
+			}
+			other, mapped := pelicanMagpieGroupFor(cfg, statuses[j].Group)
+			if !mapped {
+				continue
+			}
+			slot, ok := slots[other]
+			if !ok || slot.family != own.family || slot.tier >= own.tier {
+				continue
+			}
+			statuses[i].Strip = pelicanTakeServingCells(statuses[i].Strip, statuses[j].Strip)
+		}
+		if pelicanStripAllHealthy(statuses[i].Strip) {
+			statuses[i].Verdict = service.PelicanVerdictHealthy
+		}
+	}
+}
+
+// pelicanTakeServingCells 逐格取两档里能用的那一格：便宜的档服务过，就算这一格可用。
+func pelicanTakeServingCells(own, cheaper []pelicanStripCell) []pelicanStripCell {
+	if len(own) != len(cheaper) {
+		return own
+	}
+	merged := make([]pelicanStripCell, len(own))
+	copy(merged, own)
+	for i := range merged {
+		if merged[i].Verdict == service.PelicanVerdictHealthy {
+			continue
+		}
+		if cheaper[i].Verdict != service.PelicanVerdictHealthy {
+			continue
+		}
+		merged[i] = cheaper[i]
+	}
+	return merged
+}
+
+// pelicanStripAllHealthy 判断时间条上每个采到样的格子是否都可用。
+func pelicanStripAllHealthy(cells []pelicanStripCell) bool {
+	sampled := false
+	for _, cell := range cells {
+		if !cell.Sampled {
+			continue
+		}
+		sampled = true
+		if cell.Verdict != service.PelicanVerdictHealthy {
+			return false
+		}
+	}
+	return sampled
+}
+
 func pelicanStripWindows(targets []model.PelicanProbeTarget, intervalMinutes int, successes []model.PelicanTestResult, latestSuccess map[model.PelicanProbeTarget]*model.PelicanTestResult, now int64) map[model.PelicanProbeTarget][]pelicanStripCell {
 	cellCount := model.PelicanStripCellsFor(intervalMinutes)
 	windowSeconds := int64(model.PelicanStripHours * 3600)
@@ -292,17 +369,18 @@ func GetPelicanOverview(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	// 只读联动（绑定了 magpie 分组）时模型的取舍以 magpie-ops 为准：页面要显示它
-	// 真正在测的那些成员，否则巡视把结果写进结果表也没人看得到。
-	readOnly := pelicanMagpieReadOnly(cfg)
-	targets := cfg.Targets
-	if readOnly {
-		magpieTargets, magpieErr := magpieProbeTargets(c.Request.Context(), cfg)
-		if magpieErr != nil {
-			common.SysLog(common.LogText("pelican magpie: cannot list the measured members: %s", magpieErr.Error()))
-		} else {
-			targets = magpieTargets
+	// 两边同时显示：映射到 magpie 的分组看它的结论，没映射的分组看本机的探测。
+	targets := make([]model.PelicanProbeTarget, 0, len(cfg.Targets))
+	for _, target := range cfg.Targets {
+		if _, mapped := pelicanMagpieGroupFor(cfg, target.Group); mapped {
+			continue
 		}
+		targets = append(targets, target)
+	}
+	if magpieTargets, magpieErr := magpieProbeTargets(c.Request.Context(), cfg); magpieErr != nil {
+		common.SysLog(common.LogText("pelican magpie: cannot list the measured members: %s", magpieErr.Error()))
+	} else {
+		targets = append(targets, magpieTargets...)
 	}
 	serveable := make(map[model.PelicanProbeTarget]struct{}, len(targets))
 	for _, target := range pelicanAvailableTargets(probes) {
@@ -315,8 +393,8 @@ func GetPelicanOverview(c *gin.Context) {
 	statuses := make([]pelicanModelStatus, 0, len(targets))
 	for _, target := range targets {
 		_, served := serveable[target]
-		// 只读联动的组合由 magpie-ops 测，本机有没有渠道不影响它是否被测。
-		if readOnly {
+		// 由 magpie 测的组合与本机渠道无关：它对不对不由这里判断。
+		if _, mapped := pelicanMagpieGroupFor(cfg, target.Group); mapped {
 			served = true
 		}
 		status := pelicanStatusOf(target, served, latestSuccess[target])
@@ -344,22 +422,22 @@ func GetPelicanOverview(c *gin.Context) {
 		status.LastError = pelicanVisibleError(c, status.LastError)
 		statuses = append(statuses, status)
 	}
-	// 一个分组只留智商最高的那个成员：magpie-ops 只往高分的渠道调度，低分的它自己会
+	// 倍率阶梯：这一档挂了，请求会落到更便宜的一档，那边能用就还是可用。
+	pelicanMergeLadders(statuses, cfg, magpieRateLadders(c.Request.Context(), cfg))
+	// 一个分组只留智商最高的那个成员：magpie 只往高分的渠道调度，低分的它自己会关掉。
 	members := make(map[string][]pelicanModelStatus, len(statuses))
 	for _, status := range statuses {
 		members[status.Group] = append(members[status.Group], status)
 	}
 	statuses = statuses[:0]
-	for group, groupMembers := range members {
+	for _, groupMembers := range members {
 		var pick pelicanModelStatus
 		for _, member := range groupMembers {
 			if pick.Group == "" || pelicanStatusBeats(member, pick) {
 				pick = member
 			}
 		}
-		pick.Strip = pelicanGroupStrip(groupMembers)
 		statuses = append(statuses, pick)
-	}
 	}
 	slices.SortFunc(statuses, func(a, b pelicanModelStatus) int {
 		return strings.Compare(a.Group, b.Group)
@@ -595,16 +673,10 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 	if !isPelicanChatModel(modelName) {
 		return nil, errors.New("model does not accept chat completions")
 	}
-	channel, err := model.GetChannel(group, modelName, 0, nil)
-	if err != nil {
-		return nil, err
-	}
-	if channel == nil {
-		return nil, errors.New("no enabled channel serves this group/model: " + group + "/" + modelName)
-	}
 	cfg := model.GetPelicanTestConfig()
-	if pelicanMagpieReadOnly(cfg) {
-		// 只读：拿 magpie-ops 24 小时内的答案写进自己的结果表，一次探测都不发。
+	// 映射给了 magpie 的分组：拿它 24 小时内的答案写进结果表，一次探测都不发。
+	// 这一步要排在找渠道之前——那边测的模型在本机未必有对应渠道。
+	if _, mapped := pelicanMagpieGroupFor(cfg, group); mapped {
 		reused, ok := reuseMagpieResultWithin(ctx, cfg, group, modelName, 0, pelicanMagpieReadOnlyWindowMinutes)
 		if !ok {
 			return nil, errors.New("magpie-ops 还没有 " + group + "/" + modelName + " 的近期结果（已绑定 magpie 分组，new-api 不再自己探测）")
@@ -613,6 +685,13 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 			return nil, err
 		}
 		return reused.Record, nil
+	}
+	channel, err := model.GetChannel(group, modelName, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+	if channel == nil {
+		return nil, errors.New("no enabled channel serves this group/model: " + group + "/" + modelName)
 	}
 	// 联动开着时先问一句「这个分组里的这个模型，magpie-ops 刚测过吗」：
 	// 测智是整段回答，重复测就是重复花钱，而它给出的就是同一件事的答案。
