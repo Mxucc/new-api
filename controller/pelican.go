@@ -857,7 +857,12 @@ func UpdatePelicanConfig(c *gin.Context) {
 	} else if magpieToken == "" {
 		magpieToken = previous.MagpieToken
 	}
-	// 映射只能指向这一轮真正要探测的分组：给不探测的分组配 magpie 组永远触发不了。
+	// 联动有两套用法：
+	//   * 只读（填了地址与 token）：模型由 magpie-ops 决定，映射的分组不需要
+	//     先选模型，巡视目标也从那边取——所以下面的「必须是探测分组」不适用；
+	//   * 复用 + 调整（没有地址/token）：映射只能指向真正会探测的分组，否则
+	//     永远触发不了。
+	magpieReadOnlySetup := magpieURL != ""
 	magpieGroups := make([]model.PelicanMagpieGroup, 0, len(request.MagpieGroups))
 	for _, mapping := range request.MagpieGroups {
 		group := strings.TrimSpace(mapping.Group)
@@ -865,7 +870,7 @@ func UpdatePelicanConfig(c *gin.Context) {
 		if group == "" && magpieGroup == "" {
 			continue
 		}
-		if !slices.ContainsFunc(cleaned, func(target model.PelicanProbeTarget) bool { return target.Group == group }) {
+		if !magpieReadOnlySetup && !slices.ContainsFunc(cleaned, func(target model.PelicanProbeTarget) bool { return target.Group == group }) {
 			common.ApiErrorMsg(c, "magpie group is not a probe group: "+group)
 			return
 		}

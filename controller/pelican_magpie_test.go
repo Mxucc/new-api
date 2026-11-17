@@ -544,3 +544,30 @@ func TestListMagpieGroupsHandlesALargeReply(t *testing.T) {
 	assert.Len(t, groups, 260)
 	assert.Len(t, groups[0].Members, 12)
 }
+
+// 联动（填了地址）之后，映射的分组不必先选模型：模型由 magpie-ops 决定，
+// 巡视目标也从 /api/groups 取。之前这里会回 "magpie group is not a probe group"。
+func TestSaveConfigBindsMagpieGroupsWithoutAModel(t *testing.T) {
+	setupPelicanMagpieDB(t)
+	server, _ := newMagpieOpsServer(t, http.StatusOK, `{"groups":[]}`)
+	// 一个全新的配置：没有 targets，只有联动与映射
+	cfg := model.PelicanTestConfig{
+		IntervalMinutes:       30,
+		MagpieURL:             server.URL,
+		MagpieToken:           "secret-token",
+		MagpieCooldownMinutes: 30,
+		MagpieGroups: []model.PelicanMagpieGroup{
+			{Group: "codex-surprise", MagpieGroup: "gpt-0.1"},
+		},
+	}
+	if err := model.SavePelicanTestConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	saved := model.GetPelicanTestConfig()
+	if len(saved.MagpieGroups) != 1 || saved.MagpieGroups[0].MagpieGroup != "gpt-0.1" {
+		t.Fatalf("映射应该存下来：%+v", saved.MagpieGroups)
+	}
+	if !pelicanMagpieReadOnly(saved) {
+		t.Fatal("填了地址 + 有映射，就该是只读模式")
+	}
+}
