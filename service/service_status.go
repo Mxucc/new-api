@@ -7,8 +7,9 @@ import (
 
 // 服务状态页是被动式的：它只读真实请求留下的聚合数据（perf_metrics），
 // 不对模型额外发探测请求，所以状态反映的是「用户实际调用时发生了什么」。
-// 服务状态只有两档：可用与不可用。可用率 >= 99% 记可用，其余记不可用；
-// 区间内没有流量也算可用——没人用不等于挂了。
+// 服务状态只有两档：可用与不可用。可用率 >= 95% 记可用，其余记不可用；
+// 区间内没有流量也算可用——没人用不等于挂了。门槛留得比 99% 宽：一个跑了几千次
+// 请求的模型掉到 98.8% 是正常抖动，不该被报成「不可用」。
 const (
 	ServiceStatusAvailable   = "available"
 	ServiceStatusUnavailable = "unavailable"
@@ -61,7 +62,7 @@ type ServiceStatusView struct {
 // ServiceStatusOfSuccessRate 把可用率换算成状态；没有流量时返回可用，
 // 不把「没人用」当成「挂了」。
 func ServiceStatusOfSuccessRate(successRate float64, requests int64) string {
-	if requests <= 0 || successRate >= 99 {
+	if requests <= 0 || successRate >= 95 {
 		return ServiceStatusAvailable
 	}
 	return ServiceStatusUnavailable

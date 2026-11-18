@@ -120,7 +120,6 @@ describe('service status page', () => {
     expect(screen.getByTestId('service-status-headline').textContent).toBe(
       'Requests are being served normally.'
     )
-    expect(screen.getByTestId('service-status-passive-note')).toBeVisible()
     expect(api.getServiceStatus).toHaveBeenCalledWith(24)
   })
 

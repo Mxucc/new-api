@@ -19,8 +19,9 @@ func TestServiceStatusOfSuccessRate(t *testing.T) {
 		{name: "no traffic is available", rate: 0, reports: 0, want: ServiceStatusAvailable},
 		{name: "99% is available", rate: 99, reports: 1000, want: ServiceStatusAvailable},
 		{name: "100% is available", rate: 100, reports: 1000, want: ServiceStatusAvailable},
-		{name: "just below 99% is unavailable", rate: 98.99, reports: 1000, want: ServiceStatusUnavailable},
-		{name: "95% is unavailable", rate: 95, reports: 1000, want: ServiceStatusUnavailable},
+		{name: "just below 99% is still available", rate: 98.99, reports: 1000, want: ServiceStatusAvailable},
+		{name: "95% is available", rate: 95, reports: 1000, want: ServiceStatusAvailable},
+		{name: "just below 95% is unavailable", rate: 94.99, reports: 1000, want: ServiceStatusUnavailable},
 		{name: "half failing is unavailable", rate: 50, reports: 1000, want: ServiceStatusUnavailable},
 	}
 	for _, tt := range tests {
@@ -64,7 +65,7 @@ func TestBuildServiceStatusPlacesSamplesOnTheCellGrid(t *testing.T) {
 
 	assert.Equal(t, int64(110), view.Requests)
 	assert.InDelta(t, 95.45, view.SuccessRate, 0.01)
-	assert.Equal(t, ServiceStatusUnavailable, view.Status)
+	assert.Equal(t, ServiceStatusAvailable, view.Status)
 }
 
 func TestBuildServiceStatusAggregatesPerModel(t *testing.T) {
@@ -86,12 +87,14 @@ func TestBuildServiceStatusAggregatesPerModel(t *testing.T) {
 	gpt := view.Models[0]
 	assert.Equal(t, int64(100), gpt.Requests)
 	assert.InDelta(t, 98.0, gpt.SuccessRate, 0.001)
-	assert.Equal(t, ServiceStatusUnavailable, gpt.Status)
+	// 98% 属于正常抖动，仍然算可用。
+	assert.Equal(t, ServiceStatusAvailable, gpt.Status)
 	// 延迟按请求数加权：(60*800 + 40*1700) / 100 = 1160。
 	assert.Equal(t, int64(1160), gpt.AvgLatencyMs)
 	assert.Equal(t, 48, len(gpt.Cells))
 	assert.Equal(t, ServiceStatusAvailable, gpt.Cells[47].Status)
-	assert.Equal(t, ServiceStatusUnavailable, gpt.Cells[44].Status)
+	// 那一格是 38/40 = 95%，正好在门槛上，算可用。
+	assert.Equal(t, ServiceStatusAvailable, gpt.Cells[44].Status)
 
 	// 窗口外的 500 次失败不能污染 claude 的状态。
 	assert.False(t, view.Models[1].ModelName == "claude" && view.Models[1].Requests > 1)

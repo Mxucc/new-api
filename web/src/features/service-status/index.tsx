@@ -43,6 +43,9 @@ import {
   serviceStatusVariant,
 } from './lib/status'
 
+/** 页面重取间隔：数据一直在变，别让用户看到打开那一刻的旧数。 */
+const SERVICE_STATUS_REFRESH_MS = 60_000
+
 /**
  * 服务状态页是被动式的：数字全部来自真实请求的聚合（perf_metrics），
  * 这个页面不会为了探测而额外调用任何模型，所以「没有流量」就是「没有数据」，
@@ -56,6 +59,9 @@ export function ServiceStatusPage() {
   const query = useQuery({
     queryKey: ['service-status', hours],
     queryFn: () => getServiceStatus(hours),
+    // 数据来自真实流量，随时间一直在变：页面自己按时重取，不然会停在打开那一刻。
+    refetchInterval: SERVICE_STATUS_REFRESH_MS,
+    refetchOnWindowFocus: true,
   })
   const view = query.data
 
@@ -193,17 +199,7 @@ export function ServiceStatusPage() {
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-        <div className='space-y-4'>
-          <p
-            className='bg-muted/40 rounded-xl border px-3 py-2 text-xs leading-relaxed'
-            data-testid='service-status-passive-note'
-          >
-            {t(
-              'Status is derived from real traffic only. This page never sends probe requests, so a model without traffic shows no data instead of a failure.'
-            )}
-          </p>
-          {content}
-        </div>
+        <div className='space-y-4'>{content}</div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )
