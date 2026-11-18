@@ -8409,6 +8409,7 @@
     "Delete this run": "删除这条记录",
     "Repeated bad runs drag the trend down: delete the wrong ones.": "重复的失败记录会把趋势拉低：判错的可以逐条删掉。",
     "The animation for this run could not be loaded.": "这条记录的动画没能加载出来。",
-    "{{percent}} available": "{{percent}} 可用"
+    "{{percent}} available": "{{percent}} 可用",
+    "The question comes from magpie-ops while it is linked; change it there and both sides follow.": "连上 magpie-ops 之后题目在那边维护；改那边，两边都跟着变。"
   }
 }

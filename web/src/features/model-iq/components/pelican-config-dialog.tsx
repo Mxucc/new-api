@@ -496,10 +496,22 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
 
         <div className='space-y-2'>
           <Label htmlFor='pelican-probe-prompt'>{t('Probe prompt')}</Label>
+          {/* 连上 magpie 之后题目在那边维护，这里改了也不会生效，别给出假的可编辑。 */}
+          {config?.magpie_token_set ? (
+            <p
+              className='text-muted-foreground text-xs'
+              data-testid='pelican-prompt-from-magpie'
+            >
+              {t(
+                'The question comes from magpie-ops while it is linked; change it there and both sides follow.'
+              )}
+            </p>
+          ) : null}
           <Textarea
             id='pelican-probe-prompt'
             rows={3}
             value={draft.prompt}
+            disabled={Boolean(config?.magpie_token_set)}
             placeholder={config?.default_prompt}
             onChange={(event) => patchDraft({ prompt: event.target.value })}
           />
@@ -516,6 +528,7 @@ export function PelicanConfigDialog(props: PelicanConfigDialogProps) {
             id='pelican-probe-contract'
             rows={2}
             value={draft.promptContract}
+            disabled={Boolean(config?.magpie_token_set)}
             placeholder={config?.default_contract}
             onChange={(event) =>
               patchDraft({ promptContract: event.target.value })

@@ -667,6 +667,54 @@ func magpieRateLadders(ctx context.Context, cfg model.PelicanTestConfig) map[str
 	return slots
 }
 
+// magpiePelican 是 magpie 那边正在用的测智题面与它的指纹。
+type magpiePelican struct {
+	Question string
+	Hash     string
+}
+
+var (
+	pelicanMagpieAskMu  sync.Mutex
+	pelicanMagpieAsk    magpiePelican
+	pelicanMagpieAskAt  time.Time
+	pelicanMagpieAskTTL = 5 * time.Minute
+)
+
+// magpiePelicanQuestion 读 magpie 正在用的题面：题目只在一个地方维护，
+// new-api 探测与页面展示都跟着它走。拿不到就退回复用调用方的本地默认值。
+func magpiePelicanQuestion(ctx context.Context, cfg model.PelicanTestConfig) (magpiePelican, error) {
+	if !cfg.MagpieLinked() {
+		return magpiePelican{}, nil
+	}
+	pelicanMagpieAskMu.Lock()
+	if !pelicanMagpieAskAt.IsZero() && time.Since(pelicanMagpieAskAt) < pelicanMagpieAskTTL {
+		ask := pelicanMagpieAsk
+		pelicanMagpieAskMu.Unlock()
+		return ask, nil
+	}
+	pelicanMagpieAskMu.Unlock()
+
+	body, err := pelicanMagpieRequest(ctx, cfg, http.MethodGet, "/api/pelican", nil)
+	if err != nil {
+		return magpiePelican{}, err
+	}
+	var reply struct {
+		Question string `json:"question"`
+		Hash     string `json:"hash"`
+	}
+	if err := json.Unmarshal(body, &reply); err != nil {
+		return magpiePelican{}, fmt.Errorf("magpie pelican: %w", err)
+	}
+	ask := magpiePelican{Question: strings.TrimSpace(reply.Question), Hash: strings.TrimSpace(reply.Hash)}
+	if ask.Question == "" {
+		return magpiePelican{}, errors.New("magpie pelican: the question is empty")
+	}
+	pelicanMagpieAskMu.Lock()
+	pelicanMagpieAsk, pelicanMagpieAskAt = ask, time.Now()
+	pelicanMagpieAskMu.Unlock()
+	return ask, nil
+}
+
 // pelicanMagpieReused 是一次「用 magpie-ops 的结果代替自己测」的判定结果。
 type pelicanMagpieReused struct {
 	Record  *model.PelicanTestResult

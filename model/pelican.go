@@ -33,6 +33,8 @@ type PelicanTestResult struct {
 	// MagpieResultId 是复用 magpie-ops 结论时它在那边的主键：预览动画要拿它
 	// 回 magpie-ops 取原文，本机不再重复存一份 HTML。
 	MagpieResultId string `json:"magpie_result_id,omitempty" gorm:"size:64"`
+	// PromptHash 是这次结果对应的题面指纹：改了题目之后旧分数不再和新分数同框。
+	PromptHash string `json:"prompt_hash,omitempty" gorm:"size:32"`
 }
 
 func (PelicanTestResult) TableName() string {
@@ -386,7 +388,7 @@ func GetLatestPelicanResults() (map[PelicanProbeTarget]*PelicanTestResult, error
 func GetPelicanSuccessfulResults(since int64) ([]PelicanTestResult, error) {
 	var results []PelicanTestResult
 	err := DB.Model(&PelicanTestResult{}).
-		Select("id, model_name, "+commonGroupCol+", channel_id, status, verdict, score, latency_ms, created_at").
+		Select("id, model_name, "+commonGroupCol+", channel_id, status, verdict, score, latency_ms, created_at, prompt_hash").
 		Where("created_at >= ? AND status = ?", since, "success").
 		Order("id DESC").
 		Find(&results).Error

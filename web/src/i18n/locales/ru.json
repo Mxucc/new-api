@@ -8409,6 +8409,7 @@
     "Delete this run": "Удалить эту запись",
     "Repeated bad runs drag the trend down: delete the wrong ones.": "Повторные неудачные записи занижают тренд: удалите ошибочные.",
     "The animation for this run could not be loaded.": "Не удалось загрузить анимацию этой записи.",
-    "{{percent}} available": "{{percent}} доступно"
+    "{{percent}} available": "{{percent}} доступно",
+    "The question comes from magpie-ops while it is linked; change it there and both sides follow.": "Пока magpie-ops подключён, вопрос задаётся там; измените его там — обе стороны подхватят."
   }
 }

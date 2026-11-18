@@ -8409,6 +8409,7 @@
     "Delete this run": "Xoá lần chạy này",
     "Repeated bad runs drag the trend down: delete the wrong ones.": "Nhiều lần chạy lỗi kéo xu hướng xuống: hãy xoá những lần bị chấm sai.",
     "The animation for this run could not be loaded.": "Không tải được hoạt ảnh của lần chạy này.",
-    "{{percent}} available": "{{percent}} khả dụng"
+    "{{percent}} available": "{{percent}} khả dụng",
+    "The question comes from magpie-ops while it is linked; change it there and both sides follow.": "Khi đã liên kết magpie-ops, câu hỏi được quản lý ở đó; sửa ở đó thì cả hai bên cùng theo."
   }
 }

@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"slices"
@@ -141,6 +143,31 @@ func pelicanSweepTargets(configured []model.PelicanProbeTarget, available []mode
 		targets = append(targets, target)
 	}
 	return targets
+}
+
+// pelicanQuestion 决定这一轮问什么：连上 magpie 就用它正在用的题面（题目只在一个地方
+// 维护），否则用本机配置或内置默认。第二个返回值是题面指纹，用来隔离不同题目的分数。
+func pelicanQuestion(cfg model.PelicanTestConfig) (string, string) {
+	if ask, err := magpiePelicanQuestion(context.Background(), cfg); err != nil {
+		common.SysLog(common.LogText("pelican magpie: cannot read the question: %s", err.Error()))
+	} else if ask.Question != "" {
+		return ask.Question, ask.Hash
+	}
+	question := cfg.EffectivePrompt()
+	sum := sha256.Sum256([]byte(question))
+	return question, hex.EncodeToString(sum[:8])
+}
+
+// pelicanKeepSameQuestion 只留和当前题面同一指纹的结果：改了题目之后，旧分数不进
+// 时间条、也不参与「沿用上一次成功」，免得两套标准串在一起。
+func pelicanKeepSameQuestion(results []model.PelicanTestResult, hash string) []model.PelicanTestResult {
+	kept := results[:0]
+	for _, record := range results {
+		if record.PromptHash == hash {
+			kept = append(kept, record)
+		}
+	}
+	return kept
 }
 
 // pelicanSweepPlan 读取巡视设置与当前可用组合，算出这一轮实际要测的组合。
@@ -369,6 +396,13 @@ func GetPelicanOverview(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	question, questionHash := pelicanQuestion(cfg)
+	successes = pelicanKeepSameQuestion(successes, questionHash)
+	for target, record := range latestSuccess {
+		if record.PromptHash != questionHash {
+			delete(latestSuccess, target)
+		}
+	}
 	// 两边同时显示：映射到 magpie 的分组看它的结论，没映射的分组看本机的探测。
 	targets := make([]model.PelicanProbeTarget, 0, len(cfg.Targets))
 	for _, target := range cfg.Targets {
@@ -455,7 +489,7 @@ func GetPelicanOverview(c *gin.Context) {
 			"models":           statuses,
 			"total":            len(statuses),
 			"latest_tested_at": latestTestedAt,
-			"prompt":           cfg.EffectivePrompt(),
+			"prompt":           question,
 			// 说明原样返回：为空时前端用自己翻译的默认文案，避免中文默认值出现在英文界面。
 			"description": cfg.Description,
 			// 页面据此决定是否继续轮询：整轮巡视或任一个格子还在测就每 5 秒刷一次。
@@ -523,7 +557,7 @@ func GetPelicanResult(c *gin.Context) {
 // runPelicanProbe 通过站点自己的渠道链路向一个模型问一次鹈鹕题面，并写好记录。
 // testUserID 是记账身份：探测照常写一条消费日志（令牌名 pelican-probe），记在
 // 保存巡视设置的管理员名下，管理员据此把巡视开销与真实调用分开核对。
-func runPelicanProbe(ctx context.Context, channel *model.Channel, modelName string, testUserID int, group string, prompt string) (*model.PelicanTestResult, error) {
+func runPelicanProbe(ctx context.Context, channel *model.Channel, modelName string, testUserID int, group string, prompt string, promptHash string) (*model.PelicanTestResult, error) {
 	probeCtx, cancel := context.WithTimeout(ctx, pelicanProbeTimeout)
 	defer cancel()
 
@@ -539,11 +573,12 @@ func runPelicanProbe(ctx context.Context, channel *model.Channel, modelName stri
 	latencyMs := time.Since(startedAt).Milliseconds()
 
 	record := &model.PelicanTestResult{
-		ModelName: modelName,
-		Group:     group,
-		ChannelId: channel.Id,
-		LatencyMs: latencyMs,
-		CreatedAt: time.Now().Unix(),
+		ModelName:  modelName,
+		Group:      group,
+		ChannelId:  channel.Id,
+		LatencyMs:  latencyMs,
+		CreatedAt:  time.Now().Unix(),
+		PromptHash: promptHash,
 	}
 	switch {
 	case result.newAPIError != nil:
@@ -674,6 +709,7 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 		return nil, errors.New("model does not accept chat completions")
 	}
 	cfg := model.GetPelicanTestConfig()
+	question, questionHash := pelicanQuestion(cfg)
 	// 映射给了 magpie 的分组：拿它 24 小时内的答案写进结果表，一次探测都不发。
 	// 这一步要排在找渠道之前——那边测的模型在本机未必有对应渠道。
 	if _, mapped := pelicanMagpieGroupFor(cfg, group); mapped {
@@ -681,6 +717,7 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 		if !ok {
 			return nil, errors.New("magpie-ops 还没有 " + group + "/" + modelName + " 的近期结果（已绑定 magpie 分组，new-api 不再自己探测）")
 		}
+		reused.Record.PromptHash = questionHash
 		if err := model.SavePelicanTestResult(reused.Record); err != nil {
 			return nil, err
 		}
@@ -696,6 +733,7 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 	// 联动开着时先问一句「这个分组里的这个模型，magpie-ops 刚测过吗」：
 	// 测智是整段回答，重复测就是重复花钱，而它给出的就是同一件事的答案。
 	if reused, ok := reuseMagpieResult(ctx, cfg, group, modelName, channel.Id); ok {
+		reused.Record.PromptHash = questionHash
 		if err := model.SavePelicanTestResult(reused.Record); err != nil {
 			return nil, err
 		}
@@ -705,7 +743,7 @@ func triggerPelicanTest(ctx context.Context, target model.PelicanProbeTarget, te
 		return reused.Record, nil
 	}
 	// 记录本身要往上带：一次巡视结束时用它汇总哪些分组降智了。
-	return runPelicanProbe(ctx, channel, modelName, testUserID, group, cfg.EffectivePrompt())
+	return runPelicanProbe(ctx, channel, modelName, testUserID, group, question, questionHash)
 }
 
 // runPelicanProbeTarget 跑一次探测并把失败原因写进系统日志：探测改成异步之后
